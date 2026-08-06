@@ -1,100 +1,129 @@
-# vinext-starter
+# 人資規程庫（HR Policy Center）
 
-A clean full-stack starter running on
-[vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
-Drizzle support.
+這是一個用於管理人事規程的網站。使用者可以搜尋與閱讀規程，建立或編輯規程內容，保留歷史版本、比較版本差異，並以繁體中文與日文分別維護內容。規程編輯區支援可直接輸入文字的表格。
 
-## Prerequisites
-
-- Node.js `>=22.13.0`
-
-## Quick Start
+## 使用方式
 
 ```bash
 npm install
 npm run dev
+```
+
+完成修改後，可用下列指令確認網站能正常建置：
+
+```bash
 npm run build
 ```
 
-This starter does not use `wrangler.jsonc`.
+## 主要功能
 
-## Included Shape
+- 規程瀏覽：依分類、名稱、編號搜尋與閱讀規程。
+- 新增與編輯：新增規程或調整既有規程，儲存時自動產生新版本。
+- 版本管理：查看每次儲存的歷史內容，並將舊版還原成一個新的版本。
+- 差異比較：選取兩個版本，標示文字的新增與刪除。
+- 多語言：同一份規程可分別編輯繁體中文與日文內容。
+- 表格編輯：新增表格，直接在儲存格輸入文字，並可增加列、欄或刪除表格。
 
-- edit site code under `app/`
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/schema.ts` starts intentionally empty
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
+## 資料保存方式
 
-## Workspace Auth Headers
+目前規程資料以瀏覽器的 `localStorage` 保存，鍵名為 `hr-policies-v5`。這表示資料保存在目前使用的瀏覽器與裝置中；不同電腦或瀏覽器之間不會自動同步。資料結構更新時會換用新的鍵名，以避免舊資料被錯誤解讀。
 
-Signed-in visitors receive both `oai-authenticated-user-id` and `oai-authenticated-user-email`. Private Sites require every visitor to sign in; public Sites may also have anonymous visitors, for whom neither header is present.
+若未來需要多人共用、權限控管或跨裝置同步，應改用 D1 資料庫作為正式資料來源。
 
-The user ID is stable for the same user on the same Site and different across Sites. Email and name are intended for display or contact purposes.
+## 檔案與資料夾說明
 
-SIWC-authenticated workspace sites may also receive
-`oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty
-`name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by
-`oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
+| 位置 | 用途 |
+| --- | --- |
+| `app/page.tsx` | 網站的主要頁面與所有規程管理互動功能。絕大多數產品功能都在此檔案。 |
+| `app/globals.css` | 全站樣式，包括側邊欄、規程卡片、版本比較視窗、語言切換和表格編輯器。 |
+| `app/layout.tsx` | 網站的根版面，設定 HTML 語言、網站標題、描述和共用 CSS 載入。 |
+| `app/chatgpt-auth.ts` | 可選用的 ChatGPT 登入輔助函式；目前規程頁面沒有呼叫它。 |
+| `app/_sites-preview/` | 建站範本原本提供的預覽骨架元件，目前主頁不使用。 |
+| `public/` | 靜態檔案，例如網站圖示。 |
+| `worker/index.ts` | Cloudflare Worker 的進入點，將請求交給 vinext，並處理圖片最佳化請求。 |
+| `build/sites-vite-plugin.ts` | Sites 平台使用的 Vite 建置外掛設定。 |
+| `vite.config.ts` | Vite、vinext 與 Cloudflare 本機開發環境設定。 |
+| `.openai/hosting.json` | Sites 發布設定，保存網站專案 ID；目前 D1 和 R2 都尚未啟用。 |
+| `package.json` | 套件清單與常用指令，例如開發、建置與測試。 |
+| `db/schema.ts` | 資料庫結構預留檔；目前沒有使用資料庫。 |
+| `db/index.ts` | 資料庫連線預留檔。 |
+| `drizzle.config.ts` | 未來啟用 D1／Drizzle 資料庫遷移時使用的設定。 |
+| `drizzle/` | Drizzle 遷移紀錄資料夾。 |
+| `examples/d1/` | D1 資料庫範例，不影響目前網站功能。 |
+| `tests/rendered-html.test.mjs` | 範本提供的基本渲染測試。 |
 
-Treat the full name as optional and fall back to email when it is absent:
+## `app/page.tsx` 詳解
 
-```tsx
-import { headers } from "next/headers";
+### 資料型別
 
-export default async function Home() {
-  const requestHeaders = await headers();
-  const userId = requestHeaders.get("oai-authenticated-user-id");
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
+| 型別／函式 | 用途 |
+| --- | --- |
+| `Lang` | 語言代碼，只允許 `zh`（繁體中文）或 `ja`（日文）。 |
+| `TableBlock` | 一個規程表格，包含唯一 `id` 與二維 `cells` 陣列；每個字串就是一個儲存格的內容。 |
+| `Copy` | 單一語言的規程內容：標題、摘要、全文與表格清單。 |
+| `Version` | 規程的一次歷史快照，含版本號、日期、說明與中日雙語內容。 |
+| `Policy` | 一份完整規程，含編號、分類、生效日、狀態及所有版本。 |
+| `c()` | 建立一個 `Copy` 物件的簡寫函式。 |
+| `v()` | 建立一個 `Version` 物件的簡寫函式。 |
+| `seed` | 首次開啟網站時使用的示範規程資料。 |
+| `current(policy)` | 回傳該規程最後一筆版本，也就是目前生效的內容。 |
+| `nextVersion(number)` | 將次版本號加一，例如 `3.2` 變成 `3.3`。 |
+| `blank()` | 建立一份空白草稿規程，供「新增規程」按鈕使用。 |
 
-  const displayName = fullName ?? email;
-  // ...
-}
-```
+### 畫面元件
 
-## Optional Dispatch-Owned ChatGPT Sign-In
+| 元件 | 用途 |
+| --- | --- |
+| `PolicyTables` | 閱讀模式的表格顯示元件。第一列會以表頭樣式呈現。 |
+| `TableEditor` | 編輯模式的表格工具。提供新增表格、直接打字、新增列、新增欄與刪除表格功能。 |
+| `Home` | 主頁元件，負責清單、閱讀、編輯、版本紀錄、版本比較及語言切換。 |
 
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs
-optional or required ChatGPT sign-in:
+### `Home` 的主要狀態
 
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send
-  anonymous visitors through Sign in with ChatGPT.
-- Use `chatGPTSignInPath(returnTo)` and `chatGPTSignOutPath(returnTo)` for
-  browser links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in
-  or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because
-  they depend on per-request identity headers.
+| 狀態 | 用途 |
+| --- | --- |
+| `items` | 所有規程資料。 |
+| `selectedId` | 目前正在閱讀或編輯的規程 ID。 |
+| `lang` | 目前畫面顯示與編輯的語言。 |
+| `query`、`category` | 搜尋文字與分類篩選條件。 |
+| `editing` | 控制目前是閱讀模式還是編輯模式。 |
+| `draft` | 編輯中的暫存規程；取消編輯時不會寫回正式資料。 |
+| `modal` | 控制版本紀錄或差異比較視窗是否開啟。 |
+| `compare` | 差異比較時所選的舊版與新版索引。 |
+| `notice` | 儲存或還原成功時顯示的短暫通知。 |
 
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the
-OAuth cookies, and identity header injection. Do not implement app routes for
-those reserved paths. Routes that do not import and call the helper remain
-anonymous-compatible.
+### `Home` 的主要函式
 
-SIWC establishes identity only; it does not prove workspace membership. Use the
-Sites hosting platform's access policy controls for workspace-wide restrictions,
-or enforce explicit server-side membership or allowlist checks.
+| 函式 | 做什麼 |
+| --- | --- |
+| `persist(next)` | 更新畫面上的規程資料，並同步寫入瀏覽器儲存空間。 |
+| `open(policy)` | 選取一份規程，切回閱讀模式並關閉版本視窗。 |
+| `updateCopy(field, value)` | 更新目前語言的標題、摘要、全文或表格；修改只會先存在 `draft`。 |
+| `save(event)` | 送出編輯表單。既有規程會遞增版本號並保留新快照；新規程則建立第一版。 |
+| `restore(version)` | 把指定歷史版本複製成最新版本，不會覆蓋或刪除原有紀錄。 |
+| `diff(oldText, newText)` | 將兩段全文拆成段落，比對後回傳相同、刪除與新增的項目，用於差異比較視窗。 |
 
-Use SIWC for account pages, user-specific dashboards, saved records, and write
-actions tied to the current ChatGPT user. Leave public content anonymous.
+### `TableEditor` 的主要函式
 
-## Useful Commands
+| 函式 | 做什麼 |
+| --- | --- |
+| `add()` | 新增預設 2 列 × 3 欄的表格。 |
+| `update(table, row, column, value)` | 在使用者輸入時更新指定儲存格文字。 |
+| `addRow(table)` | 在指定表格尾端增加一列空白儲存格。 |
+| `addCol(table)` | 在指定表格右側增加一欄空白儲存格。 |
 
-- `npm run dev`: start local development
-- `npm run build`: verify the vinext build output
-- `npm test`: build the starter and verify its rendered loading skeleton
-- `npm run db:generate`: generate Drizzle migrations after schema changes
+## 常用指令
 
-## Learn More
+| 指令 | 用途 |
+| --- | --- |
+| `npm run dev` | 啟動本機開發網站。 |
+| `npm run build` | 建置並檢查正式部署版本。 |
+| `npm test` | 執行範本測試。 |
+| `npm run db:generate` | 未來變更資料庫結構後產生 Drizzle 遷移檔。 |
 
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+## 維護建議
+
+1. 修改規程功能時，優先調整 `app/page.tsx` 的資料型別與 `save()` 流程，確保每次修改都能正確建立版本。
+2. 新增可保存的欄位時，應同時更新 `Copy` 或 `Policy` 型別、`blank()` 預設資料，以及編輯／閱讀兩種畫面。
+3. 調整表格外觀時，在 `app/globals.css` 搜尋 `policy-table`、`table-editor` 或 `editable-table`。
+4. 要支援多人同步前，先啟用 D1，將目前 `localStorage` 的 `persist()` 邏輯改為呼叫後端 API。
