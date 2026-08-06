@@ -2,76 +2,33 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
-type Regulation = {
-  id: number;
-  title: string;
-  category: string;
-  code: string;
-  version: string;
-  effectiveDate: string;
-  updatedAt: string;
-  status: "現行" | "草稿";
-  summary: string;
-  content: string;
-};
-
-const initialRegulations: Regulation[] = [
-  { id: 1, title: "員工聘僱與任用規程", category: "任用管理", code: "HR-001", version: "3.2", effectiveDate: "2025-01-01", updatedAt: "2025-01-06", status: "現行", summary: "規範招募、任用、試用及正式聘僱的作業原則。", content: "第一條　為建立公平、透明之任用制度，特訂定本規程。\n\n第二條　各職缺應依核准編制及職務說明書辦理招募。\n\n第三條　新進人員試用期原則為三個月，期滿由主管完成考核。" },
-  { id: 2, title: "出勤與請假管理規程", category: "出勤休假", code: "HR-002", version: "2.8", effectiveDate: "2024-07-01", updatedAt: "2024-06-18", status: "現行", summary: "說明工作時間、打卡、加班、各類假別及申請程序。", content: "第一條　員工應依公司規定時間出勤並完成打卡。\n\n第二條　請假應於系統提出申請，並檢附必要證明文件。\n\n第三條　加班須經主管事前核准，並依相關規定辦理。" },
-  { id: 3, title: "績效考核與獎酬規程", category: "績效發展", code: "HR-003", version: "1.9", effectiveDate: "2025-01-01", updatedAt: "2024-12-20", status: "現行", summary: "建立目標設定、績效評估、回饋與獎酬連結原則。", content: "第一條　績效考核以職務目標、能力展現及行為表現為評量基礎。\n\n第二條　年度考核於每年十二月辦理，結果作為薪酬調整及人才發展參考。" },
-  { id: 4, title: "員工教育訓練規程", category: "人才培育", code: "HR-004", version: "1.4", effectiveDate: "2024-03-01", updatedAt: "2024-02-15", status: "現行", summary: "規範新進訓練、專業培訓與學習發展資源。", content: "第一條　公司依組織及個人發展需要，規劃年度教育訓練。\n\n第二條　員工參與外訓前，應完成申請與核准程序。" },
-  { id: 5, title: "彈性工作與遠距辦公規程", category: "出勤休假", code: "HR-005", version: "0.9", effectiveDate: "", updatedAt: "2025-01-10", status: "草稿", summary: "規範遠距工作資格、申請流程與資訊安全責任。", content: "第一條　本規程適用於經核准採彈性或遠距工作模式之員工。\n\n第二條　申請人應與主管確認工作目標、聯繫時段及資訊安全措施。" },
+type Lang = "zh" | "en";
+type Text = { title: string; summary: string; content: string };
+type Version = { id: string; number: string; date: string; note: string; text: Record<Lang, Text> };
+type Policy = { id: number; code: string; category: string; effectiveDate: string; status: "現行" | "草稿"; versions: Version[] };
+const copy = (title:string, summary:string, content:string):Text => ({title,summary,content});
+const seed:Policy[] = [
+ {id:1,code:"HR-001",category:"任用管理",effectiveDate:"2025-01-01",status:"現行",versions:[
+  {id:"a",number:"3.1",date:"2024-08-01",note:"調整試用期考核流程",text:{zh:copy("員工聘僱與任用規程","規範招募、任用、試用及正式聘僱的作業原則。","第一條　為建立公平之任用制度，特訂定本規程。\n\n第二條　各職缺應依核准編制辦理招募。"),en:copy("Employment & Appointment Policy","Principles for recruitment, appointment, probation, and employment.","Article 1  This policy establishes a fair appointment system.\n\nArticle 2  Recruitment shall follow approved staffing plans.")}},
+  {id:"b",number:"3.2",date:"2025-01-06",note:"現行版本：補充職務說明與考核流程",text:{zh:copy("員工聘僱與任用規程","規範招募、任用、試用及正式聘僱的作業原則。","第一條　為建立公平、透明之任用制度，特訂定本規程。\n\n第二條　各職缺應依核准編制及職務說明書辦理招募。\n\n第三條　新進人員試用期原則為三個月，期滿由主管完成考核。"),en:copy("Employment & Appointment Policy","Principles for recruitment, appointment, probation, and employment.","Article 1  This policy establishes a fair and transparent appointment system.\n\nArticle 2  Recruitment shall follow approved staffing plans and job descriptions.\n\nArticle 3  The standard probation period is three months, followed by a manager review.")}}
+ ]},
+ {id:2,code:"HR-002",category:"出勤休假",effectiveDate:"2024-07-01",status:"現行",versions:[{id:"c",number:"2.8",date:"2024-06-18",note:"現行版本",text:{zh:copy("出勤與請假管理規程","說明工作時間、打卡、加班、各類假別及申請程序。","第一條　員工應依公司規定時間出勤並完成打卡。\n\n第二條　請假應於系統提出申請，並檢附必要證明文件。\n\n第三條　加班須經主管事前核准，並依相關規定辦理。"),en:copy("Attendance & Leave Policy","Working hours, attendance, overtime, leave categories, and application procedures.","Article 1  Employees shall attend work on time and complete attendance records.\n\nArticle 2  Leave must be requested through the system with supporting documents.\n\nArticle 3  Overtime requires prior manager approval.")}}]},
+ {id:3,code:"HR-003",category:"績效發展",effectiveDate:"2025-01-01",status:"現行",versions:[{id:"d",number:"1.9",date:"2024-12-20",note:"現行版本",text:{zh:copy("績效考核與獎酬規程","建立目標設定、績效評估、回饋與獎酬連結原則。","第一條　績效考核以職務目標、能力展現及行為表現為評量基礎。\n\n第二條　年度考核於每年十二月辦理，結果作為薪酬調整及人才發展參考。"),en:copy("Performance & Reward Policy","Principles for goal setting, performance assessment, feedback, and rewards.","Article 1  Performance is evaluated on goals, competency, and behavior.\n\nArticle 2  Annual reviews are held each December and inform compensation and development.")}}]}
 ];
+const current=(p:Policy)=>p.versions[p.versions.length-1];
+const nextVersion=(value:string)=>{const [major,minor]=value.split(".").map(Number);return `${major}.${minor+1}`};
+const newPolicy=():Policy=>({id:Date.now(),code:"",category:"任用管理",effectiveDate:"",status:"草稿",versions:[{id:String(Date.now()),number:"1.0",date:new Date().toISOString().slice(0,10),note:"建立規程",text:{zh:copy("","",""),en:copy("","","")}}]});
 
-const blankRegulation = (): Regulation => ({ id: Date.now(), title: "", category: "任用管理", code: "", version: "1.0", effectiveDate: "", updatedAt: new Date().toISOString().slice(0, 10), status: "草稿", summary: "", content: "" });
-
-export default function Home() {
-  const [regulations, setRegulations] = useState(initialRegulations);
-  const [selectedId, setSelectedId] = useState(1);
-  const [query, setQuery] = useState("");
-  const [category, setCategory] = useState("全部分類");
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState<Regulation>(initialRegulations[0]);
-  const [notice, setNotice] = useState("");
-
-  useEffect(() => {
-    const saved = localStorage.getItem("hr-regulations");
-    if (saved) {
-      const parsed = JSON.parse(saved) as Regulation[];
-      setRegulations(parsed);
-      if (parsed.length) { setSelectedId(parsed[0].id); setDraft(parsed[0]); }
-    }
-  }, []);
-
-  const selected = regulations.find((item) => item.id === selectedId) ?? regulations[0];
-  const categories = ["全部分類", ...Array.from(new Set(regulations.map((item) => item.category)))];
-  const filtered = useMemo(() => regulations.filter((item) => (category === "全部分類" || item.category === category) && `${item.title} ${item.code} ${item.summary}`.toLowerCase().includes(query.toLowerCase())), [regulations, category, query]);
-
-  function openRegulation(item: Regulation) { setSelectedId(item.id); setDraft(item); setEditing(false); }
-  function createRegulation() { const next = blankRegulation(); setDraft(next); setSelectedId(next.id); setEditing(true); }
-  function save(event: FormEvent) {
-    event.preventDefault();
-    const updated = { ...draft, updatedAt: new Date().toISOString().slice(0, 10) };
-    const exists = regulations.some((item) => item.id === updated.id);
-    const next = exists ? regulations.map((item) => item.id === updated.id ? updated : item) : [updated, ...regulations];
-    setRegulations(next); setSelectedId(updated.id); setDraft(updated); setEditing(false); localStorage.setItem("hr-regulations", JSON.stringify(next)); setNotice("規程已儲存"); setTimeout(() => setNotice(""), 2400);
-  }
-
-  return <main>
-    <aside className="sidebar">
-      <div className="brand"><span className="brand-mark">人</span><div><strong>人資規程庫</strong><small>HR Policy Center</small></div></div>
-      <nav><a className="active" href="#library"><span>▦</span> 規程資料庫</a><a href="#about"><span>◷</span> 修訂紀錄</a><a href="#about"><span>⚙</span> 系統設定</a></nav>
-      <div className="sidebar-foot"><div className="avatar">王</div><div><b>王小明</b><small>人力資源部</small></div><button aria-label="登出">⌄</button></div>
-    </aside>
-    <section className="workspace" id="library">
-      <header><div><p className="eyebrow">人力資源管理系統</p><h1>人事規程資料庫</h1><p className="sub">集中管理、即時更新，讓每項制度都有清楚依據。</p></div><button className="primary" onClick={createRegulation}>＋ 新增規程</button></header>
-      {notice && <div className="notice">✓ {notice}</div>}
-      <div className="metrics"><div><span>現行規程</span><b>{regulations.filter(r => r.status === "現行").length}</b><em>項</em></div><div><span>待發布草稿</span><b>{regulations.filter(r => r.status === "草稿").length}</b><em>項</em></div><div><span>本月已更新</span><b>3</b><em>項</em></div></div>
-      <div className="toolbar"><label className="search">⌕ <input value={query} onChange={e => setQuery(e.target.value)} placeholder="搜尋規程名稱、編號或關鍵字" /></label><select value={category} onChange={e => setCategory(e.target.value)}>{categories.map(c => <option key={c}>{c}</option>)}</select><span className="result-count">共 {filtered.length} 項</span></div>
-      <div className="content-grid">
-        <div className="reg-list">{filtered.map(item => <button key={item.id} className={`reg-card ${selectedId === item.id ? "selected" : ""}`} onClick={() => openRegulation(item)}><div className="card-top"><span className="code">{item.code}</span><span className={`status ${item.status === "草稿" ? "draft" : ""}`}>{item.status}</span></div><h3>{item.title}</h3><p>{item.summary}</p><footer><span>{item.category}</span><time>更新於 {item.updatedAt}</time></footer></button>)}{filtered.length === 0 && <div className="empty">找不到符合的規程</div>}</div>
-        <article className="detail">{editing ? <form onSubmit={save}><div className="detail-head"><div><p className="eyebrow">{draft.id && regulations.some(r => r.id === draft.id) ? "編輯規程" : "新增規程"}</p><h2>規程內容</h2></div><div className="actions"><button type="button" className="ghost" onClick={() => { setDraft(selected); setEditing(false); }}>取消</button><button className="primary" type="submit">儲存規程</button></div></div><div className="form-grid"><label>規程名稱<input required value={draft.title} onChange={e => setDraft({...draft,title:e.target.value})} /></label><label>規程編號<input required placeholder="例如 HR-006" value={draft.code} onChange={e => setDraft({...draft,code:e.target.value})} /></label><label>分類<select value={draft.category} onChange={e => setDraft({...draft,category:e.target.value})}>{["任用管理","出勤休假","績效發展","人才培育","薪酬福利"].map(x => <option key={x}>{x}</option>)}</select></label><label>版本<input value={draft.version} onChange={e => setDraft({...draft,version:e.target.value})} /></label><label>生效日期<input type="date" value={draft.effectiveDate} onChange={e => setDraft({...draft,effectiveDate:e.target.value})} /></label><label>狀態<select value={draft.status} onChange={e => setDraft({...draft,status:e.target.value as Regulation["status"]})}><option>草稿</option><option>現行</option></select></label></div><label>摘要<textarea rows={2} value={draft.summary} onChange={e => setDraft({...draft,summary:e.target.value})} /></label><label>規程全文<textarea className="policy-editor" rows={12} value={draft.content} onChange={e => setDraft({...draft,content:e.target.value})} /></label></form> : selected && <><div className="detail-head"><div><p className="eyebrow">{selected.category} · {selected.code}</p><h2>{selected.title}</h2><div className="detail-meta"><span className={`status ${selected.status === "草稿" ? "draft" : ""}`}>{selected.status}</span><span>版本 {selected.version}</span><span>生效日 {selected.effectiveDate || "待定"}</span></div></div><button className="edit" onClick={() => { setDraft(selected); setEditing(true); }}>✎ 編輯規程</button></div><div className="summary"><b>規程摘要</b><p>{selected.summary}</p></div><div className="policy-text">{selected.content.split("\n").map((line, i) => <p key={i}>{line || "　"}</p>)}</div><footer className="detail-foot">最後更新：{selected.updatedAt}　·　版本 {selected.version}</footer></>}</article>
-      </div>
-    </section>
-  </main>;
+export default function Home(){
+ const [policies,setPolicies]=useState(seed),[id,setId]=useState(1),[lang,setLang]=useState<Lang>("zh"),[query,setQuery]=useState(""),[category,setCategory]=useState("全部分類"),[editing,setEditing]=useState(false),[draft,setDraft]=useState(seed[0]),[modal,setModal]=useState<"history"|"compare"|null>(null),[compare,setCompare]=useState([0,1]),[notice,setNotice]=useState("");
+ useEffect(()=>{const s=localStorage.getItem("hr-policies-v3");if(s){const x=JSON.parse(s) as Policy[];setPolicies(x);setId(x[0]?.id||1);setDraft(x[0]||seed[0])}},[]);
+ const selected=policies.find(x=>x.id===id)||policies[0],active=current(selected);const categories=["全部分類",...Array.from(new Set(policies.map(x=>x.category)))];
+ const shown=useMemo(()=>policies.filter(x=>(category==="全部分類"||x.category===category)&&`${current(x).text.zh.title} ${current(x).text.en.title} ${x.code}`.toLowerCase().includes(query.toLowerCase())),[policies,category,query]);
+ const persist=(next:Policy[])=>{setPolicies(next);localStorage.setItem("hr-policies-v3",JSON.stringify(next))};
+ const open=(p:Policy)=>{setId(p.id);setDraft(p);setEditing(false);setModal(null)};
+ const updateText=(key:keyof Text,value:string)=>setDraft(d=>{const v=current(d);return {...d,versions:[...d.versions.slice(0,-1),{...v,text:{...v.text,[lang]:{...v.text[lang],[key]:value}}}]}});
+ function save(e:FormEvent){e.preventDefault();const exists=policies.some(x=>x.id===draft.id);const old=current(draft);const v={...old,id:String(Date.now()),number:exists?nextVersion(old.number):old.number,date:new Date().toISOString().slice(0,10),note:exists?"內容更新":"建立規程"};const saved={...draft,versions:exists?[...draft.versions.slice(0,-1),v]:[v]};const next=exists?policies.map(x=>x.id===saved.id?saved:x):[saved,...policies];persist(next);setId(saved.id);setDraft(saved);setEditing(false);setNotice(`已建立版本 ${v.number}`);setTimeout(()=>setNotice(""),2400)}
+ const restore=(v:Version)=>{const n={...selected,versions:[...selected.versions,{...v,id:String(Date.now()),number:nextVersion(active.number),date:new Date().toISOString().slice(0,10),note:`還原自版本 ${v.number}`}]};persist(policies.map(x=>x.id===n.id?n:x));setDraft(n);setModal(null);setNotice(`已還原並建立版本 ${current(n).number}`);setTimeout(()=>setNotice(""),2400)};
+ const diff=(old:string,latest:string)=>{const a=old.split("\n").filter(Boolean),b=latest.split("\n").filter(Boolean);return [...a.map(t=>({t,k:b.includes(t)?"same":"remove"})),...b.filter(t=>!a.includes(t)).map(t=>({t,k:"add"}))]};
+ return <main><aside className="sidebar"><div className="brand"><span className="brand-mark">人</span><div><strong>人資規程庫</strong><small>HR POLICY CENTER</small></div></div><nav><a className="active" href="#library"><span>▦</span> 規程資料庫</a><a href="#versions"><span>◷</span> 版本管理</a><a href="#languages"><span>◎</span> 多語言管理</a></nav><div className="sidebar-foot"><div className="avatar">王</div><div><b>王小明</b><small>人力資源部</small></div></div></aside><section className="workspace" id="library"><header><div><p className="eyebrow">人力資源管理系統</p><h1>人事規程資料庫</h1><p className="sub">集中管理、版本留存，讓每項制度都有清楚依據。</p></div><button className="primary" onClick={()=>{const p=newPolicy();setDraft(p);setId(p.id);setEditing(true)}}>＋ 新增規程</button></header>{notice&&<div className="notice">✓ {notice}</div>}<div className="metrics"><div><span>現行規程</span><b>{policies.filter(x=>x.status==="現行").length}</b><em>項</em></div><div><span>已保存版本</span><b>{policies.reduce((a,x)=>a+x.versions.length,0)}</b><em>版</em></div><div><span>支援語言</span><b>2</b><em>種</em></div></div><div className="toolbar"><label className="search">⌕ <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="搜尋規程名稱、編號或關鍵字"/></label><select value={category} onChange={e=>setCategory(e.target.value)}>{categories.map(x=><option key={x}>{x}</option>)}</select><span className="result-count">共 {shown.length} 項</span></div><div className="content-grid"><div className="reg-list">{shown.map(p=><button key={p.id} className={`reg-card ${p.id===id?"selected":""}`} onClick={()=>open(p)}><div className="card-top"><span className="code">{p.code}</span><span className={`status ${p.status==="草稿"?"draft":""}`}>{p.status}</span></div><h3>{current(p).text[lang].title||current(p).text.zh.title}</h3><p>{current(p).text[lang].summary||current(p).text.zh.summary}</p><footer><span>{p.category}</span><time>v{current(p).number} · {current(p).date}</time></footer></button>)}</div><article className="detail"><div className="detail-head"><div><p className="eyebrow">{selected.category} · {selected.code||"NEW"}</p><h2>{editing?"編輯規程":active.text[lang].title}</h2>{!editing&&<div className="detail-meta"><span className={`status ${selected.status==="草稿"?"draft":""}`}>{selected.status}</span><span>版本 {active.number}</span><span>生效日 {selected.effectiveDate||"待定"}</span></div>}</div>{!editing&&<div className="actions"><button className="ghost" onClick={()=>setModal("history")}>◷ 版本紀錄</button><button className="ghost" onClick={()=>{setCompare([Math.max(0,selected.versions.length-2),selected.versions.length-1]);setModal("compare")}}>⇄ 比較版本</button><button className="edit" onClick={()=>{setDraft(selected);setEditing(true)}}>✎ 編輯</button></div>}</div><div className="language-bar" id="languages"><span>顯示語言</span><button className={lang==="zh"?"selected-lang":""} onClick={()=>setLang("zh")}>繁體中文</button><button className={lang==="en"?"selected-lang":""} onClick={()=>setLang("en")}>English</button><span className="translation">● {active.text.en.content?"英文內容已完成":"待翻譯"}</span></div>{editing?<form onSubmit={save}><div className="form-grid"><label>規程編號<input required value={draft.code} onChange={e=>setDraft({...draft,code:e.target.value})}/></label><label>分類<select value={draft.category} onChange={e=>setDraft({...draft,category:e.target.value})}>{["任用管理","出勤休假","績效發展","人才培育","薪酬福利"].map(x=><option key={x}>{x}</option>)}</select></label><label>生效日期<input type="date" value={draft.effectiveDate} onChange={e=>setDraft({...draft,effectiveDate:e.target.value})}/></label><label>狀態<select value={draft.status} onChange={e=>setDraft({...draft,status:e.target.value as Policy["status"]})}><option>草稿</option><option>現行</option></select></label></div><div className="edit-language"><b>正在編輯：{lang==="zh"?"繁體中文":"English"}</b><div><button type="button" className={lang==="zh"?"selected-lang":""} onClick={()=>setLang("zh")}>繁中</button><button type="button" className={lang==="en"?"selected-lang":""} onClick={()=>setLang("en")}>EN</button></div></div><label>規程名稱<input required value={current(draft).text[lang].title} onChange={e=>updateText("title",e.target.value)}/></label><label>摘要<textarea rows={2} value={current(draft).text[lang].summary} onChange={e=>updateText("summary",e.target.value)}/></label><label>規程全文<textarea className="policy-editor" rows={10} value={current(draft).text[lang].content} onChange={e=>updateText("content",e.target.value)}/></label><div className="form-actions"><button type="button" className="ghost" onClick={()=>{setDraft(selected);setEditing(false)}}>取消</button><button className="primary">儲存並建立新版</button></div></form>:<><div className="summary"><b>{lang==="zh"?"規程摘要":"Summary"}</b><p>{active.text[lang].summary}</p></div><div className="policy-text">{active.text[lang].content.split("\n").map((x,i)=><p key={i}>{x||"　"}</p>)}</div><footer className="detail-foot">最後更新：{active.date}　·　版本 {active.number}</footer></>}{modal&&<div className="modal-backdrop" onClick={()=>setModal(null)}><section className="modal" onClick={e=>e.stopPropagation()} id="versions">{modal==="history"?<><div className="modal-head"><div><p className="eyebrow">VERSION HISTORY</p><h2>版本紀錄</h2></div><button className="close" onClick={()=>setModal(null)}>×</button></div><p className="modal-note">還原時會另建新版，不會覆蓋既有紀錄。</p><div className="timeline">{[...selected.versions].reverse().map((v,i)=><div className="version-row" key={v.id}><span className="dot"></span><div><b>版本 {v.number}</b><p>{v.note}</p><small>{v.date}</small></div>{i===0?<span className="current">目前版本</span>:<button className="ghost" onClick={()=>restore(v)}>還原此版</button>}</div>)}</div></>:<><div className="modal-head"><div><p className="eyebrow">VERSION COMPARISON</p><h2>版本差異比較</h2></div><button className="close" onClick={()=>setModal(null)}>×</button></div><div className="compare-pickers"><label>舊版本<select value={compare[0]} onChange={e=>setCompare([+e.target.value,compare[1]])}>{selected.versions.map((v,i)=><option key={v.id} value={i}>v{v.number} · {v.date}</option>)}</select></label><span>→</span><label>新版本<select value={compare[1]} onChange={e=>setCompare([compare[0],+e.target.value])}>{selected.versions.map((v,i)=><option key={v.id} value={i}>v{v.number} · {v.date}</option>)}</select></label></div><div className="diff-legend"><span className="added">＋ 新增</span><span className="removed">－ 刪除</span><span>未標示為相同內容</span></div><div className="diff-box">{diff(selected.versions[compare[0]]?.text[lang].content||"",selected.versions[compare[1]]?.text[lang].content||"").map((r,i)=><p key={i} className={r.k}>{r.k==="add"?"+ ":r.k==="remove"?"− ":"　"}{r.t}</p>)}</div></>}</section></div>}</article></div></section></main>
 }
