@@ -1,28 +1,909 @@
 "use client";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
-type Lang="zh"|"ja"; type Role="admin"|"employee"; type Status="草稿"|"發布"|"停用";
-type Copy={title:string;summary:string;content:string;tables:string[][][]};
-type Version={id:string;number:string;publishedAt:string;copy:Record<Lang,Copy>};
-type Policy={id:number;code:string;category:string;effectiveDate:string;status:Status;draft:Record<Lang,Copy>;versions:Version[]};
-type Audit={id:string;at:string;actor:string;action:"新增"|"修改草稿"|"發布"|"停用"|"還原";policy:string;code:string;before:string;after:string};
-const emptyCopy=():Copy=>({title:"",summary:"",content:"",tables:[]});
-const copy=(title:string,summary:string,content:string,tables:string[][][]=[]):Copy=>({title,summary,content,tables});
-const initial:Policy[]=[{id:1,code:"HR-001",category:"任用管理",effectiveDate:"2025-01-01",status:"發布",draft:{zh:copy("員工聘僱與任用規程","規範招募、任用、試用及正式聘僱的作業原則。","第一條　為建立公平、透明之任用制度，特訂定本規程。\n\n第二條　各職缺應依核准編制及職務說明書辦理招募。",[["項目","說明","負責單位"],["招募","依職務說明書辦理","人力資源部"]]),ja:copy("雇用・任用規程","採用、任用、試用及び正式雇用に関する基本原則を定めます。","第1条　公正で透明な任用制度を確立するため、本規程を定める。\n\n第2条　各求人は承認された人員計画および職務記述書に基づき採用する。",[["項目","内容","担当部署"],["採用","職務記述書に基づき実施","人事部"]])},versions:[{id:"1",number:"3.2",publishedAt:"2025-01-06",copy:{zh:copy("員工聘僱與任用規程","規範招募、任用、試用及正式聘僱的作業原則。","第一條　為建立公平、透明之任用制度，特訂定本規程。\n\n第二條　各職缺應依核准編制及職務說明書辦理招募。",[["項目","說明","負責單位"],["招募","依職務說明書辦理","人力資源部"]]),ja:copy("雇用・任用規程","採用、任用、試用及び正式雇用に関する基本原則を定めます。","第1条　公正で透明な任用制度を確立するため、本規程を定める。\n\n第2条　各求人は承認された人員計画および職務記述書に基づき採用する。",[["項目","内容","担当部署"],["採用","職務記述書に基づき実施","人事部"]])}}]},{id:2,code:"HR-002",category:"出勤休假",effectiveDate:"2024-07-01",status:"發布",draft:{zh:copy("出勤與請假管理規程","說明工作時間、打卡、加班、各類假別及申請程序。","第一條　員工應依公司規定時間出勤並完成打卡。\n\n第二條　請假應於系統提出申請。"),ja:copy("勤怠・休暇管理規程","勤務時間、勤怠記録、残業、休暇および申請手続を定めます。","第1条　従業員は会社の定める時間に出勤し、勤怠記録を行う。\n\n第2条　休暇はシステムで申請する。")},versions:[{id:"2",number:"2.8",publishedAt:"2024-06-18",copy:{zh:copy("出勤與請假管理規程","說明工作時間、打卡、加班、各類假別及申請程序。","第一條　員工應依公司規定時間出勤並完成打卡。\n\n第二條　請假應於系統提出申請。"),ja:copy("勤怠・休暇管理規程","勤務時間、勤怠記録、残業、休暇および申請手続を定めます。","第1条　従業員は会社の定める時間に出勤し、勤怠記録を行う。\n\n第2条　休暇はシステムで申請する。")}}]}];
-const clone=<T,>(x:T):T=>JSON.parse(JSON.stringify(x)); const nextV=(v:string)=>{const[a,b]=v.split(".").map(Number);return `${a}.${b+1}`}; const now=()=>new Date().toLocaleString("zh-TW");
-const normalizeTables=(value:unknown):string[][][]=>{if(!Array.isArray(value)||value.length===0)return[];if(Array.isArray(value[0])&&typeof value[0][0]==="string")return[(value as string[][]).map(row=>Array.isArray(row)?row.map(cell=>String(cell)):[])];return value.filter(Array.isArray).map(table=>(table as unknown[]).filter(Array.isArray).map(row=>(row as unknown[]).map(cell=>String(cell))));};
+type Lang = "zh" | "ja";
+type Role = "admin" | "employee";
+type Status = "草稿" | "發布" | "停用";
+type Copy = {
+  title: string;
+  summary: string;
+  content: string;
+  tables: string[][][];
+};
+type Version = {
+  id: string;
+  number: string;
+  publishedAt: string;
+  copy: Record<Lang, Copy>;
+};
+type Policy = {
+  id: number;
+  code: string;
+  category: string;
+  effectiveDate: string;
+  status: Status;
+  draft: Record<Lang, Copy>;
+  versions: Version[];
+};
+type Audit = {
+  id: string;
+  at: string;
+  actor: string;
+  action: "新增" | "修改草稿" | "發布" | "停用" | "還原";
+  policy: string;
+  code: string;
+  before: string;
+  after: string;
+  fromVersion?: string;
+  toVersion?: string;
+  changes?: string[];
+};
+const emptyCopy = (): Copy => ({
+  title: "",
+  summary: "",
+  content: "",
+  tables: [],
+});
+const copy = (
+  title: string,
+  summary: string,
+  content: string,
+  tables: string[][][] = [],
+): Copy => ({ title, summary, content, tables });
+const initial: Policy[] = [
+  {
+    id: 1,
+    code: "HR-001",
+    category: "任用管理",
+    effectiveDate: "2025-01-01",
+    status: "發布",
+    draft: {
+      zh: copy(
+        "員工聘僱與任用規程",
+        "規範招募、任用、試用及正式聘僱的作業原則。",
+        "第一條　為建立公平、透明之任用制度，特訂定本規程。\n\n第二條　各職缺應依核准編制及職務說明書辦理招募。",
+        [
+          ["項目", "說明", "負責單位"],
+          ["招募", "依職務說明書辦理", "人力資源部"],
+        ],
+      ),
+      ja: copy(
+        "雇用・任用規程",
+        "採用、任用、試用及び正式雇用に関する基本原則を定めます。",
+        "第1条　公正で透明な任用制度を確立するため、本規程を定める。\n\n第2条　各求人は承認された人員計画および職務記述書に基づき採用する。",
+        [
+          ["項目", "内容", "担当部署"],
+          ["採用", "職務記述書に基づき実施", "人事部"],
+        ],
+      ),
+    },
+    versions: [
+      {
+        id: "1",
+        number: "3.2",
+        publishedAt: "2025-01-06",
+        copy: {
+          zh: copy(
+            "員工聘僱與任用規程",
+            "規範招募、任用、試用及正式聘僱的作業原則。",
+            "第一條　為建立公平、透明之任用制度，特訂定本規程。\n\n第二條　各職缺應依核准編制及職務說明書辦理招募。",
+            [
+              ["項目", "說明", "負責單位"],
+              ["招募", "依職務說明書辦理", "人力資源部"],
+            ],
+          ),
+          ja: copy(
+            "雇用・任用規程",
+            "採用、任用、試用及び正式雇用に関する基本原則を定めます。",
+            "第1条　公正で透明な任用制度を確立するため、本規程を定める。\n\n第2条　各求人は承認された人員計画および職務記述書に基づき採用する。",
+            [
+              ["項目", "内容", "担当部署"],
+              ["採用", "職務記述書に基づき実施", "人事部"],
+            ],
+          ),
+        },
+      },
+    ],
+  },
+  {
+    id: 2,
+    code: "HR-002",
+    category: "出勤休假",
+    effectiveDate: "2024-07-01",
+    status: "發布",
+    draft: {
+      zh: copy(
+        "出勤與請假管理規程",
+        "說明工作時間、打卡、加班、各類假別及申請程序。",
+        "第一條　員工應依公司規定時間出勤並完成打卡。\n\n第二條　請假應於系統提出申請。",
+      ),
+      ja: copy(
+        "勤怠・休暇管理規程",
+        "勤務時間、勤怠記録、残業、休暇および申請手続を定めます。",
+        "第1条　従業員は会社の定める時間に出勤し、勤怠記録を行う。\n\n第2条　休暇はシステムで申請する。",
+      ),
+    },
+    versions: [
+      {
+        id: "2",
+        number: "2.8",
+        publishedAt: "2024-06-18",
+        copy: {
+          zh: copy(
+            "出勤與請假管理規程",
+            "說明工作時間、打卡、加班、各類假別及申請程序。",
+            "第一條　員工應依公司規定時間出勤並完成打卡。\n\n第二條　請假應於系統提出申請。",
+          ),
+          ja: copy(
+            "勤怠・休暇管理規程",
+            "勤務時間、勤怠記録、残業、休暇および申請手続を定めます。",
+            "第1条　従業員は会社の定める時間に出勤し、勤怠記録を行う。\n\n第2条　休暇はシステムで申請する。",
+          ),
+        },
+      },
+    ],
+  },
+];
+const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
+const nextV = (v: string) => {
+  const [a, b] = v.split(".").map(Number);
+  return `${a}.${b + 1}`;
+};
+const now = () => new Date().toLocaleString("zh-TW");
+const normalizeTables = (value: unknown): string[][][] => {
+  if (!Array.isArray(value) || value.length === 0) return [];
+  if (Array.isArray(value[0]) && typeof value[0][0] === "string")
+    return [
+      (value as string[][]).map((row) =>
+        Array.isArray(row) ? row.map((cell) => String(cell)) : [],
+      ),
+    ];
+  return value
+    .filter(Array.isArray)
+    .map((table) =>
+      (table as unknown[])
+        .filter(Array.isArray)
+        .map((row) => (row as unknown[]).map((cell) => String(cell))),
+    );
+};
 
-function Tables({tables,editing,onChange}:{tables:unknown;editing?:boolean;onChange?:(v:string[][][])=>void}){const safeTables=normalizeTables(tables);const change=(i:number,r:number,c:number,value:string)=>onChange?.(safeTables.map((t,ti)=>ti===i?t.map((row,ri)=>ri===r?row.map((cell,ci)=>ci===c?value:cell):row):t));const addTable=()=>onChange?.([...safeTables,[["欄位 1","欄位 2","欄位 3"],["","",""]]]);return <div className="policy-tables">{safeTables.map((t,i)=><div className="policy-table" key={i}><span className="table-caption">表格 {i+1}</span><table><tbody>{t.map((row,r)=><tr key={r}>{row.map((cell,col)=>editing?<td key={col}><input value={cell} onChange={e=>change(i,r,col,e.target.value)} placeholder={r===0?"欄位名稱":"輸入文字"}/></td>:r===0?<th key={col}>{cell}</th>:<td key={col}>{cell}</td>)}</tr>)}</tbody></table>{editing&&<div className="table-tools"><button type="button" onClick={()=>onChange?.(safeTables.map((x,ti)=>ti===i?[...x,Array(x[0]?.length||3).fill("")]:x))}>＋ 列</button><button type="button" onClick={()=>onChange?.(safeTables.map((x,ti)=>ti===i?x.map(row=>[...row,""]):x))}>＋ 欄</button><button type="button" onClick={()=>onChange?.(safeTables.filter((_,ti)=>ti!==i))}>刪除表格</button></div>}</div>)}{editing&&<button type="button" className="ghost" onClick={addTable}>＋ 新增表格</button>}</div>}
+function Tables({
+  tables,
+  editing,
+  onChange,
+}: {
+  tables: unknown;
+  editing?: boolean;
+  onChange?: (v: string[][][]) => void;
+}) {
+  const safeTables = normalizeTables(tables);
+  const change = (i: number, r: number, c: number, value: string) =>
+    onChange?.(
+      safeTables.map((t, ti) =>
+        ti === i
+          ? t.map((row, ri) =>
+              ri === r ? row.map((cell, ci) => (ci === c ? value : cell)) : row,
+            )
+          : t,
+      ),
+    );
+  const addTable = () =>
+    onChange?.([
+      ...safeTables,
+      [
+        ["欄位 1", "欄位 2", "欄位 3"],
+        ["", "", ""],
+      ],
+    ]);
+  return (
+    <div className="policy-tables">
+      {safeTables.map((t, i) => (
+        <div className="policy-table" key={i}>
+          <span className="table-caption">表格 {i + 1}</span>
+          <table>
+            <tbody>
+              {t.map((row, r) => (
+                <tr key={r}>
+                  {row.map((cell, col) =>
+                    editing ? (
+                      <td key={col}>
+                        <input
+                          value={cell}
+                          onChange={(e) => change(i, r, col, e.target.value)}
+                          placeholder={r === 0 ? "欄位名稱" : "輸入文字"}
+                        />
+                      </td>
+                    ) : r === 0 ? (
+                      <th key={col}>{cell}</th>
+                    ) : (
+                      <td key={col}>{cell}</td>
+                    ),
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {editing && (
+            <div className="table-tools">
+              <button
+                type="button"
+                onClick={() =>
+                  onChange?.(
+                    safeTables.map((x, ti) =>
+                      ti === i ? [...x, Array(x[0]?.length || 3).fill("")] : x,
+                    ),
+                  )
+                }
+              >
+                ＋ 列
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  onChange?.(
+                    safeTables.map((x, ti) =>
+                      ti === i ? x.map((row) => [...row, ""]) : x,
+                    ),
+                  )
+                }
+              >
+                ＋ 欄
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  onChange?.(safeTables.filter((_, ti) => ti !== i))
+                }
+              >
+                刪除表格
+              </button>
+            </div>
+          )}
+        </div>
+      ))}
+      {editing && (
+        <button type="button" className="ghost" onClick={addTable}>
+          ＋ 新增表格
+        </button>
+      )}
+    </div>
+  );
+}
 
-export default function Home(){const[policies,setPolicies]=useState(initial),[selectedId,setSelectedId]=useState(1),[lang,setLang]=useState<Lang>("zh"),[role,setRole]=useState<Role>("employee"),[name,setName]=useState("Employee"),[view,setView]=useState<"library"|"audit">("library"),[editing,setEditing]=useState(false),[draft,setDraft]=useState<Policy>(clone(initial[0])),[search,setSearch]=useState(""),[category,setCategory]=useState("全部分類"),[notice,setNotice]=useState(""),[audit,setAudit]=useState<Audit[]>([]),[compare,setCompare]=useState<[number,number]>([0,0]);
-useEffect(()=>{try{const s=localStorage.getItem("hr-policy-v8");if(s){const d=JSON.parse(s) as {policies:Policy[];audit:Audit[]};setPolicies(d.policies);setAudit(d.audit||[]);setSelectedId(d.policies[0]?.id||1);setDraft(clone(d.policies[0]||initial[0]));}const preview=localStorage.getItem("hr-policy-role-preview") as Role|null;if(preview==="admin"||preview==="employee"){setRole(preview);setName(preview==="admin"?"Admin preview":"Employee preview");return;}}catch{}fetch("/api/me").then(r=>r.ok?r.json():null).then(x=>{if(x){setRole(x.role);setName(x.name)}}).catch(()=>{});},[]);
-useEffect(()=>{const profile=document.querySelector(".sidebar-foot") as HTMLElement|null;const switchRole=()=>setRole(current=>{const next=current==="admin"?"employee":"admin";localStorage.setItem("hr-policy-role-preview",next);setName(next==="admin"?"Admin preview":"Employee preview");return next});profile?.addEventListener("click",switchRole);return()=>profile?.removeEventListener("click",switchRole);},[]);
-const saveStore=(next:Policy[],nextAudit:Audit[]=audit)=>{setPolicies(next);setAudit(nextAudit);localStorage.setItem("hr-policy-v8",JSON.stringify({policies:next,audit:nextAudit}));}; const selected=policies.find(x=>x.id===selectedId)||policies[0]; const versions=selected.versions; const isAdmin=role==="admin"; const categories=["全部分類",...Array.from(new Set(policies.map(x=>x.category)))]; const list=useMemo(()=>policies.filter(p=>(category==="全部分類"||p.category===category)&&`${p.code} ${p.draft.zh.title} ${p.draft.ja.title}`.toLowerCase().includes(search.toLowerCase())),[policies,category,search]);
-const log=(action:Audit["action"],before:string,after:string,p:Policy)=>{const item={id:String(Date.now()),at:now(),actor:name,action,policy:p.draft.zh.title||p.draft.ja.title,code:p.code,before,after};return [item,...audit]}; const open=(p:Policy)=>{setSelectedId(p.id);setDraft(clone(p));setEditing(false);setCompare([Math.max(0,p.versions.length-2),Math.max(0,p.versions.length-1)]);}; const update=(field:keyof Copy,value:Copy[keyof Copy])=>setDraft(p=>({...p,draft:{...p.draft,[lang]:{...p.draft[lang],[field]:value}}}));
-function saveDraft(e:FormEvent){e.preventDefault();if(!isAdmin)return;const exists=policies.some(p=>p.id===draft.id),before=exists?JSON.stringify(selected.draft):"（新增規程）",next=exists?policies.map(p=>p.id===draft.id?draft:p):[draft,...policies],nextAudit=log(exists?"修改草稿":"新增",before,JSON.stringify(draft.draft),draft);saveStore(next,nextAudit);open(draft);setNotice("草稿已儲存；尚未建立發布版本。");}
-function publish(){if(!isAdmin)return;const last=selected.versions.at(-1)?.number||"0.0",version={id:String(Date.now()),number:nextV(last),publishedAt:new Date().toISOString().slice(0,10),copy:clone(draft.draft)},next={...draft,status:"發布" as Status,versions:[...selected.versions,version]},all=policies.map(p=>p.id===next.id?next:p),nextAudit=log("發布",JSON.stringify(selected.versions.at(-1)?.copy||{}),JSON.stringify(version.copy),next);saveStore(all,nextAudit);open(next);setNotice(`已發布版本 ${version.number}，舊版已保留。`);}
-function disable(){if(!isAdmin)return;const next={...draft,status:"停用" as Status},all=policies.map(p=>p.id===next.id?next:p),nextAudit=log("停用",JSON.stringify(selected.draft),"規程已停用",next);saveStore(all,nextAudit);open(next);setNotice("規程已停用。");}
-function restore(v:Version){if(!isAdmin)return;setDraft({...draft,draft:clone(v.copy),status:"草稿"});setEditing(true);setNotice(`已載入版本 ${v.number} 為草稿；發布後才會建立新版本。`);}
-const diff=(a:string,b:string)=>{const x=a.split("\n").filter(Boolean),y=b.split("\n").filter(Boolean);return [...x.map(t=>({t,k:y.includes(t)?"same":"remove"})),...y.filter(t=>!x.includes(t)).map(t=>({t,k:"add"}))]};
-if(view==="audit")return <main><aside className="sidebar"><div className="brand"><span className="brand-mark">人</span><div><strong>人資規程庫</strong><small>HR POLICY CENTER</small></div></div><nav><button className="active">◷ 修改紀錄</button><button onClick={()=>setView("library")}>▦ 規程資料庫</button></nav></aside><section className="workspace audit-page"><header><div><p className="eyebrow">AUDIT TRAIL</p><h1>修改紀錄</h1><p className="sub">操作人、異動時間、規程與修改前後內容。</p></div><button className="ghost" onClick={()=>setView("library")}>← 返回規程庫</button></header><div className="audit-list">{audit.length?audit.map(a=><article className="audit-card" key={a.id}><div className="audit-top"><span className={`audit-action ${a.action}`}>{a.action}</span><b>{a.policy}</b><time>{a.at}</time></div><p><strong>操作人：</strong>{a.actor}　<strong>規程：</strong>{a.code}</p><div className="audit-diff"><div><small>修改前</small><pre>{a.before}</pre></div><div><small>修改後</small><pre>{a.after}</pre></div></div></article>):<div className="empty">尚未有修改紀錄。</div>}</div></section></main>;
-return <main><aside className="sidebar"><div className="brand"><span className="brand-mark">人</span><div><strong>人資規程庫</strong><small>HR POLICY CENTER</small></div></div><nav><button className="active">▦ 規程資料庫</button>{isAdmin&&<button onClick={()=>setView("audit")}>◷ 修改紀錄</button>}</nav><div className="sidebar-foot"><div className="avatar">{role==="admin"?"管":"員"}</div><div><b>{name}</b><small>{role==="admin"?"Admin · 可管理規程":"Employee · 僅可查看"}</small></div></div></aside><section className="workspace"><header><div><p className="eyebrow">人力資源管理系統</p><h1>人事規程資料庫</h1><p className="sub">{isAdmin?"可編輯草稿、發布新版本與管理狀態。":"目前為僅查看模式。"}</p></div>{isAdmin&&<button className="primary" onClick={()=>{const p:Policy={id:Date.now(),code:"",category:"任用管理",effectiveDate:"",status:"草稿",draft:{zh:emptyCopy(),ja:emptyCopy()},versions:[]};setSelectedId(p.id);setDraft(p);setEditing(true);}}>＋ 新增規程</button>}</header>{notice&&<div className="notice">✓ {notice}</div>}<div className="toolbar"><label className="search">⌕ <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="搜尋規程名稱或代碼"/></label><select value={category} onChange={e=>setCategory(e.target.value)}>{categories.map(x=><option key={x}>{x}</option>)}</select><span className="result-count">共 {list.length} 項</span></div><div className="content-grid"><div className="reg-list">{list.map(p=><button key={p.id} className={`reg-card ${p.id===selectedId?"selected":""}`} onClick={()=>open(p)}><div className="card-top"><span className="code">{p.code}</span><span className={`status ${p.status==="草稿"?"draft":p.status==="停用"?"disabled":""}`}>{p.status}</span></div><h3>{p.draft[lang].title||p.draft.zh.title}</h3><p>{p.category} · {lang==="zh"?"中文":"日文"}</p><footer><span>最新版本 {p.versions.at(-1)?.number||"未發布"}</span><time>{p.effectiveDate||"生效日待定"}</time></footer></button>)}</div><article className="detail"><div className="detail-head"><div><p className="eyebrow">{selected.category} · {selected.code||"NEW"}</p><h2>{editing?"編輯草稿":selected.draft[lang].title}</h2><div className="detail-meta"><span className={`status ${selected.status==="草稿"?"draft":selected.status==="停用"?"disabled":""}`}>{selected.status}</span><span>最新版本 {versions.at(-1)?.number||"未發布"}</span><span>生效日 {selected.effectiveDate||"待定"}</span></div></div>{isAdmin&&!editing&&<div className="actions"><button className="ghost" onClick={()=>{setDraft(clone(selected));setEditing(true)}}>✎ 編輯草稿</button><button className="primary" onClick={publish}>發布新版本</button><button className="ghost danger" onClick={disable}>停用</button></div>}</div><div className="language-bar"><span>顯示語言</span><button className={lang==="zh"?"selected-lang":""} onClick={()=>setLang("zh")}>繁體中文</button><button className={lang==="ja"?"selected-lang":""} onClick={()=>setLang("ja")}>日本語</button></div>{editing?<form onSubmit={saveDraft}><div className="form-grid"><label>規程編號<input required value={draft.code} onChange={e=>setDraft({...draft,code:e.target.value})}/></label><label>分類<select value={draft.category} onChange={e=>setDraft({...draft,category:e.target.value})}>{["任用管理","出勤休假","績效發展","人才培育","薪酬福利"].map(x=><option key={x}>{x}</option>)}</select></label><label>生效日期<input type="date" value={draft.effectiveDate} onChange={e=>setDraft({...draft,effectiveDate:e.target.value})}/></label><label>狀態<select value={draft.status} onChange={e=>setDraft({...draft,status:e.target.value as Status})}><option>草稿</option><option>發布</option><option>停用</option></select></label></div><div className="edit-language"><b>正在編輯：{lang==="zh"?"繁體中文":"日本語"}</b><div><button type="button" onClick={()=>setLang("zh")}>繁中</button><button type="button" onClick={()=>setLang("ja")}>日本語</button></div></div><label>規程名稱<input required value={draft.draft[lang].title} onChange={e=>update("title",e.target.value)}/></label><label>摘要<textarea rows={2} value={draft.draft[lang].summary} onChange={e=>update("summary",e.target.value)}/></label><label>規程全文<textarea className="policy-editor" rows={8} value={draft.draft[lang].content} onChange={e=>update("content",e.target.value)}/></label><Tables editing tables={draft.draft[lang].tables} onChange={x=>update("tables",x)}/><div className="form-actions"><button type="button" className="ghost" onClick={()=>{setDraft(clone(selected));setEditing(false)}}>取消</button><button className="primary">儲存草稿</button></div></form>:<><div className="summary"><b>{lang==="zh"?"規程摘要":"規程概要"}</b><p>{selected.draft[lang].summary}</p></div><div className="policy-text">{selected.draft[lang].content.split("\n").map((x,i)=><p key={i}>{x||"　"}</p>)}</div><Tables tables={selected.draft[lang].tables}/><section className="version-section"><h3>版本紀錄與差異比較</h3><div className="compare-pickers"><label>舊版本<select value={compare[0]} onChange={e=>setCompare([+e.target.value,compare[1]])}>{versions.map((v,i)=><option key={v.id} value={i}>v{v.number} · {v.publishedAt}</option>)}</select></label><span>→</span><label>新版本<select value={compare[1]} onChange={e=>setCompare([compare[0],+e.target.value])}>{versions.map((v,i)=><option key={v.id} value={i}>v{v.number} · {v.publishedAt}</option>)}</select></label></div><div className="diff-box">{diff(versions[compare[0]]?.copy[lang].content||"",versions[compare[1]]?.copy[lang].content||"").map((r,i)=><p key={i} className={r.k}>{r.k==="add"?"+ ":r.k==="remove"?"− ":"　"}{r.t}</p>)}</div>{isAdmin&&<div className="restore-row">{versions.map(v=><button className="ghost" key={v.id} onClick={()=>restore(v)}>將 v{v.number} 載入草稿</button>)}</div>}</section></>}</article></div></section></main>}
+export default function Home() {
+  const [policies, setPolicies] = useState(initial),
+    [selectedId, setSelectedId] = useState(1),
+    [lang, setLang] = useState<Lang>("zh"),
+    [role, setRole] = useState<Role>("employee"),
+    [name, setName] = useState("Employee"),
+    [view, setView] = useState<"library" | "audit">("library"),
+    [editing, setEditing] = useState(false),
+    [draft, setDraft] = useState<Policy>(clone(initial[0])),
+    [search, setSearch] = useState(""),
+    [category, setCategory] = useState("全部分類"),
+    [notice, setNotice] = useState(""),
+    [audit, setAudit] = useState<Audit[]>([]),
+    [compare, setCompare] = useState<[number, number]>([0, 0]);
+  useEffect(() => {
+    try {
+      const s = localStorage.getItem("hr-policy-v8");
+      if (s) {
+        const d = JSON.parse(s) as { policies: Policy[]; audit: Audit[] };
+        setPolicies(d.policies);
+        setAudit(d.audit || []);
+        setSelectedId(d.policies[0]?.id || 1);
+        setDraft(clone(d.policies[0] || initial[0]));
+      }
+      const preview = localStorage.getItem(
+        "hr-policy-role-preview",
+      ) as Role | null;
+      if (preview === "admin" || preview === "employee") {
+        setRole(preview);
+        setName(preview === "admin" ? "Admin preview" : "Employee preview");
+        return;
+      }
+    } catch {}
+    fetch("/api/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((x) => {
+        if (x) {
+          setRole(x.role);
+          setName(x.name);
+        }
+      })
+      .catch(() => {});
+  }, []);
+  useEffect(() => {
+    const profile = document.querySelector(
+      ".sidebar-foot",
+    ) as HTMLElement | null;
+    const switchRole = () =>
+      setRole((current) => {
+        const next = current === "admin" ? "employee" : "admin";
+        localStorage.setItem("hr-policy-role-preview", next);
+        setName(next === "admin" ? "Admin preview" : "Employee preview");
+        return next;
+      });
+    profile?.addEventListener("click", switchRole);
+    return () => profile?.removeEventListener("click", switchRole);
+  }, []);
+  const saveStore = (next: Policy[], nextAudit: Audit[] = audit) => {
+    setPolicies(next);
+    setAudit(nextAudit);
+    localStorage.setItem(
+      "hr-policy-v8",
+      JSON.stringify({ policies: next, audit: nextAudit }),
+    );
+  };
+  const selected = policies.find((x) => x.id === selectedId) || policies[0];
+  const versions = selected.versions;
+  const isAdmin = role === "admin";
+  const categories = [
+    "全部分類",
+    ...Array.from(new Set(policies.map((x) => x.category))),
+  ];
+  const list = useMemo(
+    () =>
+      policies.filter(
+        (p) =>
+          (category === "全部分類" || p.category === category) &&
+          `${p.code} ${p.draft.zh.title} ${p.draft.ja.title}`
+            .toLowerCase()
+            .includes(search.toLowerCase()),
+      ),
+    [policies, category, search],
+  );
+  const changedFields = (before: string, after: string) => {
+    if (before === after) return ["規程內容"];
+    try {
+      const oldValue = JSON.parse(before);
+      const newValue = JSON.parse(after);
+      const oldCopy = oldValue.zh || oldValue;
+      const newCopy = newValue.zh || newValue;
+      const fields: Array<[string, string]> = [
+        ["規程名稱", "title"],
+        ["摘要", "summary"],
+        ["規程全文", "content"],
+        ["表格", "tables"],
+      ];
+      const changed = fields
+        .filter(([, key]) => JSON.stringify(oldCopy?.[key]) !== JSON.stringify(newCopy?.[key]))
+        .map(([label]) => label);
+      return changed.length ? changed : ["規程內容"];
+    } catch {
+      return ["規程狀態"];
+    }
+  };
+  const log = (
+    action: Audit["action"],
+    before: string,
+    after: string,
+    p: Policy,
+  ) => {
+    const latestVersion = p.versions.at(-1)?.number;
+    const previousVersion = p.versions.at(-2)?.number;
+    const versions =
+      action === "發布"
+        ? { fromVersion: previousVersion ? `v${previousVersion}` : "未發布", toVersion: latestVersion ? `v${latestVersion}` : "發布中" }
+        : action === "停用"
+          ? { fromVersion: latestVersion ? `v${latestVersion}` : "草稿", toVersion: "停用" }
+          : action === "新增"
+            ? { fromVersion: "未建立", toVersion: "草稿" }
+            : { fromVersion: latestVersion ? `v${latestVersion}` : "未發布", toVersion: "草稿" };
+    const item = {
+      id: String(Date.now()),
+      at: now(),
+      actor: name,
+      action,
+      policy: p.draft.zh.title || p.draft.ja.title,
+      code: p.code,
+      before,
+      after,
+      changes: changedFields(before, after),
+      ...versions,
+    };
+    return [item, ...audit];
+  };
+  const open = (p: Policy) => {
+    setSelectedId(p.id);
+    setDraft(clone(p));
+    setEditing(false);
+    setCompare([
+      Math.max(0, p.versions.length - 2),
+      Math.max(0, p.versions.length - 1),
+    ]);
+  };
+  const update = (field: keyof Copy, value: Copy[keyof Copy]) =>
+    setDraft((p) => ({
+      ...p,
+      draft: { ...p.draft, [lang]: { ...p.draft[lang], [field]: value } },
+    }));
+  function saveDraft(e: FormEvent) {
+    e.preventDefault();
+    if (!isAdmin) return;
+    const exists = policies.some((p) => p.id === draft.id),
+      before = exists ? JSON.stringify(selected.draft) : "（新增規程）",
+      next = exists
+        ? policies.map((p) => (p.id === draft.id ? draft : p))
+        : [draft, ...policies],
+      nextAudit = log(
+        exists ? "修改草稿" : "新增",
+        before,
+        JSON.stringify(draft.draft),
+        draft,
+      );
+    saveStore(next, nextAudit);
+    open(draft);
+    setNotice("草稿已儲存；尚未建立發布版本。");
+  }
+  function publish() {
+    if (!isAdmin) return;
+    const last = selected.versions.at(-1)?.number || "0.0",
+      version = {
+        id: String(Date.now()),
+        number: nextV(last),
+        publishedAt: new Date().toISOString().slice(0, 10),
+        copy: clone(draft.draft),
+      },
+      next = {
+        ...draft,
+        status: "發布" as Status,
+        versions: [...selected.versions, version],
+      },
+      all = policies.map((p) => (p.id === next.id ? next : p)),
+      nextAudit = log(
+        "發布",
+        JSON.stringify(selected.versions.at(-1)?.copy || {}),
+        JSON.stringify(version.copy),
+        next,
+      );
+    saveStore(all, nextAudit);
+    open(next);
+    setNotice(`已發布版本 ${version.number}，舊版已保留。`);
+  }
+  function disable() {
+    if (!isAdmin) return;
+    const next = { ...draft, status: "停用" as Status },
+      all = policies.map((p) => (p.id === next.id ? next : p)),
+      nextAudit = log(
+        "停用",
+        JSON.stringify(selected.draft),
+        "規程已停用",
+        next,
+      );
+    saveStore(all, nextAudit);
+    open(next);
+    setNotice("規程已停用。");
+  }
+  function restore(v: Version) {
+    if (!isAdmin) return;
+    setDraft({ ...draft, draft: clone(v.copy), status: "草稿" });
+    setEditing(true);
+    setNotice(`已載入版本 ${v.number} 為草稿；發布後才會建立新版本。`);
+  }
+  const diff = (a: string, b: string) => {
+    const x = a.split("\n").filter(Boolean),
+      y = b.split("\n").filter(Boolean);
+    return [
+      ...x.map((t) => ({ t, k: y.includes(t) ? "same" : "remove" })),
+      ...y.filter((t) => !x.includes(t)).map((t) => ({ t, k: "add" })),
+    ];
+  };
+  if (view === "audit")
+    return (
+      <main>
+        <aside className="sidebar">
+          <div className="brand">
+            <span className="brand-mark">人</span>
+            <div>
+              <strong>人資規程庫</strong>
+              <small>HR POLICY CENTER</small>
+            </div>
+          </div>
+          <nav>
+            <button className="active">◷ 修改紀錄</button>
+            <button onClick={() => setView("library")}>▦ 規程資料庫</button>
+          </nav>
+        </aside>
+        <section className="workspace audit-page">
+          <header>
+            <div>
+              <p className="eyebrow">AUDIT TRAIL</p>
+              <h1>修改紀錄</h1>
+              <p className="sub">操作人、異動時間、規程與修改前後內容。</p>
+            </div>
+            <button className="ghost" onClick={() => setView("library")}>
+              ← 返回規程庫
+            </button>
+          </header>
+          <div className="audit-list">
+            {audit.length ? (
+              audit.map((a) => (
+                <article className="audit-card" key={a.id}>
+                  <div className="audit-top">
+                    <span className={`audit-action ${a.action}`}>
+                      {a.action}
+                    </span>
+                    <b>{a.policy}</b>
+                    <time>{a.at}</time>
+                  </div>
+                  <p>
+                    <strong>操作人：</strong>
+                    {a.actor}　<strong>規程：</strong>
+                    {a.code}
+                  </p>
+                  <div className="audit-summary">
+                    <div className="audit-version-flow">
+                      <span>修改前版本</span>
+                      <b>{a.fromVersion || "歷史版本"}</b>
+                      <i>→</i>
+                      <span>修改後版本</span>
+                      <b>{a.toVersion || "草稿"}</b>
+                    </div>
+                    <div className="audit-changes">
+                      <small>修改項目</small>
+                      <div>
+                        {(a.changes?.length ? a.changes : changedFields(a.before, a.after)).map((change) => (
+                          <span key={change}>{change}</span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              ))
+            ) : (
+              <div className="empty">尚未有修改紀錄。</div>
+            )}
+          </div>
+        </section>
+      </main>
+    );
+  return (
+    <main>
+      <aside className="sidebar">
+        <div className="brand">
+          <span className="brand-mark">人</span>
+          <div>
+            <strong>人資規程庫</strong>
+            <small>HR POLICY CENTER</small>
+          </div>
+        </div>
+        <nav>
+          <button className="active">▦ 規程資料庫</button>
+          {isAdmin && (
+            <button onClick={() => setView("audit")}>◷ 修改紀錄</button>
+          )}
+        </nav>
+        <div className="sidebar-foot">
+          <div className="avatar">{role === "admin" ? "管" : "員"}</div>
+          <div>
+            <b>{name}</b>
+            <small>
+              {role === "admin" ? "Admin · 可管理規程" : "Employee · 僅可查看"}
+            </small>
+          </div>
+        </div>
+      </aside>
+      <section className="workspace">
+        <header>
+          <div>
+            <p className="eyebrow">人力資源管理系統</p>
+            <h1>人事規程資料庫</h1>
+            <p className="sub">
+              {isAdmin
+                ? "可編輯草稿、發布新版本與管理狀態。"
+                : "目前為僅查看模式。"}
+            </p>
+          </div>
+          {isAdmin && (
+            <button
+              className="primary"
+              onClick={() => {
+                const p: Policy = {
+                  id: Date.now(),
+                  code: "",
+                  category: "任用管理",
+                  effectiveDate: "",
+                  status: "草稿",
+                  draft: { zh: emptyCopy(), ja: emptyCopy() },
+                  versions: [],
+                };
+                setSelectedId(p.id);
+                setDraft(p);
+                setEditing(true);
+              }}
+            >
+              ＋ 新增規程
+            </button>
+          )}
+        </header>
+        {notice && <div className="notice">✓ {notice}</div>}
+        <div className="toolbar">
+          <label className="search">
+            ⌕{" "}
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="搜尋規程名稱或代碼"
+            />
+          </label>
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+          >
+            {categories.map((x) => (
+              <option key={x}>{x}</option>
+            ))}
+          </select>
+          <span className="result-count">共 {list.length} 項</span>
+        </div>
+        <div className="content-grid">
+          <div className="reg-list">
+            {list.map((p) => (
+              <button
+                key={p.id}
+                className={`reg-card ${p.id === selectedId ? "selected" : ""}`}
+                onClick={() => open(p)}
+              >
+                <div className="card-top">
+                  <span className="code">{p.code}</span>
+                  <span
+                    className={`status ${p.status === "草稿" ? "draft" : p.status === "停用" ? "disabled" : ""}`}
+                  >
+                    {p.status}
+                  </span>
+                </div>
+                <h3>{p.draft[lang].title || p.draft.zh.title}</h3>
+                <p>
+                  {p.category} · {lang === "zh" ? "中文" : "日文"}
+                </p>
+                <footer>
+                  <span>最新版本 {p.versions.at(-1)?.number || "未發布"}</span>
+                  <time>{p.effectiveDate || "生效日待定"}</time>
+                </footer>
+              </button>
+            ))}
+          </div>
+          <article className="detail">
+            <div className="detail-head">
+              <div>
+                <p className="eyebrow">
+                  {selected.category} · {selected.code || "NEW"}
+                </p>
+                <h2>{editing ? "編輯草稿" : selected.draft[lang].title}</h2>
+                <div className="detail-meta">
+                  <span
+                    className={`status ${selected.status === "草稿" ? "draft" : selected.status === "停用" ? "disabled" : ""}`}
+                  >
+                    {selected.status}
+                  </span>
+                  <span>最新版本 {versions.at(-1)?.number || "未發布"}</span>
+                  <span>生效日 {selected.effectiveDate || "待定"}</span>
+                </div>
+              </div>
+              {isAdmin && !editing && (
+                <div className="actions">
+                  <button
+                    className="ghost"
+                    onClick={() => {
+                      setDraft(clone(selected));
+                      setEditing(true);
+                    }}
+                  >
+                    ✎ 編輯草稿
+                  </button>
+                  <button className="primary" onClick={publish}>
+                    發布新版本
+                  </button>
+                  <button className="ghost danger" onClick={disable}>
+                    停用
+                  </button>
+                </div>
+              )}
+            </div>
+            <div className="language-bar">
+              <span>顯示語言</span>
+              <button
+                className={lang === "zh" ? "selected-lang" : ""}
+                onClick={() => setLang("zh")}
+              >
+                繁體中文
+              </button>
+              <button
+                className={lang === "ja" ? "selected-lang" : ""}
+                onClick={() => setLang("ja")}
+              >
+                日本語
+              </button>
+            </div>
+            {editing ? (
+              <form onSubmit={saveDraft}>
+                <div className="form-grid">
+                  <label>
+                    規程編號
+                    <input
+                      required
+                      value={draft.code}
+                      onChange={(e) =>
+                        setDraft({ ...draft, code: e.target.value })
+                      }
+                    />
+                  </label>
+                  <label>
+                    分類
+                    <select
+                      value={draft.category}
+                      onChange={(e) =>
+                        setDraft({ ...draft, category: e.target.value })
+                      }
+                    >
+                      {[
+                        "任用管理",
+                        "出勤休假",
+                        "績效發展",
+                        "人才培育",
+                        "薪酬福利",
+                      ].map((x) => (
+                        <option key={x}>{x}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    生效日期
+                    <input
+                      type="date"
+                      value={draft.effectiveDate}
+                      onChange={(e) =>
+                        setDraft({ ...draft, effectiveDate: e.target.value })
+                      }
+                    />
+                  </label>
+                  <label>
+                    狀態
+                    <select
+                      value={draft.status}
+                      onChange={(e) =>
+                        setDraft({ ...draft, status: e.target.value as Status })
+                      }
+                    >
+                      <option>草稿</option>
+                      <option>發布</option>
+                      <option>停用</option>
+                    </select>
+                  </label>
+                </div>
+                <div className="edit-language">
+                  <b>正在編輯：{lang === "zh" ? "繁體中文" : "日本語"}</b>
+                  <div>
+                    <button type="button" onClick={() => setLang("zh")}>
+                      繁中
+                    </button>
+                    <button type="button" onClick={() => setLang("ja")}>
+                      日本語
+                    </button>
+                  </div>
+                </div>
+                <label>
+                  規程名稱
+                  <input
+                    required
+                    value={draft.draft[lang].title}
+                    onChange={(e) => update("title", e.target.value)}
+                  />
+                </label>
+                <label>
+                  摘要
+                  <textarea
+                    rows={2}
+                    value={draft.draft[lang].summary}
+                    onChange={(e) => update("summary", e.target.value)}
+                  />
+                </label>
+                <label>
+                  規程全文
+                  <textarea
+                    className="policy-editor"
+                    rows={8}
+                    value={draft.draft[lang].content}
+                    onChange={(e) => update("content", e.target.value)}
+                  />
+                </label>
+                <Tables
+                  editing
+                  tables={draft.draft[lang].tables}
+                  onChange={(x) => update("tables", x)}
+                />
+                <div className="form-actions">
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={() => {
+                      setDraft(clone(selected));
+                      setEditing(false);
+                    }}
+                  >
+                    取消
+                  </button>
+                  <button className="primary">儲存草稿</button>
+                </div>
+              </form>
+            ) : (
+              <>
+                <div className="summary">
+                  <b>{lang === "zh" ? "規程摘要" : "規程概要"}</b>
+                  <p>{selected.draft[lang].summary}</p>
+                </div>
+                <div className="policy-text">
+                  {selected.draft[lang].content.split("\n").map((x, i) => (
+                    <p key={i}>{x || "　"}</p>
+                  ))}
+                </div>
+                <Tables tables={selected.draft[lang].tables} />
+                <section className="version-section">
+                  <h3>版本紀錄與差異比較</h3>
+                  <div className="compare-pickers">
+                    <label>
+                      舊版本
+                      <select
+                        value={compare[0]}
+                        onChange={(e) =>
+                          setCompare([+e.target.value, compare[1]])
+                        }
+                      >
+                        {versions.map((v, i) => (
+                          <option key={v.id} value={i}>
+                            v{v.number} · {v.publishedAt}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <span>→</span>
+                    <label>
+                      新版本
+                      <select
+                        value={compare[1]}
+                        onChange={(e) =>
+                          setCompare([compare[0], +e.target.value])
+                        }
+                      >
+                        {versions.map((v, i) => (
+                          <option key={v.id} value={i}>
+                            v{v.number} · {v.publishedAt}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  <div className="diff-box">
+                    {diff(
+                      versions[compare[0]]?.copy[lang].content || "",
+                      versions[compare[1]]?.copy[lang].content || "",
+                    ).map((r, i) => (
+                      <p key={i} className={r.k}>
+                        {r.k === "add" ? "+ " : r.k === "remove" ? "− " : "　"}
+                        {r.t}
+                      </p>
+                    ))}
+                  </div>
+                  {isAdmin && (
+                    <div className="restore-row">
+                      {versions.map((v) => (
+                        <button
+                          className="ghost"
+                          key={v.id}
+                          onClick={() => restore(v)}
+                        >
+                          將 v{v.number} 載入草稿
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              </>
+            )}
+          </article>
+        </div>
+      </section>
+    </main>
+  );
+}
