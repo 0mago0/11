@@ -565,7 +565,8 @@ export default function Home() {
     editing && !policies.some((policy) => policy.id === draft.id);
   const selected =
     (isNewPolicy ? draft : visiblePolicies.find((x) => x.id === selectedId)) ||
-    visiblePolicies[0];
+    visiblePolicies[0] ||
+    draft;
   const versions = selected.versions;
   const releasedCopy = (policy: Policy) =>
     policy.versions.at(-1)?.copy || policy.draft;
