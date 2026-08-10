@@ -555,6 +555,67 @@ export default function Home() {
               <div className="empty">尚未有修改紀錄。</div>
             )}
           </div>
+          <section className="version-section audit-version-section">
+            <div className="audit-version-head">
+              <div>
+                <h3>版本紀錄與差異比較</h3>
+                <p>選擇規程與任意兩個版本，查看內容差異。</p>
+              </div>
+              <label>
+                規程
+                <select
+                  value={selected.id}
+                  onChange={(e) => {
+                    const policy = policies.find((p) => p.id === +e.target.value);
+                    if (policy) {
+                      setSelectedId(policy.id);
+                      setCompare([
+                        Math.max(0, policy.versions.length - 2),
+                        Math.max(0, policy.versions.length - 1),
+                      ]);
+                    }
+                  }}
+                >
+                  {policies.map((policy) => (
+                    <option key={policy.id} value={policy.id}>
+                      {policy.code} · {policy.draft[lang].title || policy.draft.zh.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            {versions.length ? (
+              <>
+                <div className="compare-pickers">
+                  <label>
+                    舊版本
+                    <select value={compare[0]} onChange={(e) => setCompare([+e.target.value, compare[1]])}>
+                      {versions.map((v, i) => (
+                        <option key={v.id} value={i}>v{v.number} · {v.publishedAt}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <span>→</span>
+                  <label>
+                    新版本
+                    <select value={compare[1]} onChange={(e) => setCompare([compare[0], +e.target.value])}>
+                      {versions.map((v, i) => (
+                        <option key={v.id} value={i}>v{v.number} · {v.publishedAt}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                <div className="diff-box">
+                  {diff(versions[compare[0]]?.copy[lang].content || "", versions[compare[1]]?.copy[lang].content || "").map((r, i) => (
+                    <p key={i} className={r.k}>{r.k === "add" ? "+ " : r.k === "remove" ? "− " : "　"}{r.t}</p>
+                  ))}
+                </div>
+                {isAdmin && <div className="restore-row">{versions.map((v) => <button className="ghost" key={v.id} onClick={() => restore(v)}>將 v{v.number} 載入草稿</button>)}</div>}
+              </>
+            ) : (
+              <div className="empty">此規程尚未發布任何版本。</div>
+            )}
+          </section>
         </section>
       </main>
     );
@@ -839,66 +900,6 @@ export default function Home() {
                   ))}
                 </div>
                 <Tables tables={selected.draft[lang].tables} />
-                <section className="version-section">
-                  <h3>版本紀錄與差異比較</h3>
-                  <div className="compare-pickers">
-                    <label>
-                      舊版本
-                      <select
-                        value={compare[0]}
-                        onChange={(e) =>
-                          setCompare([+e.target.value, compare[1]])
-                        }
-                      >
-                        {versions.map((v, i) => (
-                          <option key={v.id} value={i}>
-                            v{v.number} · {v.publishedAt}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <span>→</span>
-                    <label>
-                      新版本
-                      <select
-                        value={compare[1]}
-                        onChange={(e) =>
-                          setCompare([compare[0], +e.target.value])
-                        }
-                      >
-                        {versions.map((v, i) => (
-                          <option key={v.id} value={i}>
-                            v{v.number} · {v.publishedAt}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
-                  <div className="diff-box">
-                    {diff(
-                      versions[compare[0]]?.copy[lang].content || "",
-                      versions[compare[1]]?.copy[lang].content || "",
-                    ).map((r, i) => (
-                      <p key={i} className={r.k}>
-                        {r.k === "add" ? "+ " : r.k === "remove" ? "− " : "　"}
-                        {r.t}
-                      </p>
-                    ))}
-                  </div>
-                  {isAdmin && (
-                    <div className="restore-row">
-                      {versions.map((v) => (
-                        <button
-                          className="ghost"
-                          key={v.id}
-                          onClick={() => restore(v)}
-                        >
-                          將 v{v.number} 載入草稿
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </section>
               </>
             )}
           </article>
