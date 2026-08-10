@@ -4,17 +4,21 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 type Lang = "zh" | "ja";
 type Role = "admin" | "employee";
 type Status = "草稿" | "發布" | "停用";
+type Article = { id: string; title: string; text: string };
+type Chapter = { id: string; title: string; articles: Article[] };
 type Copy = {
   title: string;
   summary: string;
   content: string;
   tables: string[][][];
+  chapters: Chapter[];
 };
 type Version = {
   id: string;
   number: string;
   publishedAt: string;
   copy: Record<Lang, Copy>;
+  revisionNote?: string;
 };
 type Policy = {
   id: number;
@@ -24,6 +28,9 @@ type Policy = {
   status: Status;
   draft: Record<Lang, Copy>;
   versions: Version[];
+  attachments?: string[];
+  relatedPolicies?: string[];
+  revisionNote?: string;
 };
 type Audit = {
   id: string;
@@ -43,13 +50,61 @@ const emptyCopy = (): Copy => ({
   summary: "",
   content: "",
   tables: [],
+  chapters: [],
 });
+const chaptersFromContent = (content: string): Chapter[] => {
+  const articles = content
+    .split("\n")
+    .filter(Boolean)
+    .map((text, index) => ({
+      id: `article-${index + 1}`,
+      title:
+        text.match(/^(第[一二三四五六七八九十\d]+條|第\d+条)/)?.[1] ||
+        `第 ${index + 1} 條`,
+      text,
+    }));
+  return articles.length
+    ? [{ id: "chapter-1", title: "第一章　總則", articles }]
+    : [];
+};
 const copy = (
   title: string,
   summary: string,
   content: string,
   tables: string[][][] = [],
-): Copy => ({ title, summary, content, tables });
+): Copy => ({
+  title,
+  summary,
+  content,
+  tables,
+  chapters: chaptersFromContent(content),
+});
+const normalizeCopy = (value: Partial<Copy>): Copy => ({
+  title: value.title || "",
+  summary: value.summary || "",
+  content: value.content || "",
+  tables: normalizeTables(value.tables),
+  chapters: value.chapters?.length
+    ? value.chapters
+    : chaptersFromContent(value.content || ""),
+});
+const normalizePolicy = (value: Policy): Policy => ({
+  ...value,
+  attachments: value.attachments || [],
+  relatedPolicies: value.relatedPolicies || [],
+  revisionNote: value.revisionNote || "",
+  draft: {
+    zh: normalizeCopy(value.draft.zh),
+    ja: normalizeCopy(value.draft.ja),
+  },
+  versions: (value.versions || []).map((version) => ({
+    ...version,
+    copy: {
+      zh: normalizeCopy(version.copy.zh),
+      ja: normalizeCopy(version.copy.ja),
+    },
+  })),
+});
 const initial: Policy[] = [
   {
     id: 1,
@@ -289,10 +344,11 @@ export default function Home() {
       const s = localStorage.getItem("hr-policy-v8");
       if (s) {
         const d = JSON.parse(s) as { policies: Policy[]; audit: Audit[] };
-        setPolicies(d.policies);
+        const normalized = d.policies.map(normalizePolicy);
+        setPolicies(normalized);
         setAudit(d.audit || []);
-        setSelectedId(d.policies[0]?.id || 1);
-        setDraft(clone(d.policies[0] || initial[0]));
+        setSelectedId(normalized[0]?.id || 1);
+        setDraft(clone(normalized[0] || initial[0]));
       }
       const preview = localStorage.getItem(
         "hr-policy-role-preview",
@@ -367,7 +423,10 @@ export default function Home() {
         ["表格", "tables"],
       ];
       const changed = fields
-        .filter(([, key]) => JSON.stringify(oldCopy?.[key]) !== JSON.stringify(newCopy?.[key]))
+        .filter(
+          ([, key]) =>
+            JSON.stringify(oldCopy?.[key]) !== JSON.stringify(newCopy?.[key]),
+        )
         .map(([label]) => label);
       return changed.length ? changed : ["規程內容"];
     } catch {
@@ -384,12 +443,21 @@ export default function Home() {
     const previousVersion = p.versions.at(-2)?.number;
     const versions =
       action === "發布"
-        ? { fromVersion: previousVersion ? `v${previousVersion}` : "未發布", toVersion: latestVersion ? `v${latestVersion}` : "發布中" }
+        ? {
+            fromVersion: previousVersion ? `v${previousVersion}` : "未發布",
+            toVersion: latestVersion ? `v${latestVersion}` : "發布中",
+          }
         : action === "停用"
-          ? { fromVersion: latestVersion ? `v${latestVersion}` : "草稿", toVersion: "停用" }
+          ? {
+              fromVersion: latestVersion ? `v${latestVersion}` : "草稿",
+              toVersion: "停用",
+            }
           : action === "新增"
             ? { fromVersion: "未建立", toVersion: "草稿" }
-            : { fromVersion: latestVersion ? `v${latestVersion}` : "未發布", toVersion: "草稿" };
+            : {
+                fromVersion: latestVersion ? `v${latestVersion}` : "未發布",
+                toVersion: "草稿",
+              };
     const item = {
       id: String(Date.now()),
       at: now(),
@@ -416,7 +484,16 @@ export default function Home() {
   const update = (field: keyof Copy, value: Copy[keyof Copy]) =>
     setDraft((p) => ({
       ...p,
-      draft: { ...p.draft, [lang]: { ...p.draft[lang], [field]: value } },
+      draft: {
+        ...p.draft,
+        [lang]: {
+          ...p.draft[lang],
+          [field]: value,
+          ...(field === "content"
+            ? { chapters: chaptersFromContent(String(value)) }
+            : {}),
+        },
+      },
     }));
   function saveDraft(e: FormEvent) {
     e.preventDefault();
@@ -444,6 +521,7 @@ export default function Home() {
         number: nextV(last),
         publishedAt: new Date().toISOString().slice(0, 10),
         copy: clone(draft.draft),
+        revisionNote: draft.revisionNote || "未填寫修訂說明",
       },
       next = {
         ...draft,
@@ -543,7 +621,10 @@ export default function Home() {
                     <div className="audit-changes">
                       <small>修改項目</small>
                       <div>
-                        {(a.changes?.length ? a.changes : changedFields(a.before, a.after)).map((change) => (
+                        {(a.changes?.length
+                          ? a.changes
+                          : changedFields(a.before, a.after)
+                        ).map((change) => (
                           <span key={change}>{change}</span>
                         ))}
                       </div>
@@ -566,7 +647,9 @@ export default function Home() {
                 <select
                   value={selected.id}
                   onChange={(e) => {
-                    const policy = policies.find((p) => p.id === +e.target.value);
+                    const policy = policies.find(
+                      (p) => p.id === +e.target.value,
+                    );
                     if (policy) {
                       setSelectedId(policy.id);
                       setCompare([
@@ -578,7 +661,8 @@ export default function Home() {
                 >
                   {policies.map((policy) => (
                     <option key={policy.id} value={policy.id}>
-                      {policy.code} · {policy.draft[lang].title || policy.draft.zh.title}
+                      {policy.code} ·{" "}
+                      {policy.draft[lang].title || policy.draft.zh.title}
                     </option>
                   ))}
                 </select>
@@ -589,28 +673,60 @@ export default function Home() {
                 <div className="compare-pickers">
                   <label>
                     舊版本
-                    <select value={compare[0]} onChange={(e) => setCompare([+e.target.value, compare[1]])}>
+                    <select
+                      value={compare[0]}
+                      onChange={(e) =>
+                        setCompare([+e.target.value, compare[1]])
+                      }
+                    >
                       {versions.map((v, i) => (
-                        <option key={v.id} value={i}>v{v.number} · {v.publishedAt}</option>
+                        <option key={v.id} value={i}>
+                          v{v.number} · {v.publishedAt}
+                        </option>
                       ))}
                     </select>
                   </label>
                   <span>→</span>
                   <label>
                     新版本
-                    <select value={compare[1]} onChange={(e) => setCompare([compare[0], +e.target.value])}>
+                    <select
+                      value={compare[1]}
+                      onChange={(e) =>
+                        setCompare([compare[0], +e.target.value])
+                      }
+                    >
                       {versions.map((v, i) => (
-                        <option key={v.id} value={i}>v{v.number} · {v.publishedAt}</option>
+                        <option key={v.id} value={i}>
+                          v{v.number} · {v.publishedAt}
+                        </option>
                       ))}
                     </select>
                   </label>
                 </div>
                 <div className="diff-box">
-                  {diff(versions[compare[0]]?.copy[lang].content || "", versions[compare[1]]?.copy[lang].content || "").map((r, i) => (
-                    <p key={i} className={r.k}>{r.k === "add" ? "+ " : r.k === "remove" ? "− " : "　"}{r.t}</p>
+                  {diff(
+                    versions[compare[0]]?.copy[lang].content || "",
+                    versions[compare[1]]?.copy[lang].content || "",
+                  ).map((r, i) => (
+                    <p key={i} className={r.k}>
+                      {r.k === "add" ? "+ " : r.k === "remove" ? "− " : "　"}
+                      {r.t}
+                    </p>
                   ))}
                 </div>
-                {isAdmin && <div className="restore-row">{versions.map((v) => <button className="ghost" key={v.id} onClick={() => restore(v)}>將 v{v.number} 載入草稿</button>)}</div>}
+                {isAdmin && (
+                  <div className="restore-row">
+                    {versions.map((v) => (
+                      <button
+                        className="ghost"
+                        key={v.id}
+                        onClick={() => restore(v)}
+                      >
+                        將 v{v.number} 載入草稿
+                      </button>
+                    ))}
+                  </div>
+                )}
               </>
             ) : (
               <div className="empty">此規程尚未發布任何版本。</div>
@@ -833,6 +949,49 @@ export default function Home() {
                     </select>
                   </label>
                 </div>
+                <label>
+                  附件／表單（以逗號分隔）
+                  <input
+                    value={(draft.attachments || []).join("、")}
+                    placeholder="例如：請假申請表、任用核准單"
+                    onChange={(e) =>
+                      setDraft({
+                        ...draft,
+                        attachments: e.target.value
+                          .split(/[、,]/)
+                          .map((item) => item.trim())
+                          .filter(Boolean),
+                      })
+                    }
+                  />
+                </label>
+                <label>
+                  關聯規程（以逗號分隔）
+                  <input
+                    value={(draft.relatedPolicies || []).join("、")}
+                    placeholder="例如：HR-002 出勤與請假管理規程"
+                    onChange={(e) =>
+                      setDraft({
+                        ...draft,
+                        relatedPolicies: e.target.value
+                          .split(/[、,]/)
+                          .map((item) => item.trim())
+                          .filter(Boolean),
+                      })
+                    }
+                  />
+                </label>
+                <label>
+                  本次修訂說明（發布時會一併記錄）
+                  <textarea
+                    rows={2}
+                    value={draft.revisionNote || ""}
+                    placeholder="例如：第 2 條新增主管核准流程"
+                    onChange={(e) =>
+                      setDraft({ ...draft, revisionNote: e.target.value })
+                    }
+                  />
+                </label>
                 <div className="edit-language">
                   <b>正在編輯：{lang === "zh" ? "繁體中文" : "日本語"}</b>
                   <div>
@@ -861,7 +1020,7 @@ export default function Home() {
                   />
                 </label>
                 <label>
-                  規程全文
+                  章節與條文內容（每段代表一條）
                   <textarea
                     className="policy-editor"
                     rows={8}
@@ -894,12 +1053,52 @@ export default function Home() {
                   <b>{lang === "zh" ? "規程摘要" : "規程概要"}</b>
                   <p>{selected.draft[lang].summary}</p>
                 </div>
-                <div className="policy-text">
-                  {selected.draft[lang].content.split("\n").map((x, i) => (
-                    <p key={i}>{x || "　"}</p>
+                <div className="policy-structure">
+                  {(
+                    selected.draft[lang].chapters ||
+                    chaptersFromContent(selected.draft[lang].content)
+                  ).map((chapter) => (
+                    <section className="policy-chapter" key={chapter.id}>
+                      <h3>{chapter.title}</h3>
+                      {chapter.articles.map((article) => (
+                        <article className="policy-article" key={article.id}>
+                          <b>{article.title}</b>
+                          <p>
+                            {article.text.replace(article.title, "").trim() ||
+                              article.text}
+                          </p>
+                        </article>
+                      ))}
+                    </section>
                   ))}
                 </div>
                 <Tables tables={selected.draft[lang].tables} />
+                <section className="policy-links">
+                  <div>
+                    <b>附件／表單</b>
+                    <p>
+                      {selected.attachments?.length
+                        ? selected.attachments.join("、")
+                        : "尚未設定附件或表單。"}
+                    </p>
+                  </div>
+                  <div>
+                    <b>關聯規程</b>
+                    <p>
+                      {selected.relatedPolicies?.length
+                        ? selected.relatedPolicies.join("、")
+                        : "尚未設定關聯規程。"}
+                    </p>
+                  </div>
+                </section>
+                <section className="revision-note">
+                  <b>最新修訂說明</b>
+                  <p>
+                    {versions.at(-1)?.revisionNote ||
+                      selected.revisionNote ||
+                      "尚未填寫修訂說明。"}
+                  </p>
+                </section>
               </>
             )}
           </article>
