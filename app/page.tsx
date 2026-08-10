@@ -2,8 +2,15 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 type Lang = "zh" | "ja";
-type Role = "admin" | "employee";
+type Role = "admin" | "employee" | "department_head" | "site_head";
 type Status = "草稿" | "發布" | "停用";
+type ApprovalStage = "草稿" | "待部門長承認" | "待據點長承認" | "退回修改";
+type Approval = {
+  stage: ApprovalStage;
+  submittedAt?: string;
+  returnedAt?: string;
+  returnReason?: string;
+};
 type Article = { id: string; title: string; text: string };
 type Chapter = { id: string; title: string; articles: Article[] };
 type Copy = {
@@ -31,12 +38,22 @@ type Policy = {
   attachments?: string[];
   relatedPolicies?: string[];
   revisionNote?: string;
+  approval?: Approval;
 };
 type Audit = {
   id: string;
   at: string;
   actor: string;
-  action: "新增" | "修改草稿" | "發布" | "停用" | "還原";
+  action:
+    | "新增"
+    | "修改草稿"
+    | "送審"
+    | "部門長承認"
+    | "據點長承認"
+    | "退回修改"
+    | "發布"
+    | "停用"
+    | "還原";
   policy: string;
   code: string;
   before: string;
@@ -56,13 +73,16 @@ const chaptersFromContent = (content: string): Chapter[] => {
   const articles = content
     .split("\n")
     .filter(Boolean)
-    .map((text, index) => ({
-      id: `article-${index + 1}`,
-      title:
-        text.match(/^(第[一二三四五六七八九十\d]+條|第\d+条)/)?.[1] ||
-        `第 ${index + 1} 條`,
-      text,
-    }));
+    .map((text, index) => {
+      const match = text.match(
+        /^(第[一二三四五六七八九十\d]+條|第\d+条)[　\s]*(.*)$/,
+      );
+      return {
+        id: `article-${index + 1}`,
+        title: match?.[1] || `第 ${index + 1} 條`,
+        text: match?.[2] || text,
+      };
+    });
   return articles.length
     ? [{ id: "chapter-1", title: "第一章　總則", articles }]
     : [];
@@ -93,6 +113,7 @@ const normalizePolicy = (value: Policy): Policy => ({
   attachments: value.attachments || [],
   relatedPolicies: value.relatedPolicies || [],
   revisionNote: value.revisionNote || "",
+  approval: value.approval || { stage: "草稿" },
   draft: {
     zh: normalizeCopy(value.draft.zh),
     ja: normalizeCopy(value.draft.ja),
@@ -105,6 +126,15 @@ const normalizePolicy = (value: Policy): Policy => ({
     },
   })),
 });
+const ordinal = (number: number) =>
+  ["一", "二", "三", "四", "五", "六", "七", "八", "九", "十"][number - 1] ||
+  String(number);
+const contentFromChapters = (chapters: Chapter[]) =>
+  chapters
+    .flatMap((chapter) =>
+      chapter.articles.map((article) => `${article.title}　${article.text}`),
+    )
+    .join("\n\n");
 const initial: Policy[] = [
   {
     id: 1,
@@ -325,13 +355,127 @@ function Tables({
   );
 }
 
+function StructureEditor({
+  chapters,
+  onChange,
+}: {
+  chapters: Chapter[];
+  onChange: (chapters: Chapter[]) => void;
+}) {
+  const addChapter = () =>
+    onChange([
+      ...chapters,
+      {
+        id: String(Date.now()),
+        title: `第${ordinal(chapters.length + 1)}章`,
+        articles: [],
+      },
+    ]);
+  const addArticle = (chapterIndex: number) =>
+    onChange(
+      chapters.map((chapter, index) =>
+        index !== chapterIndex
+          ? chapter
+          : {
+              ...chapter,
+              articles: [
+                ...chapter.articles,
+                {
+                  id: `${Date.now()}-${chapterIndex}`,
+                  title: `第${ordinal(chapter.articles.length + 1)}條`,
+                  text: "",
+                },
+              ],
+            },
+      ),
+    );
+  const updateText = (
+    chapterIndex: number,
+    articleIndex: number,
+    text: string,
+  ) =>
+    onChange(
+      chapters.map((chapter, index) =>
+        index !== chapterIndex
+          ? chapter
+          : {
+              ...chapter,
+              articles: chapter.articles.map((article, articlePosition) =>
+                articlePosition === articleIndex
+                  ? { ...article, text }
+                  : article,
+              ),
+            },
+      ),
+    );
+  const removeArticle = (chapterIndex: number, articleIndex: number) =>
+    onChange(
+      chapters.map((chapter, index) =>
+        index !== chapterIndex
+          ? chapter
+          : {
+              ...chapter,
+              articles: chapter.articles.filter(
+                (_, position) => position !== articleIndex,
+              ),
+            },
+      ),
+    );
+  return (
+    <section className="structure-editor">
+      <div className="structure-editor-head">
+        <div>
+          <b>章節與條文</b>
+          <small>使用新增建立章節與條號；僅輸入條文內容。</small>
+        </div>
+        <button type="button" className="ghost" onClick={addChapter}>
+          ＋ 新增章節
+        </button>
+      </div>
+      {chapters.map((chapter, chapterIndex) => (
+        <div className="chapter-editor" key={chapter.id}>
+          <div className="chapter-title">
+            {chapter.title}
+            <button type="button" onClick={() => addArticle(chapterIndex)}>
+              ＋ 新增條文
+            </button>
+          </div>
+          {chapter.articles.map((article, articleIndex) => (
+            <div className="article-editor" key={article.id}>
+              <b>{article.title}</b>
+              <textarea
+                rows={3}
+                value={article.text}
+                placeholder="輸入條文內容"
+                onChange={(event) =>
+                  updateText(chapterIndex, articleIndex, event.target.value)
+                }
+              />
+              <button
+                type="button"
+                className="remove-article"
+                onClick={() => removeArticle(chapterIndex, articleIndex)}
+              >
+                刪除
+              </button>
+            </div>
+          ))}
+        </div>
+      ))}
+      {!chapters.length && (
+        <div className="empty">尚未建立條文。請先新增章節，再新增條文。</div>
+      )}
+    </section>
+  );
+}
+
 export default function Home() {
   const [policies, setPolicies] = useState(initial),
     [selectedId, setSelectedId] = useState(1),
     [lang, setLang] = useState<Lang>("zh"),
     [role, setRole] = useState<Role>("employee"),
     [name, setName] = useState("Employee"),
-    [view, setView] = useState<"library" | "audit">("library"),
+    [view, setView] = useState<"library" | "audit" | "approval">("library"),
     [editing, setEditing] = useState(false),
     [draft, setDraft] = useState<Policy>(clone(initial[0])),
     [search, setSearch] = useState(""),
@@ -353,9 +497,21 @@ export default function Home() {
       const preview = localStorage.getItem(
         "hr-policy-role-preview",
       ) as Role | null;
-      if (preview === "admin" || preview === "employee") {
-        setRole(preview);
-        setName(preview === "admin" ? "Admin preview" : "Employee preview");
+      if (
+        ["admin", "employee", "department_head", "site_head"].includes(
+          preview || "",
+        )
+      ) {
+        setRole(preview as Role);
+        setName(
+          preview === "admin"
+            ? "Admin preview"
+            : preview === "department_head"
+              ? "部門長 preview"
+              : preview === "site_head"
+                ? "據點長 preview"
+                : "Employee preview",
+        );
         return;
       }
     } catch {}
@@ -375,9 +531,24 @@ export default function Home() {
     ) as HTMLElement | null;
     const switchRole = () =>
       setRole((current) => {
-        const next = current === "admin" ? "employee" : "admin";
+        const next: Role =
+          current === "admin"
+            ? "department_head"
+            : current === "department_head"
+              ? "site_head"
+              : current === "site_head"
+                ? "employee"
+                : "admin";
         localStorage.setItem("hr-policy-role-preview", next);
-        setName(next === "admin" ? "Admin preview" : "Employee preview");
+        setName(
+          next === "admin"
+            ? "Admin preview"
+            : next === "department_head"
+              ? "部門長 preview"
+              : next === "site_head"
+                ? "據點長 preview"
+                : "Employee preview",
+        );
         return next;
       });
     profile?.addEventListener("click", switchRole);
@@ -399,6 +570,8 @@ export default function Home() {
   const selected = policies.find((x) => x.id === selectedId) || policies[0];
   const versions = selected.versions;
   const isAdmin = role === "admin";
+  const isDepartmentHead = role === "department_head";
+  const isSiteHead = role === "site_head";
   const categories = [
     "全部分類",
     ...Array.from(new Set(policies.map((x) => x.category))),
@@ -500,6 +673,18 @@ export default function Home() {
         },
       },
     }));
+  const updateChapters = (chapters: Chapter[]) =>
+    setDraft((policy) => ({
+      ...policy,
+      draft: {
+        ...policy.draft,
+        [lang]: {
+          ...policy.draft[lang],
+          chapters,
+          content: contentFromChapters(chapters),
+        },
+      },
+    }));
   function saveDraft(e: FormEvent) {
     e.preventDefault();
     if (!isAdmin) return;
@@ -518,31 +703,93 @@ export default function Home() {
     open(draft);
     setNotice("草稿已儲存；尚未建立發布版本。");
   }
-  function publish() {
+  function submitForApproval() {
     if (!isAdmin) return;
-    const last = selected.versions.at(-1)?.number || "0.0",
-      version = {
-        id: String(Date.now()),
-        number: nextV(last),
-        publishedAt: new Date().toISOString().slice(0, 10),
-        copy: clone(draft.draft),
-        revisionNote: draft.revisionNote || "未填寫修訂說明",
-      },
-      next = {
+    const next = {
         ...draft,
-        status: "發布" as Status,
-        versions: [...selected.versions, version],
+        status: "草稿" as Status,
+        approval: {
+          stage: "待部門長承認" as ApprovalStage,
+          submittedAt: now(),
+        },
       },
       all = policies.map((p) => (p.id === next.id ? next : p)),
       nextAudit = log(
-        "發布",
+        "送審",
         JSON.stringify(selected.versions.at(-1)?.copy || {}),
-        JSON.stringify(version.copy),
+        JSON.stringify(next.draft),
         next,
       );
     saveStore(all, nextAudit);
     open(next);
-    setNotice(`已發布版本 ${version.number}，舊版已保留。`);
+    setNotice("已送交部門長承認。");
+  }
+  function departmentApprove(policy: Policy) {
+    if (!isDepartmentHead) return;
+    const next = {
+      ...policy,
+      approval: { ...policy.approval, stage: "待據點長承認" as ApprovalStage },
+    };
+    const all = policies.map((p) => (p.id === next.id ? next : p));
+    saveStore(
+      all,
+      log(
+        "部門長承認",
+        JSON.stringify(policy.draft),
+        JSON.stringify(next.draft),
+        next,
+      ),
+    );
+    setNotice("已承認，已送交據點長承認。");
+  }
+  function siteApprove(policy: Policy) {
+    if (!isSiteHead) return;
+    const last = policy.versions.at(-1)?.number || "0.0";
+    const version: Version = {
+      id: String(Date.now()),
+      number: nextV(last),
+      publishedAt: new Date().toISOString().slice(0, 10),
+      copy: clone(policy.draft),
+      revisionNote: policy.revisionNote || "未填寫修訂說明",
+    };
+    const next = {
+      ...policy,
+      status: "發布" as Status,
+      versions: [...policy.versions, version],
+      approval: { stage: "草稿" as ApprovalStage },
+    };
+    const all = policies.map((p) => (p.id === next.id ? next : p));
+    saveStore(
+      all,
+      log(
+        "據點長承認",
+        JSON.stringify(policy.versions.at(-1)?.copy || {}),
+        JSON.stringify(version.copy),
+        next,
+      ),
+    );
+    setNotice(`據點長已承認，v${version.number} 已公開。`);
+  }
+  function returnForRevision(policy: Policy) {
+    if (!isDepartmentHead && !isSiteHead) return;
+    const returnReason =
+      window.prompt("請輸入退回修改原因", "請依意見調整後重新送審") ||
+      "請重新修改後送審";
+    const next = {
+      ...policy,
+      status: "草稿" as Status,
+      approval: {
+        stage: "退回修改" as ApprovalStage,
+        returnedAt: now(),
+        returnReason,
+      },
+    };
+    const all = policies.map((p) => (p.id === next.id ? next : p));
+    saveStore(
+      all,
+      log("退回修改", JSON.stringify(policy.draft), returnReason, next),
+    );
+    setNotice("已退回管理員重新修改。");
   }
   function disable() {
     if (!isAdmin) return;
@@ -572,6 +819,130 @@ export default function Home() {
       ...y.filter((t) => !x.includes(t)).map((t) => ({ t, k: "add" })),
     ];
   };
+  const approvalQueue = policies.filter((policy) =>
+    isDepartmentHead
+      ? policy.approval?.stage === "待部門長承認"
+      : isSiteHead
+        ? policy.approval?.stage === "待據點長承認"
+        : false,
+  );
+  if (view === "approval")
+    return (
+      <main>
+        <aside className="sidebar">
+          <div className="brand">
+            <span className="brand-mark">人</span>
+            <div>
+              <strong>人資規程庫</strong>
+              <small>HR POLICY CENTER</small>
+            </div>
+          </div>
+          <nav>
+            <button className="active">✓ 承認待辦</button>
+            <button onClick={() => setView("library")}>▦ 規程資料庫</button>
+          </nav>
+        </aside>
+        <section className="workspace approval-page">
+          <header>
+            <div>
+              <p className="eyebrow">APPROVAL WORKFLOW</p>
+              <h1>{isDepartmentHead ? "部門長承認" : "據點長承認"}</h1>
+              <p className="sub">
+                查看原文、前後差異、改訂理由與預定發布日期後，進行承認或退回。
+              </p>
+            </div>
+            <button className="ghost" onClick={() => setView("library")}>
+              ← 返回規程庫
+            </button>
+          </header>
+          <div className="approval-flow">
+            <span className={isDepartmentHead ? "current" : ""}>
+              1. 部門長承認
+            </span>
+            <i>→</i>
+            <span className={isSiteHead ? "current" : ""}>2. 據點長承認</span>
+            <i>→</i>
+            <span>3. 公開發布</span>
+          </div>
+          <div className="approval-list">
+            {approvalQueue.length ? (
+              approvalQueue.map((policy) => {
+                const original =
+                  policy.versions.at(-1)?.copy[lang].content ||
+                  "（首次發布，無原始版本）";
+                const revised = policy.draft[lang].content;
+                return (
+                  <article className="approval-card" key={policy.id}>
+                    <div className="approval-card-head">
+                      <div>
+                        <span className="code">{policy.code}</span>
+                        <h2>
+                          {policy.draft[lang].title || policy.draft.zh.title}
+                        </h2>
+                      </div>
+                      <span className="status draft">
+                        {policy.approval?.stage}
+                      </span>
+                    </div>
+                    <div className="approval-meta">
+                      <span>送審：{policy.approval?.submittedAt || "—"}</span>
+                      <span>
+                        預定發布日：{policy.effectiveDate || "待設定"}
+                      </span>
+                    </div>
+                    <section className="approval-reason">
+                      <b>改訂理由</b>
+                      <p>{policy.revisionNote || "未填寫改訂理由。"}</p>
+                    </section>
+                    <details className="approval-original">
+                      <summary>查看原文（上一公開版本）</summary>
+                      <pre>{original}</pre>
+                    </details>
+                    <section className="approval-diff">
+                      <b>前後差異</b>
+                      <div className="diff-box">
+                        {diff(original, revised).map((row, index) => (
+                          <p key={index} className={row.k}>
+                            {row.k === "add"
+                              ? "+ "
+                              : row.k === "remove"
+                                ? "− "
+                                : "　"}
+                            {row.t}
+                          </p>
+                        ))}
+                      </div>
+                    </section>
+                    <div className="approval-actions">
+                      <button
+                        className="ghost danger"
+                        onClick={() => returnForRevision(policy)}
+                      >
+                        退回重新修改
+                      </button>
+                      <button
+                        className="primary"
+                        onClick={() =>
+                          isDepartmentHead
+                            ? departmentApprove(policy)
+                            : siteApprove(policy)
+                        }
+                      >
+                        {isDepartmentHead
+                          ? "部門長承認並送據點長"
+                          : "據點長承認並公開"}
+                      </button>
+                    </div>
+                  </article>
+                );
+              })
+            ) : (
+              <div className="empty">目前沒有待您承認的規程。</div>
+            )}
+          </div>
+        </section>
+      </main>
+    );
   if (view === "audit")
     return (
       <main>
@@ -755,13 +1126,22 @@ export default function Home() {
           {isAdmin && (
             <button onClick={() => setView("audit")}>◷ 修改紀錄</button>
           )}
+          {(isDepartmentHead || isSiteHead) && (
+            <button onClick={() => setView("approval")}>✓ 承認待辦</button>
+          )}
         </nav>
         <div className="sidebar-foot">
           <div className="avatar">{role === "admin" ? "管" : "員"}</div>
           <div>
             <b>{name}</b>
             <small>
-              {role === "admin" ? "Admin · 可管理規程" : "Employee · 僅可查看"}
+              {role === "admin"
+                ? "Admin · 可管理規程"
+                : role === "department_head"
+                  ? "部門長 · 第一關承認"
+                  : role === "site_head"
+                    ? "據點長 · 最終承認"
+                    : "Employee · 僅可查看"}
             </small>
           </div>
         </div>
@@ -832,7 +1212,9 @@ export default function Home() {
                   <span
                     className={`status ${p.status === "草稿" ? "draft" : p.status === "停用" ? "disabled" : ""}`}
                   >
-                    {p.status}
+                    {p.approval?.stage && p.approval.stage !== "草稿"
+                      ? p.approval.stage
+                      : p.status}
                   </span>
                 </div>
                 <h3>{p.draft[lang].title || p.draft.zh.title}</h3>
@@ -861,6 +1243,10 @@ export default function Home() {
                   </span>
                   <span>最新版本 {versions.at(-1)?.number || "未發布"}</span>
                   <span>生效日 {selected.effectiveDate || "待定"}</span>
+                  {selected.approval?.stage &&
+                    selected.approval.stage !== "草稿" && (
+                      <span>核准狀態：{selected.approval.stage}</span>
+                    )}
                 </div>
               </div>
               {isAdmin && !editing && (
@@ -874,8 +1260,8 @@ export default function Home() {
                   >
                     ✎ 編輯草稿
                   </button>
-                  <button className="primary" onClick={publish}>
-                    發布新版本
+                  <button className="primary" onClick={submitForApproval}>
+                    送交部門長承認
                   </button>
                   <button className="ghost danger" onClick={disable}>
                     停用
@@ -949,7 +1335,7 @@ export default function Home() {
                       }
                     >
                       <option>草稿</option>
-                      <option>發布</option>
+                      <option disabled>發布</option>
                       <option>停用</option>
                     </select>
                   </label>
@@ -1024,15 +1410,10 @@ export default function Home() {
                     onChange={(e) => update("summary", e.target.value)}
                   />
                 </label>
-                <label>
-                  章節與條文內容（每段代表一條）
-                  <textarea
-                    className="policy-editor"
-                    rows={8}
-                    value={draft.draft[lang].content}
-                    onChange={(e) => update("content", e.target.value)}
-                  />
-                </label>
+                <StructureEditor
+                  chapters={draft.draft[lang].chapters}
+                  onChange={updateChapters}
+                />
                 <Tables
                   editing
                   tables={draft.draft[lang].tables}
