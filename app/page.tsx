@@ -551,6 +551,13 @@ export default function Home() {
   const selected =
     visiblePolicies.find((x) => x.id === selectedId) || visiblePolicies[0];
   const versions = selected.versions;
+  const releasedCopy = (policy: Policy) =>
+    policy.versions.at(-1)?.copy || policy.draft;
+  const hasSavedDraft = (policy: Policy) =>
+    policy.status === "發布" &&
+    policy.versions.length > 0 &&
+    JSON.stringify(policy.draft) !== JSON.stringify(releasedCopy(policy));
+  const displayedCopy = releasedCopy(selected);
   const changePreviewRole = (next: Role) => {
     localStorage.setItem("hr-policy-role-preview", next);
     setRole(next);
@@ -574,7 +581,7 @@ export default function Home() {
       visiblePolicies.filter(
         (p) =>
           (category === "全部分類" || p.category === category) &&
-          `${p.code} ${p.draft.zh.title} ${p.draft.ja.title}`
+          `${p.code} ${releasedCopy(p).zh.title} ${releasedCopy(p).ja.title}`
             .toLowerCase()
             .includes(search.toLowerCase()),
       ),
@@ -700,7 +707,7 @@ export default function Home() {
     if (!isAdmin) return;
     const next = {
         ...draft,
-        status: "草稿" as Status,
+        status: draft.versions.length ? ("發布" as Status) : ("草稿" as Status),
         approval: {
           stage: "待部門長承認" as ApprovalStage,
           submittedAt: now(),
@@ -772,7 +779,7 @@ export default function Home() {
     }
     const next = {
       ...policy,
-      status: "草稿" as Status,
+      status: policy.versions.length ? ("發布" as Status) : ("草稿" as Status),
       approval: {
         stage: "退回修改" as ApprovalStage,
         returnedAt: now(),
@@ -1270,7 +1277,9 @@ export default function Home() {
                       : p.status}
                   </span>
                 </div>
-                <h3>{p.draft[lang].title || p.draft.zh.title}</h3>
+                <h3>
+                  {releasedCopy(p)[lang].title || releasedCopy(p).zh.title}
+                </h3>
                 <p>
                   {p.category} · {lang === "zh" ? "中文" : "日文"}
                 </p>
@@ -1287,7 +1296,7 @@ export default function Home() {
                 <p className="eyebrow">
                   {selected.category} · {selected.code || "NEW"}
                 </p>
-                <h2>{editing ? "編輯草稿" : selected.draft[lang].title}</h2>
+                <h2>{editing ? "編輯草稿" : displayedCopy[lang].title}</h2>
                 <div className="detail-meta">
                   <span
                     className={`status ${selected.status === "草稿" ? "draft" : selected.status === "停用" ? "disabled" : ""}`}
@@ -1490,12 +1499,12 @@ export default function Home() {
               <>
                 <div className="summary">
                   <b>{lang === "zh" ? "規程摘要" : "規程概要"}</b>
-                  <p>{selected.draft[lang].summary}</p>
+                  <p>{displayedCopy[lang].summary}</p>
                 </div>
                 <div className="policy-structure">
                   {(
-                    selected.draft[lang].chapters ||
-                    chaptersFromContent(selected.draft[lang].content)
+                    displayedCopy[lang].chapters ||
+                    chaptersFromContent(displayedCopy[lang].content)
                   ).map((chapter) => (
                     <section className="policy-chapter" key={chapter.id}>
                       <h3>{chapter.title}</h3>
@@ -1511,7 +1520,7 @@ export default function Home() {
                     </section>
                   ))}
                 </div>
-                <Tables tables={selected.draft[lang].tables} />
+                <Tables tables={displayedCopy[lang].tables} />
                 <section className="policy-links">
                   <div>
                     <b>附件／表單</b>
@@ -1538,6 +1547,26 @@ export default function Home() {
                       "尚未填寫修訂說明。"}
                   </p>
                 </section>
+                {isAdmin && hasSavedDraft(selected) && (
+                  <section className="pending-draft">
+                    <div className="pending-draft-head">
+                      <b>已儲存的編輯草稿</b>
+                      <span>
+                        {selected.approval?.stage === "草稿"
+                          ? "尚未送審"
+                          : selected.approval?.stage}
+                      </span>
+                    </div>
+                    <h3>
+                      {selected.draft[lang].title || selected.draft.zh.title}
+                    </h3>
+                    <p>{selected.draft[lang].summary}</p>
+                    <details>
+                      <summary>查看已儲存的編輯內容</summary>
+                      <pre>{selected.draft[lang].content}</pre>
+                    </details>
+                  </section>
+                )}
                 {isAdmin && selected.approval?.stage === "退回修改" && (
                   <section className="revision-note return-comment">
                     <b>承認退回意見</b>
