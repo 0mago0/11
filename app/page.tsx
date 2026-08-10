@@ -774,67 +774,6 @@ export default function Home() {
         : "已送交部門長承認。",
     );
   }
-  function publishTypoFix() {
-    if (!isAdmin || draft.changeType !== "typo") return;
-    const today = new Date().toISOString().slice(0, 10);
-    if (
-      draft.approval?.stage === "已承認待發布" &&
-      draft.publishDate &&
-      draft.publishDate > today
-    ) {
-      const next = {
-        ...draft,
-        status: "已承認" as Status,
-        approval: {
-          ...draft.approval,
-          stage: "已承認待發布" as ApprovalStage,
-        },
-      };
-      const all = policies.map((policy) =>
-        policy.id === next.id ? next : policy,
-      );
-      saveStore(
-        all,
-        log(
-          "修改草稿",
-          JSON.stringify(selected.draft),
-          JSON.stringify(next.draft),
-          next,
-        ),
-      );
-      open(next);
-      setNotice(`錯字修正已儲存，仍將於 ${draft.publishDate} 自動發布。`);
-      return;
-    }
-    const last = draft.versions.at(-1)?.number || "0.0";
-    const version: Version = {
-      id: String(Date.now()),
-      number: nextV(last),
-      publishedAt: new Date().toISOString().slice(0, 10),
-      copy: clone(draft.draft),
-      revisionNote: draft.revisionNote || "純錯字修正",
-    };
-    const next = {
-      ...draft,
-      status: "發布" as Status,
-      versions: [...draft.versions, version],
-      approval: { stage: "草稿" as ApprovalStage },
-    };
-    const all = policies.map((policy) =>
-      policy.id === next.id ? next : policy,
-    );
-    saveStore(
-      all,
-      log(
-        "發布",
-        JSON.stringify(selected.versions.at(-1)?.copy || {}),
-        JSON.stringify(version.copy),
-        next,
-      ),
-    );
-    open(next);
-    setNotice(`錯字修正已由 Admin 發布，v${version.number} 已公開。`);
-  }
   function departmentApprove(policy: Policy) {
     if (!isDepartmentHead) return;
     const next = {
@@ -1564,15 +1503,9 @@ export default function Home() {
                         ✎ 編輯草稿
                       </button>
                     )}
-                    {canChooseChangeType && draft.changeType === "typo" ? (
-                      <button className="primary" onClick={publishTypoFix}>
-                        發布錯字修正
-                      </button>
-                    ) : (
-                      <button className="primary" onClick={submitForApproval}>
-                        送交部門長承認
-                      </button>
-                    )}
+                    <button className="primary" onClick={submitForApproval}>
+                      送交部門長承認
+                    </button>
                     <button className="ghost danger" onClick={disable}>
                       停用
                     </button>
@@ -1601,9 +1534,7 @@ export default function Home() {
                     <div className="change-type-guide">
                       <b>
                         {draft.changeType === "typo"
-                          ? draft.approval?.stage === "已承認待發布"
-                            ? "純錯字修改：無需重新承認，維持預定發布日。"
-                            : "純錯字修改：儲存後可由 Admin 直接發布。"
+                          ? "純錯字修改：送審後也需依序完成承認。"
                           : "修改內容事項：送審後會先停用原公開版本，再依序承認。"}
                       </b>
                       <span>可在下方「變更類型」切換流程。</span>
@@ -1675,9 +1606,7 @@ export default function Home() {
                           <option value="content">
                             修改內容事項（需承認）
                           </option>
-                          <option value="typo">
-                            純錯字修改（無需重新承認）
-                          </option>
+                          <option value="typo">純錯字修改（需承認）</option>
                         </select>
                       </label>
                     ) : (
