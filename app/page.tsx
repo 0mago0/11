@@ -576,6 +576,9 @@ export default function Home() {
   const isApprovalLocked = ["待部門長承認", "待據點長承認"].includes(
     selected.approval?.stage || "",
   );
+  const canChooseChangeType =
+    selected.versions.length > 0 ||
+    selected.approval?.stage === "已承認待發布";
   const changePreviewRole = (next: Role) => {
     localStorage.setItem("hr-policy-role-preview", next);
     setRole(next);
@@ -753,8 +756,7 @@ export default function Home() {
   function publishTypoFix() {
     if (
       !isAdmin ||
-      draft.changeType !== "typo" ||
-      draft.versions.length === 0
+      draft.changeType !== "typo"
     )
       return;
     const today = new Date().toISOString().slice(0, 10);
@@ -1502,7 +1504,7 @@ export default function Home() {
               </div>
               {isAdmin && !editing && !isApprovalLocked && (
                 <div className="actions">
-                  {selected.versions.length > 0 ? (
+                  {canChooseChangeType ? (
                     <>
                       <button
                         className="ghost"
@@ -1534,7 +1536,7 @@ export default function Home() {
                       ✎ 編輯草稿
                     </button>
                   )}
-                  {selected.versions.length > 0 && draft.changeType === "typo" ? (
+                  {canChooseChangeType && draft.changeType === "typo" ? (
                     <button className="primary" onClick={publishTypoFix}>
                       發布錯字修正
                     </button>
@@ -1566,11 +1568,14 @@ export default function Home() {
             </div>
             {editing ? (
               <form onSubmit={saveDraft}>
-                {draft.versions.length > 0 && (
+                {(draft.versions.length > 0 ||
+                  draft.approval?.stage === "已承認待發布") && (
                   <div className="change-type-guide">
                     <b>
                       {draft.changeType === "typo"
-                        ? "純錯字修改：儲存後可由 Admin 直接發布。"
+                        ? draft.approval?.stage === "已承認待發布"
+                          ? "純錯字修改：無需重新承認，維持預定發布日。"
+                          : "純錯字修改：儲存後可由 Admin 直接發布。"
                         : "修改內容事項：送審後會先停用原公開版本，再依序承認。"}
                     </b>
                     <span>可在下方「變更類型」切換流程。</span>
@@ -1626,7 +1631,8 @@ export default function Home() {
                       }
                     />
                   </label>
-                  {draft.versions.length > 0 ? (
+                  {draft.versions.length > 0 ||
+                  draft.approval?.stage === "已承認待發布" ? (
                     <label>
                       變更類型
                       <select
@@ -1640,7 +1646,7 @@ export default function Home() {
                       >
                         <option value="content">修改內容事項（需承認）</option>
                         <option value="typo">
-                          純錯字修改（Admin 可直接發布）
+                          純錯字修改（無需重新承認）
                         </option>
                       </select>
                     </label>
