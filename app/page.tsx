@@ -61,6 +61,7 @@ type Audit = {
   fromVersion?: string;
   toVersion?: string;
   changes?: string[];
+  comment?: string;
 };
 const emptyCopy = (): Copy => ({
   title: "",
@@ -482,6 +483,7 @@ export default function Home() {
     [category, setCategory] = useState("全部分類"),
     [notice, setNotice] = useState(""),
     [audit, setAudit] = useState<Audit[]>([]),
+    [returnComments, setReturnComments] = useState<Record<number, string>>({}),
     [compare, setCompare] = useState<[number, number]>([0, 0]);
   useEffect(() => {
     try {
@@ -760,11 +762,13 @@ export default function Home() {
     );
     setNotice(`據點長已承認，v${version.number} 已公開。`);
   }
-  function returnForRevision(policy: Policy) {
+  function returnForRevision(policy: Policy, comment: string) {
     if (!isDepartmentHead && !isSiteHead) return;
-    const returnReason =
-      window.prompt("請輸入退回修改原因", "請依意見調整後重新送審") ||
-      "請重新修改後送審";
+    const returnReason = comment.trim();
+    if (!returnReason) {
+      setNotice("請先填寫退回意見。");
+      return;
+    }
     const next = {
       ...policy,
       status: "草稿" as Status,
@@ -775,10 +779,19 @@ export default function Home() {
       },
     };
     const all = policies.map((p) => (p.id === next.id ? next : p));
-    saveStore(
-      all,
-      log("退回修改", JSON.stringify(policy.draft), returnReason, next),
+    const nextAudit = log(
+      "退回修改",
+      JSON.stringify(policy.draft),
+      JSON.stringify(next.draft),
+      next,
     );
+    nextAudit[0] = {
+      ...nextAudit[0],
+      comment: returnReason,
+      changes: ["退回意見"],
+    };
+    saveStore(all, nextAudit);
+    setReturnComments((comments) => ({ ...comments, [policy.id]: "" }));
     setNotice("已退回管理員重新修改。");
   }
   function disable() {
@@ -903,10 +916,29 @@ export default function Home() {
                         ))}
                       </div>
                     </section>
+                    <label className="approval-comment">
+                      <b>退回意見（Admin 可見）</b>
+                      <textarea
+                        rows={3}
+                        value={returnComments[policy.id] || ""}
+                        onChange={(event) =>
+                          setReturnComments((comments) => ({
+                            ...comments,
+                            [policy.id]: event.target.value,
+                          }))
+                        }
+                        placeholder="請說明需調整的條文、原因或建議方向"
+                      />
+                    </label>
                     <div className="approval-actions">
                       <button
                         className="ghost danger"
-                        onClick={() => returnForRevision(policy)}
+                        onClick={() =>
+                          returnForRevision(
+                            policy,
+                            returnComments[policy.id] || "",
+                          )
+                        }
                       >
                         退回重新修改
                       </button>
@@ -996,6 +1028,12 @@ export default function Home() {
                       </div>
                     </div>
                   </div>
+                  {a.comment && (
+                    <section className="audit-comment">
+                      <b>退回意見</b>
+                      <p>{a.comment}</p>
+                    </section>
+                  )}
                 </article>
               ))
             ) : (
@@ -1498,6 +1536,17 @@ export default function Home() {
                       "尚未填寫修訂說明。"}
                   </p>
                 </section>
+                {isAdmin && selected.approval?.stage === "退回修改" && (
+                  <section className="revision-note return-comment">
+                    <b>承認退回意見</b>
+                    <p>
+                      {selected.approval.returnReason || "尚未填寫退回意見。"}
+                    </p>
+                    {selected.approval.returnedAt && (
+                      <small>退回時間：{selected.approval.returnedAt}</small>
+                    )}
+                  </section>
+                )}
               </>
             )}
           </article>

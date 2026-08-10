@@ -121,6 +121,22 @@ body .sidebar-foot::after {
   gap: 8px;
   margin-top: 16px;
 }
+.approval-comment {
+  display: grid;
+  gap: 7px;
+  margin-top: 16px;
+  font-size: 12px;
+  color: #3d6758;
+}
+.approval-comment textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid #dce8e0;
+  border-radius: 7px;
+  padding: 9px 10px;
+  color: #344a3f;
+  line-height: 1.55;
+}
 .structure-editor {
   margin: 20px 0;
   border: 1px solid #dce8e0;
@@ -409,6 +425,21 @@ body .sidebar-foot::after {
   padding: 3px 8px;
   font-size: 11px;
 }
+.audit-comment {
+  margin-top: 10px;
+  border-left: 3px solid #d69b52;
+  border-radius: 4px;
+  padding: 9px 12px;
+  background: #fff8ec;
+  font-size: 12px;
+}
+.audit-comment b {
+  color: #805115;
+}
+.audit-comment p {
+  margin: 4px 0 0;
+  color: #655640;
+}
 .audit-version-section {
   margin-top: 34px;
   background: #fff;
@@ -485,6 +516,13 @@ body .sidebar-foot::after {
   background: #f5f8f6;
   border-radius: 7px;
   padding: 11px 13px;
+}
+.return-comment {
+  border-left-color: #d69b52;
+}
+.return-comment small {
+  color: #796e5b;
+  font-size: 11px;
 }
 .policy-links b,
 .revision-note b {
