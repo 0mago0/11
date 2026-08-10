@@ -1360,11 +1360,20 @@ export default function Home() {
                   <button
                     className="ghost"
                     onClick={() => {
-                      setDraft(clone(selected));
+                      setDraft({ ...clone(selected), changeType: "typo" });
                       setEditing(true);
                     }}
                   >
-                    ✎ 編輯草稿
+                    ✎ 純錯字修改
+                  </button>
+                  <button
+                    className="ghost"
+                    onClick={() => {
+                      setDraft({ ...clone(selected), changeType: "content" });
+                      setEditing(true);
+                    }}
+                  >
+                    ✎ 修改內容事項
                   </button>
                   {draft.changeType === "typo" ? (
                     <button className="primary" onClick={publishTypoFix}>
@@ -1398,6 +1407,14 @@ export default function Home() {
             </div>
             {editing ? (
               <form onSubmit={saveDraft}>
+                <div className="change-type-guide">
+                  <b>
+                    {draft.changeType === "typo"
+                      ? "純錯字修改：儲存後可由 Admin 直接發布。"
+                      : "修改內容事項：送審後會先停用原公開版本，再依序承認。"}
+                  </b>
+                  <span>可在下方「變更類型」切換流程。</span>
+                </div>
                 <div className="form-grid">
                   <label>
                     規程編號

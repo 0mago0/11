@@ -782,6 +782,24 @@ body .sidebar-foot::after {
   gap: 8px;
   margin-top: 18px;
 }
+.change-type-guide {
+  margin: 16px 0 3px;
+  border-left: 3px solid #5d9b79;
+  border-radius: 4px;
+  padding: 10px 13px;
+  background: #f1f7f3;
+  color: #356150;
+  font-size: 12px;
+}
+.change-type-guide b,
+.change-type-guide span {
+  display: block;
+}
+.change-type-guide span {
+  margin-top: 3px;
+  color: #6c8076;
+  font-size: 11px;
+}
 .modal-backdrop {
   position: fixed;
   inset: 0;
