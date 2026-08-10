@@ -573,6 +573,9 @@ export default function Home() {
     policy.versions.length > 0 &&
     JSON.stringify(policy.draft) !== JSON.stringify(releasedCopy(policy));
   const displayedCopy = releasedCopy(selected);
+  const isApprovalLocked = ["待部門長承認", "待據點長承認"].includes(
+    selected.approval?.stage || "",
+  );
   const changePreviewRole = (next: Role) => {
     localStorage.setItem("hr-policy-role-preview", next);
     setRole(next);
@@ -703,6 +706,10 @@ export default function Home() {
   function saveDraft(e: FormEvent) {
     e.preventDefault();
     if (!isAdmin) return;
+    if (["待部門長承認", "待據點長承認"].includes(draft.approval?.stage || "")) {
+      setNotice("此規程已送交承認，請等待承認完成或退回後再修改。");
+      return;
+    }
     const exists = policies.some((p) => p.id === draft.id),
       before = exists ? JSON.stringify(selected.draft) : "（新增規程）",
       next = exists
@@ -719,7 +726,7 @@ export default function Home() {
     setNotice("草稿已儲存；尚未建立發布版本。");
   }
   function submitForApproval() {
-    if (!isAdmin || draft.changeType === "typo") return;
+    if (!isAdmin) return;
     const next = {
         ...draft,
         status: draft.versions.length ? ("停用" as Status) : ("草稿" as Status),
@@ -744,7 +751,12 @@ export default function Home() {
     );
   }
   function publishTypoFix() {
-    if (!isAdmin || draft.changeType !== "typo") return;
+    if (
+      !isAdmin ||
+      draft.changeType !== "typo" ||
+      draft.versions.length === 0
+    )
+      return;
     const today = new Date().toISOString().slice(0, 10);
     if (
       draft.approval?.stage === "已承認待發布" &&
@@ -1009,7 +1021,12 @@ export default function Home() {
             </div>
           </div>
           <nav>
-            <button className="active">✓ 承認待辦</button>
+            <button className="active">
+              <span className="nav-label">
+                ✓ 承認待辦
+                {approvalQueue.length > 0 && <i className="pending-dot" />}
+              </span>
+            </button>
             <button onClick={() => setView("library")}>▦ 規程資料庫</button>
           </nav>
         </aside>
@@ -1323,7 +1340,12 @@ export default function Home() {
             <button onClick={() => setView("audit")}>◷ 修改紀錄</button>
           )}
           {(isDepartmentHead || isSiteHead) && (
-            <button onClick={() => setView("approval")}>✓ 承認待辦</button>
+            <button onClick={() => setView("approval")}>
+              <span className="nav-label">
+                ✓ 承認待辦
+                {approvalQueue.length > 0 && <i className="pending-dot" />}
+              </span>
+            </button>
           )}
         </nav>
         <div className="sidebar-foot">
@@ -1478,27 +1500,41 @@ export default function Home() {
                   )}
                 </div>
               </div>
-              {isAdmin && !editing && (
+              {isAdmin && !editing && !isApprovalLocked && (
                 <div className="actions">
-                  <button
-                    className="ghost"
-                    onClick={() => {
-                      setDraft({ ...clone(selected), changeType: "typo" });
-                      setEditing(true);
-                    }}
-                  >
-                    ✎ 純錯字修改
-                  </button>
-                  <button
-                    className="ghost"
-                    onClick={() => {
-                      setDraft({ ...clone(selected), changeType: "content" });
-                      setEditing(true);
-                    }}
-                  >
-                    ✎ 修改內容事項
-                  </button>
-                  {draft.changeType === "typo" ? (
+                  {selected.versions.length > 0 ? (
+                    <>
+                      <button
+                        className="ghost"
+                        onClick={() => {
+                          setDraft({ ...clone(selected), changeType: "typo" });
+                          setEditing(true);
+                        }}
+                      >
+                        ✎ 純錯字修改
+                      </button>
+                      <button
+                        className="ghost"
+                        onClick={() => {
+                          setDraft({ ...clone(selected), changeType: "content" });
+                          setEditing(true);
+                        }}
+                      >
+                        ✎ 修改內容事項
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      className="ghost"
+                      onClick={() => {
+                        setDraft(clone(selected));
+                        setEditing(true);
+                      }}
+                    >
+                      ✎ 編輯草稿
+                    </button>
+                  )}
+                  {selected.versions.length > 0 && draft.changeType === "typo" ? (
                     <button className="primary" onClick={publishTypoFix}>
                       發布錯字修正
                     </button>

@@ -339,6 +339,20 @@ body .sidebar-foot::after {
   border-radius: 9px;
   font-size: 14px;
 }
+.nav-label {
+  position: relative;
+  display: inline-block;
+}
+.pending-dot {
+  position: absolute;
+  top: -5px;
+  right: -9px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #e34d4d;
+  box-shadow: 0 0 0 2px #17352b;
+}
 .sidebar nav button.active {
   background: #2c584a;
   color: #fff;
