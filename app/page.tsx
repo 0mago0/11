@@ -1272,9 +1272,11 @@ export default function Home() {
                   <span
                     className={`status ${p.status === "草稿" ? "draft" : p.status === "停用" ? "disabled" : ""}`}
                   >
-                    {p.approval?.stage && p.approval.stage !== "草稿"
-                      ? p.approval.stage
-                      : p.status}
+                    {role === "employee"
+                      ? "發布"
+                      : p.approval?.stage && p.approval.stage !== "草稿"
+                        ? p.approval.stage
+                        : p.status}
                   </span>
                 </div>
                 <h3>
