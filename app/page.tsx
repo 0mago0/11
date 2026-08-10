@@ -3,12 +3,18 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 
 type Lang = "zh" | "ja";
 type Role = "admin" | "employee" | "department_head" | "site_head";
-type Status = "草稿" | "發布" | "停用";
+type Status = "草稿" | "發布" | "停用" | "已承認";
 type ChangeType = "typo" | "content";
-type ApprovalStage = "草稿" | "待部門長承認" | "待據點長承認" | "退回修改";
+type ApprovalStage =
+  | "草稿"
+  | "待部門長承認"
+  | "待據點長承認"
+  | "退回修改"
+  | "已承認待發布";
 type Approval = {
   stage: ApprovalStage;
   submittedAt?: string;
+  approvedAt?: string;
   returnedAt?: string;
   returnedBy?: string;
   returnReason?: string;
@@ -34,6 +40,7 @@ type Policy = {
   code: string;
   category: string;
   effectiveDate: string;
+  publishDate?: string;
   status: Status;
   draft: Record<Lang, Copy>;
   versions: Version[];
@@ -117,6 +124,7 @@ const normalizePolicy = (value: Policy): Policy => ({
   attachments: value.attachments || [],
   relatedPolicies: value.relatedPolicies || [],
   revisionNote: value.revisionNote || "",
+  publishDate: value.publishDate || "",
   changeType: value.changeType || "content",
   approval: value.approval || { stage: "草稿" },
   draft: {
@@ -786,6 +794,30 @@ export default function Home() {
   }
   function siteApprove(policy: Policy) {
     if (!isSiteHead) return;
+    const today = new Date().toISOString().slice(0, 10);
+    if (policy.publishDate && policy.publishDate > today) {
+      const next = {
+        ...policy,
+        status: "已承認" as Status,
+        approval: {
+          ...policy.approval,
+          stage: "已承認待發布" as ApprovalStage,
+          approvedAt: now(),
+        },
+      };
+      const all = policies.map((p) => (p.id === next.id ? next : p));
+      saveStore(
+        all,
+        log(
+          "據點長承認",
+          JSON.stringify(policy.draft),
+          JSON.stringify(next.draft),
+          next,
+        ),
+      );
+      setNotice(`已承認，將於 ${policy.publishDate} 自動發布。`);
+      return;
+    }
     const last = policy.versions.at(-1)?.number || "0.0";
     const version: Version = {
       id: String(Date.now()),
@@ -812,6 +844,61 @@ export default function Home() {
     );
     setNotice(`據點長已承認，v${version.number} 已公開。`);
   }
+  useEffect(() => {
+    const releaseDuePolicies = () => {
+      const today = new Date().toISOString().slice(0, 10);
+      const due = policies.filter(
+        (policy) =>
+          policy.approval?.stage === "已承認待發布" &&
+          policy.publishDate &&
+          policy.publishDate <= today,
+      );
+      if (!due.length) return;
+      const released = due.map((policy) => {
+        const last = policy.versions.at(-1)?.number || "0.0";
+        const version: Version = {
+          id: `${Date.now()}-${policy.id}`,
+          number: nextV(last),
+          publishedAt: today,
+          copy: clone(policy.draft),
+          revisionNote: policy.revisionNote || "定期發布",
+        };
+        return {
+          ...policy,
+          status: "發布" as Status,
+          versions: [...policy.versions, version],
+          approval: { stage: "草稿" as ApprovalStage },
+        };
+      });
+      const next = policies.map(
+        (policy) => released.find((item) => item.id === policy.id) || policy,
+      );
+      const nextAudit = released.reduce<Audit[]>(
+        (records, policy) => [
+          {
+            id: `scheduled-${Date.now()}-${policy.id}`,
+            at: now(),
+            actor: "系統排程",
+            action: "發布",
+            policy: policy.draft.zh.title || policy.draft.ja.title,
+            code: policy.code,
+            before: JSON.stringify(policy.versions.at(-2)?.copy || {}),
+            after: JSON.stringify(policy.versions.at(-1)?.copy || {}),
+            fromVersion: `v${policy.versions.at(-2)?.number || "未發布"}`,
+            toVersion: `v${policy.versions.at(-1)?.number || "發布中"}`,
+            changes: ["排程發布"],
+          },
+          ...records,
+        ],
+        audit,
+      );
+      saveStore(next, nextAudit);
+      setNotice("已依發布日期自動公開新版規程。 ");
+    };
+    releaseDuePolicies();
+    const timer = window.setInterval(releaseDuePolicies, 60000);
+    return () => window.clearInterval(timer);
+  }, [policies, audit]);
   function returnForRevision(policy: Policy, comment: string) {
     if (!isDepartmentHead && !isSiteHead) return;
     const returnReason = comment.trim();
@@ -1268,6 +1355,7 @@ export default function Home() {
                   code: "",
                   category: "任用管理",
                   effectiveDate: "",
+                  publishDate: "",
                   status: "草稿",
                   approval: { stage: "草稿" },
                   draft: { zh: emptyCopy(), ja: emptyCopy() },
@@ -1352,6 +1440,9 @@ export default function Home() {
                   </span>
                   <span>最新版本 {versions.at(-1)?.number || "未發布"}</span>
                   <span>生效日 {selected.effectiveDate || "待定"}</span>
+                  <span>
+                    發布日 {selected.publishDate || "據點長承認後立即發布"}
+                  </span>
                   {role !== "employee" && selected.approval?.stage && (
                     <span>核准狀態：{selected.approval.stage}</span>
                   )}
@@ -1456,6 +1547,16 @@ export default function Home() {
                       value={draft.effectiveDate}
                       onChange={(e) =>
                         setDraft({ ...draft, effectiveDate: e.target.value })
+                      }
+                    />
+                  </label>
+                  <label>
+                    發布日期
+                    <input
+                      type="date"
+                      value={draft.publishDate || ""}
+                      onChange={(e) =>
+                        setDraft({ ...draft, publishDate: e.target.value })
                       }
                     />
                   </label>
