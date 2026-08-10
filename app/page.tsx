@@ -526,35 +526,6 @@ export default function Home() {
       .catch(() => {});
   }, []);
   useEffect(() => {
-    const profile = document.querySelector(
-      ".sidebar-foot",
-    ) as HTMLElement | null;
-    const switchRole = () =>
-      setRole((current) => {
-        const next: Role =
-          current === "admin"
-            ? "department_head"
-            : current === "department_head"
-              ? "site_head"
-              : current === "site_head"
-                ? "employee"
-                : "admin";
-        localStorage.setItem("hr-policy-role-preview", next);
-        setName(
-          next === "admin"
-            ? "Admin preview"
-            : next === "department_head"
-              ? "部門長 preview"
-              : next === "site_head"
-                ? "據點長 preview"
-                : "Employee preview",
-        );
-        return next;
-      });
-    profile?.addEventListener("click", switchRole);
-    return () => profile?.removeEventListener("click", switchRole);
-  }, []);
-  useEffect(() => {
     if (!notice) return;
     const timer = window.setTimeout(() => setNotice(""), 2000);
     return () => window.clearTimeout(timer);
@@ -572,6 +543,20 @@ export default function Home() {
   const isAdmin = role === "admin";
   const isDepartmentHead = role === "department_head";
   const isSiteHead = role === "site_head";
+  const changePreviewRole = (next: Role) => {
+    localStorage.setItem("hr-policy-role-preview", next);
+    setRole(next);
+    setName(
+      next === "admin"
+        ? "Admin preview"
+        : next === "department_head"
+          ? "部門長 preview"
+          : next === "site_head"
+            ? "據點長 preview"
+            : "Employee preview",
+    );
+    setView("library");
+  };
   const categories = [
     "全部分類",
     ...Array.from(new Set(policies.map((x) => x.category))),
@@ -1131,7 +1116,15 @@ export default function Home() {
           )}
         </nav>
         <div className="sidebar-foot">
-          <div className="avatar">{role === "admin" ? "管" : "員"}</div>
+          <div className="avatar">
+            {role === "admin"
+              ? "管"
+              : role === "department_head"
+                ? "部"
+                : role === "site_head"
+                  ? "據"
+                  : "員"}
+          </div>
           <div>
             <b>{name}</b>
             <small>
@@ -1144,6 +1137,21 @@ export default function Home() {
                     : "Employee · 僅可查看"}
             </small>
           </div>
+          <label className="role-switcher">
+            <span>角色預覽</span>
+            <select
+              value={role}
+              onChange={(event) =>
+                changePreviewRole(event.target.value as Role)
+              }
+              aria-label="切換預覽角色"
+            >
+              <option value="admin">Admin</option>
+              <option value="department_head">部門長</option>
+              <option value="site_head">據點長</option>
+              <option value="employee">Employee</option>
+            </select>
+          </label>
         </div>
       </aside>
       <section className="workspace">
