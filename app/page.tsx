@@ -3,7 +3,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 
 type Lang = "zh" | "ja";
 type Role = "admin" | "employee" | "department_head" | "site_head";
-type Status = "草稿" | "發布" | "停用" | "已承認";
+type Status = "草稿" | "發布" | "停用" | "停用待更新" | "已承認";
 type ChangeType = "typo" | "content";
 type ApprovalStage =
   | "草稿"
@@ -119,8 +119,19 @@ const normalizeCopy = (value: Partial<Copy>): Copy => ({
     ? value.chapters
     : chaptersFromContent(value.content || ""),
 });
+const needsDisabledUpdateStatus = (value: Policy) => {
+  const latestVersion = value.versions?.at(-1);
+  const hasEditedDraft =
+    !!latestVersion &&
+    JSON.stringify(value.draft) !== JSON.stringify(latestVersion.copy);
+  const awaitingApproval = ["待部門長承認", "待據點長承認"].includes(
+    value.approval?.stage || "",
+  );
+  return value.status === "停用" && (hasEditedDraft || awaitingApproval);
+};
 const normalizePolicy = (value: Policy): Policy => ({
   ...value,
+  status: needsDisabledUpdateStatus(value) ? "停用待更新" : value.status,
   attachments: value.attachments || [],
   relatedPolicies: value.relatedPolicies || [],
   revisionNote: value.revisionNote || "",
@@ -719,24 +730,30 @@ export default function Home() {
     }
     const exists = policies.some((p) => p.id === draft.id),
       before = exists ? JSON.stringify(selected.draft) : "（新增規程）",
+      savedDraft =
+        exists && draft.status === "停用" && hasSavedDraft(draft)
+          ? { ...draft, status: "停用待更新" as Status }
+          : draft,
       next = exists
-        ? policies.map((p) => (p.id === draft.id ? draft : p))
-        : [draft, ...policies],
+        ? policies.map((p) => (p.id === savedDraft.id ? savedDraft : p))
+        : [savedDraft, ...policies],
       nextAudit = log(
         exists ? "修改草稿" : "新增",
         before,
-        JSON.stringify(draft.draft),
-        draft,
+        JSON.stringify(savedDraft.draft),
+        savedDraft,
       );
     saveStore(next, nextAudit);
-    open(draft);
+    open(savedDraft);
     setNotice("草稿已儲存；尚未建立發布版本。");
   }
   function submitForApproval() {
     if (!isAdmin) return;
     const next = {
         ...draft,
-        status: draft.versions.length ? ("停用" as Status) : ("草稿" as Status),
+        status: draft.versions.length
+          ? ("停用待更新" as Status)
+          : ("草稿" as Status),
         approval: {
           stage: "待部門長承認" as ApprovalStage,
           submittedAt: now(),
@@ -1455,15 +1472,17 @@ export default function Home() {
                 <div className="card-top">
                   <span className="code">{p.code}</span>
                   <span
-                    className={`status ${p.status === "草稿" ? "draft" : p.status === "停用" ? "disabled" : ""}`}
+                    className={`status ${p.status === "草稿" ? "draft" : ["停用", "停用待更新"].includes(p.status) ? "disabled" : ""}`}
                   >
                     {role === "employee"
                       ? "發布"
-                      : p.changeType === "content" && p.status === "停用"
-                        ? "停用"
-                        : p.approval?.stage && p.approval.stage !== "草稿"
-                          ? p.approval.stage
-                          : p.status}
+                      : p.status === "停用待更新"
+                        ? "停用待更新"
+                        : p.changeType === "content" && p.status === "停用"
+                          ? "停用"
+                          : p.approval?.stage && p.approval.stage !== "草稿"
+                            ? p.approval.stage
+                            : p.status}
                   </span>
                 </div>
                 <h3>
@@ -1491,7 +1510,7 @@ export default function Home() {
                   <h2>{editing ? "編輯草稿" : displayedCopy[lang].title}</h2>
                   <div className="detail-meta">
                     <span
-                      className={`status ${selected.status === "草稿" ? "draft" : selected.status === "停用" ? "disabled" : ""}`}
+                      className={`status ${selected.status === "草稿" ? "draft" : ["停用", "停用待更新"].includes(selected.status) ? "disabled" : ""}`}
                     >
                       {selected.status}
                     </span>
