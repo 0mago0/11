@@ -561,6 +561,8 @@ export default function Home() {
     role === "employee"
       ? policies.filter((policy) => policy.status === "發布")
       : policies;
+  const hasNoEmployeePolicies =
+    role === "employee" && visiblePolicies.length === 0;
   const isNewPolicy =
     editing && !policies.some((policy) => policy.id === draft.id);
   const selected =
@@ -578,8 +580,7 @@ export default function Home() {
     selected.approval?.stage || "",
   );
   const canChooseChangeType =
-    selected.versions.length > 0 ||
-    selected.approval?.stage === "已承認待發布";
+    selected.versions.length > 0 || selected.approval?.stage === "已承認待發布";
   const changePreviewRole = (next: Role) => {
     localStorage.setItem("hr-policy-role-preview", next);
     setRole(next);
@@ -710,7 +711,9 @@ export default function Home() {
   function saveDraft(e: FormEvent) {
     e.preventDefault();
     if (!isAdmin) return;
-    if (["待部門長承認", "待據點長承認"].includes(draft.approval?.stage || "")) {
+    if (
+      ["待部門長承認", "待據點長承認"].includes(draft.approval?.stage || "")
+    ) {
       setNotice("此規程已送交承認，請等待承認完成或退回後再修改。");
       return;
     }
@@ -755,11 +758,7 @@ export default function Home() {
     );
   }
   function publishTypoFix() {
-    if (
-      !isAdmin ||
-      draft.changeType !== "typo"
-    )
-      return;
+    if (!isAdmin || draft.changeType !== "typo") return;
     const today = new Date().toISOString().slice(0, 10);
     if (
       draft.approval?.stage === "已承認待發布" &&
@@ -1480,372 +1479,384 @@ export default function Home() {
               </button>
             ))}
           </div>
-          <article className="detail">
-            <div className="detail-head">
-              <div>
-                <p className="eyebrow">
-                  {selected.category} · {selected.code || "NEW"}
-                </p>
-                <h2>{editing ? "編輯草稿" : displayedCopy[lang].title}</h2>
-                <div className="detail-meta">
-                  <span
-                    className={`status ${selected.status === "草稿" ? "draft" : selected.status === "停用" ? "disabled" : ""}`}
-                  >
-                    {selected.status}
-                  </span>
-                  <span>最新版本 {versions.at(-1)?.number || "未發布"}</span>
-                  <span>生效日 {selected.effectiveDate || "待定"}</span>
-                  <span>
-                    發布日 {selected.publishDate || "據點長承認後立即發布"}
-                  </span>
-                  {role !== "employee" && selected.approval?.stage && (
-                    <span>核准狀態：{selected.approval.stage}</span>
-                  )}
+          {hasNoEmployeePolicies ? (
+            <article className="detail" aria-label="尚無可查看的已發布規程" />
+          ) : (
+            <article className="detail">
+              <div className="detail-head">
+                <div>
+                  <p className="eyebrow">
+                    {selected.category} · {selected.code || "NEW"}
+                  </p>
+                  <h2>{editing ? "編輯草稿" : displayedCopy[lang].title}</h2>
+                  <div className="detail-meta">
+                    <span
+                      className={`status ${selected.status === "草稿" ? "draft" : selected.status === "停用" ? "disabled" : ""}`}
+                    >
+                      {selected.status}
+                    </span>
+                    <span>最新版本 {versions.at(-1)?.number || "未發布"}</span>
+                    <span>生效日 {selected.effectiveDate || "待定"}</span>
+                    <span>
+                      發布日 {selected.publishDate || "據點長承認後立即發布"}
+                    </span>
+                    {role !== "employee" && selected.approval?.stage && (
+                      <span>核准狀態：{selected.approval.stage}</span>
+                    )}
+                  </div>
                 </div>
+                {isAdmin && !editing && !isApprovalLocked && (
+                  <div className="actions">
+                    {canChooseChangeType ? (
+                      <>
+                        <button
+                          className="ghost"
+                          onClick={() => {
+                            setDraft({
+                              ...clone(selected),
+                              changeType: "typo",
+                            });
+                            setEditing(true);
+                          }}
+                        >
+                          ✎ 純錯字修改
+                        </button>
+                        <button
+                          className="ghost"
+                          onClick={() => {
+                            setDraft({
+                              ...clone(selected),
+                              changeType: "content",
+                            });
+                            setEditing(true);
+                          }}
+                        >
+                          ✎ 修改內容事項
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        className="ghost"
+                        onClick={() => {
+                          setDraft(clone(selected));
+                          setEditing(true);
+                        }}
+                      >
+                        ✎ 編輯草稿
+                      </button>
+                    )}
+                    {canChooseChangeType && draft.changeType === "typo" ? (
+                      <button className="primary" onClick={publishTypoFix}>
+                        發布錯字修正
+                      </button>
+                    ) : (
+                      <button className="primary" onClick={submitForApproval}>
+                        送交部門長承認
+                      </button>
+                    )}
+                    <button className="ghost danger" onClick={disable}>
+                      停用
+                    </button>
+                  </div>
+                )}
               </div>
-              {isAdmin && !editing && !isApprovalLocked && (
-                <div className="actions">
-                  {canChooseChangeType ? (
-                    <>
-                      <button
-                        className="ghost"
-                        onClick={() => {
-                          setDraft({ ...clone(selected), changeType: "typo" });
-                          setEditing(true);
-                        }}
+              <div className="language-bar">
+                <span>顯示語言</span>
+                <button
+                  className={lang === "zh" ? "selected-lang" : ""}
+                  onClick={() => setLang("zh")}
+                >
+                  繁體中文
+                </button>
+                <button
+                  className={lang === "ja" ? "selected-lang" : ""}
+                  onClick={() => setLang("ja")}
+                >
+                  日本語
+                </button>
+              </div>
+              {editing ? (
+                <form onSubmit={saveDraft}>
+                  {(draft.versions.length > 0 ||
+                    draft.approval?.stage === "已承認待發布") && (
+                    <div className="change-type-guide">
+                      <b>
+                        {draft.changeType === "typo"
+                          ? draft.approval?.stage === "已承認待發布"
+                            ? "純錯字修改：無需重新承認，維持預定發布日。"
+                            : "純錯字修改：儲存後可由 Admin 直接發布。"
+                          : "修改內容事項：送審後會先停用原公開版本，再依序承認。"}
+                      </b>
+                      <span>可在下方「變更類型」切換流程。</span>
+                    </div>
+                  )}
+                  <div className="form-grid">
+                    <label>
+                      規程編號
+                      <input
+                        required
+                        value={draft.code}
+                        onChange={(e) =>
+                          setDraft({ ...draft, code: e.target.value })
+                        }
+                      />
+                    </label>
+                    <label>
+                      分類
+                      <select
+                        value={draft.category}
+                        onChange={(e) =>
+                          setDraft({ ...draft, category: e.target.value })
+                        }
                       >
-                        ✎ 純錯字修改
+                        {[
+                          "任用管理",
+                          "出勤休假",
+                          "績效發展",
+                          "人才培育",
+                          "薪酬福利",
+                        ].map((x) => (
+                          <option key={x}>{x}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      生效日期
+                      <input
+                        type="date"
+                        value={draft.effectiveDate}
+                        onChange={(e) =>
+                          setDraft({ ...draft, effectiveDate: e.target.value })
+                        }
+                      />
+                    </label>
+                    <label>
+                      發布日期
+                      <input
+                        type="date"
+                        value={draft.publishDate || ""}
+                        onChange={(e) =>
+                          setDraft({ ...draft, publishDate: e.target.value })
+                        }
+                      />
+                    </label>
+                    {draft.versions.length > 0 ||
+                    draft.approval?.stage === "已承認待發布" ? (
+                      <label>
+                        變更類型
+                        <select
+                          value={draft.changeType || "content"}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              changeType: e.target.value as ChangeType,
+                            })
+                          }
+                        >
+                          <option value="content">
+                            修改內容事項（需承認）
+                          </option>
+                          <option value="typo">
+                            純錯字修改（無需重新承認）
+                          </option>
+                        </select>
+                      </label>
+                    ) : (
+                      <label>
+                        核准狀態
+                        <input value="草稿" readOnly />
+                      </label>
+                    )}
+                  </div>
+                  <label>
+                    附件／表單（以逗號分隔）
+                    <input
+                      value={(draft.attachments || []).join("、")}
+                      placeholder="例如：請假申請表、任用核准單"
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          attachments: e.target.value
+                            .split(/[、,]/)
+                            .map((item) => item.trim())
+                            .filter(Boolean),
+                        })
+                      }
+                    />
+                  </label>
+                  <label>
+                    關聯規程（以逗號分隔）
+                    <input
+                      value={(draft.relatedPolicies || []).join("、")}
+                      placeholder="例如：HR-002 出勤與請假管理規程"
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          relatedPolicies: e.target.value
+                            .split(/[、,]/)
+                            .map((item) => item.trim())
+                            .filter(Boolean),
+                        })
+                      }
+                    />
+                  </label>
+                  <label>
+                    本次修訂說明（發布時會一併記錄）
+                    <textarea
+                      rows={2}
+                      value={draft.revisionNote || ""}
+                      placeholder="例如：第 2 條新增主管核准流程"
+                      onChange={(e) =>
+                        setDraft({ ...draft, revisionNote: e.target.value })
+                      }
+                    />
+                  </label>
+                  <div className="edit-language">
+                    <b>正在編輯：{lang === "zh" ? "繁體中文" : "日本語"}</b>
+                    <div>
+                      <button type="button" onClick={() => setLang("zh")}>
+                        繁中
                       </button>
-                      <button
-                        className="ghost"
-                        onClick={() => {
-                          setDraft({ ...clone(selected), changeType: "content" });
-                          setEditing(true);
-                        }}
-                      >
-                        ✎ 修改內容事項
+                      <button type="button" onClick={() => setLang("ja")}>
+                        日本語
                       </button>
-                    </>
-                  ) : (
+                    </div>
+                  </div>
+                  <label>
+                    規程名稱
+                    <input
+                      required
+                      value={draft.draft[lang].title}
+                      onChange={(e) => update("title", e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    摘要
+                    <textarea
+                      rows={2}
+                      value={draft.draft[lang].summary}
+                      onChange={(e) => update("summary", e.target.value)}
+                    />
+                  </label>
+                  <StructureEditor
+                    chapters={draft.draft[lang].chapters}
+                    onChange={updateChapters}
+                  />
+                  <Tables
+                    editing
+                    tables={draft.draft[lang].tables}
+                    onChange={(x) => update("tables", x)}
+                  />
+                  <div className="form-actions">
                     <button
+                      type="button"
                       className="ghost"
                       onClick={() => {
                         setDraft(clone(selected));
-                        setEditing(true);
+                        setEditing(false);
                       }}
                     >
-                      ✎ 編輯草稿
+                      取消
                     </button>
-                  )}
-                  {canChooseChangeType && draft.changeType === "typo" ? (
-                    <button className="primary" onClick={publishTypoFix}>
-                      發布錯字修正
-                    </button>
-                  ) : (
-                    <button className="primary" onClick={submitForApproval}>
-                      送交部門長承認
-                    </button>
-                  )}
-                  <button className="ghost danger" onClick={disable}>
-                    停用
-                  </button>
-                </div>
-              )}
-            </div>
-            <div className="language-bar">
-              <span>顯示語言</span>
-              <button
-                className={lang === "zh" ? "selected-lang" : ""}
-                onClick={() => setLang("zh")}
-              >
-                繁體中文
-              </button>
-              <button
-                className={lang === "ja" ? "selected-lang" : ""}
-                onClick={() => setLang("ja")}
-              >
-                日本語
-              </button>
-            </div>
-            {editing ? (
-              <form onSubmit={saveDraft}>
-                {(draft.versions.length > 0 ||
-                  draft.approval?.stage === "已承認待發布") && (
-                  <div className="change-type-guide">
-                    <b>
-                      {draft.changeType === "typo"
-                        ? draft.approval?.stage === "已承認待發布"
-                          ? "純錯字修改：無需重新承認，維持預定發布日。"
-                          : "純錯字修改：儲存後可由 Admin 直接發布。"
-                        : "修改內容事項：送審後會先停用原公開版本，再依序承認。"}
-                    </b>
-                    <span>可在下方「變更類型」切換流程。</span>
+                    <button className="primary">儲存草稿</button>
                   </div>
-                )}
-                <div className="form-grid">
-                  <label>
-                    規程編號
-                    <input
-                      required
-                      value={draft.code}
-                      onChange={(e) =>
-                        setDraft({ ...draft, code: e.target.value })
-                      }
-                    />
-                  </label>
-                  <label>
-                    分類
-                    <select
-                      value={draft.category}
-                      onChange={(e) =>
-                        setDraft({ ...draft, category: e.target.value })
-                      }
-                    >
-                      {[
-                        "任用管理",
-                        "出勤休假",
-                        "績效發展",
-                        "人才培育",
-                        "薪酬福利",
-                      ].map((x) => (
-                        <option key={x}>{x}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    生效日期
-                    <input
-                      type="date"
-                      value={draft.effectiveDate}
-                      onChange={(e) =>
-                        setDraft({ ...draft, effectiveDate: e.target.value })
-                      }
-                    />
-                  </label>
-                  <label>
-                    發布日期
-                    <input
-                      type="date"
-                      value={draft.publishDate || ""}
-                      onChange={(e) =>
-                        setDraft({ ...draft, publishDate: e.target.value })
-                      }
-                    />
-                  </label>
-                  {draft.versions.length > 0 ||
-                  draft.approval?.stage === "已承認待發布" ? (
-                    <label>
-                      變更類型
-                      <select
-                        value={draft.changeType || "content"}
-                        onChange={(e) =>
-                          setDraft({
-                            ...draft,
-                            changeType: e.target.value as ChangeType,
-                          })
-                        }
-                      >
-                        <option value="content">修改內容事項（需承認）</option>
-                        <option value="typo">
-                          純錯字修改（無需重新承認）
-                        </option>
-                      </select>
-                    </label>
-                  ) : (
-                    <label>
-                      核准狀態
-                      <input value="草稿" readOnly />
-                    </label>
-                  )}
-                </div>
-                <label>
-                  附件／表單（以逗號分隔）
-                  <input
-                    value={(draft.attachments || []).join("、")}
-                    placeholder="例如：請假申請表、任用核准單"
-                    onChange={(e) =>
-                      setDraft({
-                        ...draft,
-                        attachments: e.target.value
-                          .split(/[、,]/)
-                          .map((item) => item.trim())
-                          .filter(Boolean),
-                      })
-                    }
-                  />
-                </label>
-                <label>
-                  關聯規程（以逗號分隔）
-                  <input
-                    value={(draft.relatedPolicies || []).join("、")}
-                    placeholder="例如：HR-002 出勤與請假管理規程"
-                    onChange={(e) =>
-                      setDraft({
-                        ...draft,
-                        relatedPolicies: e.target.value
-                          .split(/[、,]/)
-                          .map((item) => item.trim())
-                          .filter(Boolean),
-                      })
-                    }
-                  />
-                </label>
-                <label>
-                  本次修訂說明（發布時會一併記錄）
-                  <textarea
-                    rows={2}
-                    value={draft.revisionNote || ""}
-                    placeholder="例如：第 2 條新增主管核准流程"
-                    onChange={(e) =>
-                      setDraft({ ...draft, revisionNote: e.target.value })
-                    }
-                  />
-                </label>
-                <div className="edit-language">
-                  <b>正在編輯：{lang === "zh" ? "繁體中文" : "日本語"}</b>
-                  <div>
-                    <button type="button" onClick={() => setLang("zh")}>
-                      繁中
-                    </button>
-                    <button type="button" onClick={() => setLang("ja")}>
-                      日本語
-                    </button>
+                </form>
+              ) : (
+                <>
+                  <div className="summary">
+                    <b>{lang === "zh" ? "規程摘要" : "規程概要"}</b>
+                    <p>{displayedCopy[lang].summary}</p>
                   </div>
-                </div>
-                <label>
-                  規程名稱
-                  <input
-                    required
-                    value={draft.draft[lang].title}
-                    onChange={(e) => update("title", e.target.value)}
-                  />
-                </label>
-                <label>
-                  摘要
-                  <textarea
-                    rows={2}
-                    value={draft.draft[lang].summary}
-                    onChange={(e) => update("summary", e.target.value)}
-                  />
-                </label>
-                <StructureEditor
-                  chapters={draft.draft[lang].chapters}
-                  onChange={updateChapters}
-                />
-                <Tables
-                  editing
-                  tables={draft.draft[lang].tables}
-                  onChange={(x) => update("tables", x)}
-                />
-                <div className="form-actions">
-                  <button
-                    type="button"
-                    className="ghost"
-                    onClick={() => {
-                      setDraft(clone(selected));
-                      setEditing(false);
-                    }}
-                  >
-                    取消
-                  </button>
-                  <button className="primary">儲存草稿</button>
-                </div>
-              </form>
-            ) : (
-              <>
-                <div className="summary">
-                  <b>{lang === "zh" ? "規程摘要" : "規程概要"}</b>
-                  <p>{displayedCopy[lang].summary}</p>
-                </div>
-                <div className="policy-structure">
-                  {(
-                    displayedCopy[lang].chapters ||
-                    chaptersFromContent(displayedCopy[lang].content)
-                  ).map((chapter) => (
-                    <section className="policy-chapter" key={chapter.id}>
-                      <h3>{chapter.title}</h3>
-                      {chapter.articles.map((article) => (
-                        <article className="policy-article" key={article.id}>
-                          <b>{article.title}</b>
-                          <p>
-                            {article.text.replace(article.title, "").trim() ||
-                              article.text}
-                          </p>
-                        </article>
-                      ))}
-                    </section>
-                  ))}
-                </div>
-                <Tables tables={displayedCopy[lang].tables} />
-                <section className="policy-links">
-                  <div>
-                    <b>附件／表單</b>
-                    <p>
-                      {selected.attachments?.length
-                        ? selected.attachments.join("、")
-                        : "尚未設定附件或表單。"}
-                    </p>
+                  <div className="policy-structure">
+                    {(
+                      displayedCopy[lang].chapters ||
+                      chaptersFromContent(displayedCopy[lang].content)
+                    ).map((chapter) => (
+                      <section className="policy-chapter" key={chapter.id}>
+                        <h3>{chapter.title}</h3>
+                        {chapter.articles.map((article) => (
+                          <article className="policy-article" key={article.id}>
+                            <b>{article.title}</b>
+                            <p>
+                              {article.text.replace(article.title, "").trim() ||
+                                article.text}
+                            </p>
+                          </article>
+                        ))}
+                      </section>
+                    ))}
                   </div>
-                  <div>
-                    <b>關聯規程</b>
-                    <p>
-                      {selected.relatedPolicies?.length
-                        ? selected.relatedPolicies.join("、")
-                        : "尚未設定關聯規程。"}
-                    </p>
-                  </div>
-                </section>
-                <section className="revision-note">
-                  <b>最新修訂說明</b>
-                  <p>
-                    {versions.at(-1)?.revisionNote ||
-                      selected.revisionNote ||
-                      "尚未填寫修訂說明。"}
-                  </p>
-                </section>
-                {isAdmin && hasSavedDraft(selected) && (
-                  <section className="pending-draft">
-                    <div className="pending-draft-head">
-                      <b>已儲存的編輯草稿</b>
-                      <span>
-                        {selected.approval?.stage === "草稿"
-                          ? "尚未送審"
-                          : selected.approval?.stage}
-                      </span>
+                  <Tables tables={displayedCopy[lang].tables} />
+                  <section className="policy-links">
+                    <div>
+                      <b>附件／表單</b>
+                      <p>
+                        {selected.attachments?.length
+                          ? selected.attachments.join("、")
+                          : "尚未設定附件或表單。"}
+                      </p>
                     </div>
-                    <small>
-                      變更類型：
-                      {selected.changeType === "typo"
-                        ? "純錯字修改（Admin 可直接發布）"
-                        : "修改內容事項（需承認）"}
-                    </small>
-                    <h3>
-                      {selected.draft[lang].title || selected.draft.zh.title}
-                    </h3>
-                    <p>{selected.draft[lang].summary}</p>
-                    <details>
-                      <summary>查看已儲存的編輯內容</summary>
-                      <pre>{selected.draft[lang].content}</pre>
-                    </details>
+                    <div>
+                      <b>關聯規程</b>
+                      <p>
+                        {selected.relatedPolicies?.length
+                          ? selected.relatedPolicies.join("、")
+                          : "尚未設定關聯規程。"}
+                      </p>
+                    </div>
                   </section>
-                )}
-                {isAdmin && selected.approval?.stage === "退回修改" && (
-                  <section className="revision-note return-comment">
-                    <b>承認退回意見</b>
+                  <section className="revision-note">
+                    <b>最新修訂說明</b>
                     <p>
-                      {selected.approval.returnReason || "尚未填寫退回意見。"}
+                      {versions.at(-1)?.revisionNote ||
+                        selected.revisionNote ||
+                        "尚未填寫修訂說明。"}
                     </p>
-                    {selected.approval.returnedAt && (
-                      <small>
-                        退回人：{selected.approval.returnedBy || "承認者"}　
-                        退回時間：{selected.approval.returnedAt}
-                      </small>
-                    )}
                   </section>
-                )}
-              </>
-            )}
-          </article>
+                  {isAdmin && hasSavedDraft(selected) && (
+                    <section className="pending-draft">
+                      <div className="pending-draft-head">
+                        <b>已儲存的編輯草稿</b>
+                        <span>
+                          {selected.approval?.stage === "草稿"
+                            ? "尚未送審"
+                            : selected.approval?.stage}
+                        </span>
+                      </div>
+                      <small>
+                        變更類型：
+                        {selected.changeType === "typo"
+                          ? "純錯字修改（Admin 可直接發布）"
+                          : "修改內容事項（需承認）"}
+                      </small>
+                      <h3>
+                        {selected.draft[lang].title || selected.draft.zh.title}
+                      </h3>
+                      <p>{selected.draft[lang].summary}</p>
+                      <details>
+                        <summary>查看已儲存的編輯內容</summary>
+                        <pre>{selected.draft[lang].content}</pre>
+                      </details>
+                    </section>
+                  )}
+                  {isAdmin && selected.approval?.stage === "退回修改" && (
+                    <section className="revision-note return-comment">
+                      <b>承認退回意見</b>
+                      <p>
+                        {selected.approval.returnReason || "尚未填寫退回意見。"}
+                      </p>
+                      {selected.approval.returnedAt && (
+                        <small>
+                          退回人：{selected.approval.returnedBy || "承認者"}　
+                          退回時間：{selected.approval.returnedAt}
+                        </small>
+                      )}
+                    </section>
+                  )}
+                </>
+              )}
+            </article>
+          )}
         </div>
       </section>
     </main>
