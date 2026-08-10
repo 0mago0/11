@@ -538,11 +538,16 @@ export default function Home() {
       JSON.stringify({ policies: next, audit: nextAudit }),
     );
   };
-  const selected = policies.find((x) => x.id === selectedId) || policies[0];
-  const versions = selected.versions;
   const isAdmin = role === "admin";
   const isDepartmentHead = role === "department_head";
   const isSiteHead = role === "site_head";
+  const visiblePolicies =
+    role === "employee"
+      ? policies.filter((policy) => policy.status === "發布")
+      : policies;
+  const selected =
+    visiblePolicies.find((x) => x.id === selectedId) || visiblePolicies[0];
+  const versions = selected.versions;
   const changePreviewRole = (next: Role) => {
     localStorage.setItem("hr-policy-role-preview", next);
     setRole(next);
@@ -559,18 +564,18 @@ export default function Home() {
   };
   const categories = [
     "全部分類",
-    ...Array.from(new Set(policies.map((x) => x.category))),
+    ...Array.from(new Set(visiblePolicies.map((x) => x.category))),
   ];
   const list = useMemo(
     () =>
-      policies.filter(
+      visiblePolicies.filter(
         (p) =>
           (category === "全部分類" || p.category === category) &&
           `${p.code} ${p.draft.zh.title} ${p.draft.ja.title}`
             .toLowerCase()
             .includes(search.toLowerCase()),
       ),
-    [policies, category, search],
+    [visiblePolicies, category, search],
   );
   const changedFields = (before: string, after: string) => {
     if (before === after) return ["規程內容"];
