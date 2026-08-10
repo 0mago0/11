@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 type Lang = "zh" | "ja";
 type Role = "admin" | "employee" | "department_head" | "site_head";
 type Status = "草稿" | "發布" | "停用";
+type ChangeType = "typo" | "content";
 type ApprovalStage = "草稿" | "待部門長承認" | "待據點長承認" | "退回修改";
 type Approval = {
   stage: ApprovalStage;
@@ -39,6 +40,7 @@ type Policy = {
   attachments?: string[];
   relatedPolicies?: string[];
   revisionNote?: string;
+  changeType?: ChangeType;
   approval?: Approval;
 };
 type Audit = {
@@ -115,6 +117,7 @@ const normalizePolicy = (value: Policy): Policy => ({
   attachments: value.attachments || [],
   relatedPolicies: value.relatedPolicies || [],
   revisionNote: value.revisionNote || "",
+  changeType: value.changeType || "content",
   approval: value.approval || { stage: "草稿" },
   draft: {
     zh: normalizeCopy(value.draft.zh),
@@ -144,6 +147,7 @@ const initial: Policy[] = [
     category: "任用管理",
     effectiveDate: "2025-01-01",
     status: "發布",
+    changeType: "content",
     draft: {
       zh: copy(
         "員工聘僱與任用規程",
@@ -198,6 +202,7 @@ const initial: Policy[] = [
     category: "出勤休假",
     effectiveDate: "2024-07-01",
     status: "發布",
+    changeType: "content",
     draft: {
       zh: copy(
         "出勤與請假管理規程",
@@ -554,7 +559,6 @@ export default function Home() {
   const releasedCopy = (policy: Policy) =>
     policy.versions.at(-1)?.copy || policy.draft;
   const hasSavedDraft = (policy: Policy) =>
-    policy.status === "發布" &&
     policy.versions.length > 0 &&
     JSON.stringify(policy.draft) !== JSON.stringify(releasedCopy(policy));
   const displayedCopy = releasedCopy(selected);
@@ -704,10 +708,10 @@ export default function Home() {
     setNotice("草稿已儲存；尚未建立發布版本。");
   }
   function submitForApproval() {
-    if (!isAdmin) return;
+    if (!isAdmin || draft.changeType === "typo") return;
     const next = {
         ...draft,
-        status: draft.versions.length ? ("發布" as Status) : ("草稿" as Status),
+        status: draft.versions.length ? ("停用" as Status) : ("草稿" as Status),
         approval: {
           stage: "待部門長承認" as ApprovalStage,
           submittedAt: now(),
@@ -722,7 +726,42 @@ export default function Home() {
       );
     saveStore(all, nextAudit);
     open(next);
-    setNotice("已送交部門長承認。");
+    setNotice(
+      draft.versions.length
+        ? "原公開版本已停用，已送交部門長承認。"
+        : "已送交部門長承認。",
+    );
+  }
+  function publishTypoFix() {
+    if (!isAdmin || draft.changeType !== "typo") return;
+    const last = draft.versions.at(-1)?.number || "0.0";
+    const version: Version = {
+      id: String(Date.now()),
+      number: nextV(last),
+      publishedAt: new Date().toISOString().slice(0, 10),
+      copy: clone(draft.draft),
+      revisionNote: draft.revisionNote || "純錯字修正",
+    };
+    const next = {
+      ...draft,
+      status: "發布" as Status,
+      versions: [...draft.versions, version],
+      approval: { stage: "草稿" as ApprovalStage },
+    };
+    const all = policies.map((policy) =>
+      policy.id === next.id ? next : policy,
+    );
+    saveStore(
+      all,
+      log(
+        "發布",
+        JSON.stringify(selected.versions.at(-1)?.copy || {}),
+        JSON.stringify(version.copy),
+        next,
+      ),
+    );
+    open(next);
+    setNotice(`錯字修正已由 Admin 發布，v${version.number} 已公開。`);
   }
   function departmentApprove(policy: Policy) {
     if (!isDepartmentHead) return;
@@ -779,7 +818,7 @@ export default function Home() {
     }
     const next = {
       ...policy,
-      status: policy.versions.length ? ("發布" as Status) : ("草稿" as Status),
+      status: policy.status,
       approval: {
         stage: "退回修改" as ApprovalStage,
         returnedAt: now(),
@@ -1227,6 +1266,7 @@ export default function Home() {
                   category: "任用管理",
                   effectiveDate: "",
                   status: "草稿",
+                  changeType: "content",
                   draft: { zh: emptyCopy(), ja: emptyCopy() },
                   versions: [],
                 };
@@ -1274,9 +1314,11 @@ export default function Home() {
                   >
                     {role === "employee"
                       ? "發布"
-                      : p.approval?.stage && p.approval.stage !== "草稿"
-                        ? p.approval.stage
-                        : p.status}
+                      : p.changeType === "content" && p.status === "停用"
+                        ? "停用"
+                        : p.approval?.stage && p.approval.stage !== "草稿"
+                          ? p.approval.stage
+                          : p.status}
                   </span>
                 </div>
                 <h3>
@@ -1324,9 +1366,15 @@ export default function Home() {
                   >
                     ✎ 編輯草稿
                   </button>
-                  <button className="primary" onClick={submitForApproval}>
-                    送交部門長承認
-                  </button>
+                  {draft.changeType === "typo" ? (
+                    <button className="primary" onClick={publishTypoFix}>
+                      發布錯字修正
+                    </button>
+                  ) : (
+                    <button className="primary" onClick={submitForApproval}>
+                      送交部門長承認
+                    </button>
+                  )}
                   <button className="ghost danger" onClick={disable}>
                     停用
                   </button>
@@ -1391,16 +1439,20 @@ export default function Home() {
                     />
                   </label>
                   <label>
-                    狀態
+                    變更類型
                     <select
-                      value={draft.status}
+                      value={draft.changeType || "content"}
                       onChange={(e) =>
-                        setDraft({ ...draft, status: e.target.value as Status })
+                        setDraft({
+                          ...draft,
+                          changeType: e.target.value as ChangeType,
+                        })
                       }
                     >
-                      <option>草稿</option>
-                      <option disabled>發布</option>
-                      <option>停用</option>
+                      <option value="content">修改內容事項（需承認）</option>
+                      <option value="typo">
+                        純錯字修改（Admin 可直接發布）
+                      </option>
                     </select>
                   </label>
                 </div>
@@ -1559,6 +1611,12 @@ export default function Home() {
                           : selected.approval?.stage}
                       </span>
                     </div>
+                    <small>
+                      變更類型：
+                      {selected.changeType === "typo"
+                        ? "純錯字修改（Admin 可直接發布）"
+                        : "修改內容事項（需承認）"}
+                    </small>
                     <h3>
                       {selected.draft[lang].title || selected.draft.zh.title}
                     </h3>
