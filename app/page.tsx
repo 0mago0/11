@@ -553,8 +553,11 @@ export default function Home() {
     role === "employee"
       ? policies.filter((policy) => policy.status === "發布")
       : policies;
+  const isNewPolicy =
+    editing && !policies.some((policy) => policy.id === draft.id);
   const selected =
-    visiblePolicies.find((x) => x.id === selectedId) || visiblePolicies[0];
+    (isNewPolicy ? draft : visiblePolicies.find((x) => x.id === selectedId)) ||
+    visiblePolicies[0];
   const versions = selected.versions;
   const releasedCopy = (policy: Policy) =>
     policy.versions.at(-1)?.copy || policy.draft;
@@ -1349,10 +1352,9 @@ export default function Home() {
                   </span>
                   <span>最新版本 {versions.at(-1)?.number || "未發布"}</span>
                   <span>生效日 {selected.effectiveDate || "待定"}</span>
-                  {selected.approval?.stage &&
-                    selected.approval.stage !== "草稿" && (
-                      <span>核准狀態：{selected.approval.stage}</span>
-                    )}
+                  {role !== "employee" && selected.approval?.stage && (
+                    <span>核准狀態：{selected.approval.stage}</span>
+                  )}
                 </div>
               </div>
               {isAdmin && !editing && (
