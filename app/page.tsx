@@ -383,6 +383,11 @@ export default function Home() {
     profile?.addEventListener("click", switchRole);
     return () => profile?.removeEventListener("click", switchRole);
   }, []);
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(""), 2000);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
   const saveStore = (next: Policy[], nextAudit: Audit[] = audit) => {
     setPolicies(next);
     setAudit(nextAudit);
