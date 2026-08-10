@@ -226,6 +226,20 @@ body .sidebar-foot::after {
 }
 .audit-page {
   max-width: 1250px;
+  display: grid;
+  grid-template-areas:
+    "header"
+    "versions"
+    "list";
+}
+.audit-page > header {
+  grid-area: header;
+}
+.audit-page > .audit-version-section {
+  grid-area: versions;
+}
+.audit-page > .audit-list {
+  grid-area: list;
 }
 .audit-list {
   display: grid;
