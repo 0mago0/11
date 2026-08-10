@@ -1266,7 +1266,7 @@ export default function Home() {
                   category: "任用管理",
                   effectiveDate: "",
                   status: "草稿",
-                  changeType: "content",
+                  approval: { stage: "草稿" },
                   draft: { zh: emptyCopy(), ja: emptyCopy() },
                   versions: [],
                 };
@@ -1407,14 +1407,16 @@ export default function Home() {
             </div>
             {editing ? (
               <form onSubmit={saveDraft}>
-                <div className="change-type-guide">
-                  <b>
-                    {draft.changeType === "typo"
-                      ? "純錯字修改：儲存後可由 Admin 直接發布。"
-                      : "修改內容事項：送審後會先停用原公開版本，再依序承認。"}
-                  </b>
-                  <span>可在下方「變更類型」切換流程。</span>
-                </div>
+                {draft.versions.length > 0 && (
+                  <div className="change-type-guide">
+                    <b>
+                      {draft.changeType === "typo"
+                        ? "純錯字修改：儲存後可由 Admin 直接發布。"
+                        : "修改內容事項：送審後會先停用原公開版本，再依序承認。"}
+                    </b>
+                    <span>可在下方「變更類型」切換流程。</span>
+                  </div>
+                )}
                 <div className="form-grid">
                   <label>
                     規程編號
@@ -1455,23 +1457,30 @@ export default function Home() {
                       }
                     />
                   </label>
-                  <label>
-                    變更類型
-                    <select
-                      value={draft.changeType || "content"}
-                      onChange={(e) =>
-                        setDraft({
-                          ...draft,
-                          changeType: e.target.value as ChangeType,
-                        })
-                      }
-                    >
-                      <option value="content">修改內容事項（需承認）</option>
-                      <option value="typo">
-                        純錯字修改（Admin 可直接發布）
-                      </option>
-                    </select>
-                  </label>
+                  {draft.versions.length > 0 ? (
+                    <label>
+                      變更類型
+                      <select
+                        value={draft.changeType || "content"}
+                        onChange={(e) =>
+                          setDraft({
+                            ...draft,
+                            changeType: e.target.value as ChangeType,
+                          })
+                        }
+                      >
+                        <option value="content">修改內容事項（需承認）</option>
+                        <option value="typo">
+                          純錯字修改（Admin 可直接發布）
+                        </option>
+                      </select>
+                    </label>
+                  ) : (
+                    <label>
+                      核准狀態
+                      <input value="草稿" readOnly />
+                    </label>
+                  )}
                 </div>
                 <label>
                   附件／表單（以逗號分隔）
