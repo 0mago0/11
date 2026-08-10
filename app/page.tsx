@@ -745,6 +745,36 @@ export default function Home() {
   }
   function publishTypoFix() {
     if (!isAdmin || draft.changeType !== "typo") return;
+    const today = new Date().toISOString().slice(0, 10);
+    if (
+      draft.approval?.stage === "已承認待發布" &&
+      draft.publishDate &&
+      draft.publishDate > today
+    ) {
+      const next = {
+        ...draft,
+        status: "已承認" as Status,
+        approval: {
+          ...draft.approval,
+          stage: "已承認待發布" as ApprovalStage,
+        },
+      };
+      const all = policies.map((policy) =>
+        policy.id === next.id ? next : policy,
+      );
+      saveStore(
+        all,
+        log(
+          "修改草稿",
+          JSON.stringify(selected.draft),
+          JSON.stringify(next.draft),
+          next,
+        ),
+      );
+      open(next);
+      setNotice(`錯字修正已儲存，仍將於 ${draft.publishDate} 自動發布。`);
+      return;
+    }
     const last = draft.versions.at(-1)?.number || "0.0";
     const version: Version = {
       id: String(Date.now()),
