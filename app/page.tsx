@@ -9,6 +9,7 @@ type Approval = {
   stage: ApprovalStage;
   submittedAt?: string;
   returnedAt?: string;
+  returnedBy?: string;
   returnReason?: string;
 };
 type Article = { id: string; title: string; text: string };
@@ -775,6 +776,7 @@ export default function Home() {
       approval: {
         stage: "退回修改" as ApprovalStage,
         returnedAt: now(),
+        returnedBy: name,
         returnReason,
       },
     };
@@ -1543,7 +1545,10 @@ export default function Home() {
                       {selected.approval.returnReason || "尚未填寫退回意見。"}
                     </p>
                     {selected.approval.returnedAt && (
-                      <small>退回時間：{selected.approval.returnedAt}</small>
+                      <small>
+                        退回人：{selected.approval.returnedBy || "承認者"}　
+                        退回時間：{selected.approval.returnedAt}
+                      </small>
                     )}
                   </section>
                 )}
