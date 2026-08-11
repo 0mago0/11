@@ -802,10 +802,12 @@ export default function Home() {
     return [item, ...audit];
   };
   const open = (p: Policy) => {
-    const editingNewPolicy =
-      editing && !policies.some((policy) => policy.id === draft.id);
-    if (editingNewPolicy && p.id !== draft.id) {
-      if (window.confirm("新增規程尚未儲存，是否先儲存草稿？")) {
+    const hasUnsavedChanges =
+      editing &&
+      (!policies.some((policy) => policy.id === draft.id) ||
+        JSON.stringify(draft) !== JSON.stringify(selected));
+    if (hasUnsavedChanges && p.id !== selected.id) {
+      if (window.confirm("目前有尚未儲存的編輯內容，是否先儲存草稿？")) {
         saveDraft();
       }
     }
