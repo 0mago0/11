@@ -1689,3 +1689,55 @@ p {
     flex-wrap: wrap;
   }
 }
+
+/* Final top-bar override */
+main {
+  display: block;
+}
+.sidebar {
+  box-sizing: border-box;
+  position: static;
+  inset: auto;
+  width: 100%;
+  min-height: 0;
+  padding: 12px 32px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 26px;
+}
+.sidebar .brand {
+  margin: 0;
+  flex: 0 0 auto;
+}
+.sidebar nav {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.sidebar-foot {
+  margin: 0 0 0 auto;
+  padding: 0 0 0 18px;
+  border-top: 0;
+  border-left: 1px solid #396253;
+}
+.workspace {
+  box-sizing: border-box;
+  margin-left: 0;
+  width: 100%;
+  max-width: none;
+  padding: 30px 48px 52px;
+}
+.content-grid {
+  grid-template-columns: minmax(320px, 0.68fr) minmax(0, 2.7fr);
+}
+@media (max-width: 900px) {
+  .sidebar {
+    width: 100%;
+    padding: 12px 18px;
+  }
+  .workspace {
+    margin-left: 0;
+    width: 100%;
+  }
+}
