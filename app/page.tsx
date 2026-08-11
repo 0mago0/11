@@ -802,6 +802,13 @@ export default function Home() {
     return [item, ...audit];
   };
   const open = (p: Policy) => {
+    const editingNewPolicy =
+      editing && !policies.some((policy) => policy.id === draft.id);
+    if (editingNewPolicy && p.id !== draft.id) {
+      if (window.confirm("新增規程尚未儲存，是否先儲存草稿？")) {
+        saveDraft();
+      }
+    }
     setSelectedId(p.id);
     setDraft(clone(p));
     setEditing(false);
@@ -894,7 +901,9 @@ export default function Home() {
   }
   function switchStatusFilter(nextStatus: PolicyFilter) {
     const hasUnsavedChanges =
-      editing && JSON.stringify(draft.draft) !== JSON.stringify(selected.draft);
+      editing &&
+      (!policies.some((policy) => policy.id === draft.id) ||
+        JSON.stringify(draft.draft) !== JSON.stringify(selected.draft));
     if (hasUnsavedChanges) {
       if (window.confirm("目前有尚未儲存的編輯內容，是否先儲存草稿？")) {
         saveDraft();
