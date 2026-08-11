@@ -908,10 +908,6 @@ export default function Home() {
     if (!editing) return;
     const target = event.target as HTMLElement;
     if (target.closest("form")) return;
-    const changed =
-      !policies.some((policy) => policy.id === draft.id) ||
-      JSON.stringify(draft) !== JSON.stringify(selected);
-    if (!changed) return;
     if (window.confirm("目前有尚未儲存的編輯內容，是否先儲存草稿？")) {
       saveDraft();
     } else {
