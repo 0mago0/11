@@ -581,6 +581,22 @@ export default function Home() {
   const isAdmin = role === "admin";
   const isDepartmentHead = role === "department_head";
   const isSiteHead = role === "site_head";
+  const isApprover = isDepartmentHead || isSiteHead;
+  const ui = (zh: string, ja: string) => (isApprover ? ja : zh);
+  const statusName = (status: string) =>
+    isApprover
+      ? {
+          全部: "すべて",
+          草稿: "下書き",
+          待部門長承認: "部門長承認待ち",
+          待據點長承認: "拠点長承認待ち",
+          退回修改: "差戻し・修正待ち",
+          已承認待發布: "承認済み・公開待ち",
+          發布: "公開中",
+          停用待更新: "停止・更新待ち",
+          停用: "停止中",
+        }[status] || status
+      : status;
   const visiblePolicies =
     role === "employee"
       ? policies.filter((policy) => policy.status === "發布")
@@ -600,6 +616,15 @@ export default function Home() {
     policy.versions.length > 0 &&
     JSON.stringify(policy.draft) !== JSON.stringify(releasedCopy(policy));
   const displayedCopy = releasedCopy(selected);
+  const selectedDisplayLang: Lang =
+    isApprover &&
+    !(
+      displayedCopy.ja.title ||
+      displayedCopy.ja.summary ||
+      displayedCopy.ja.content
+    )
+      ? "zh"
+      : lang;
   const isApprovalLocked = ["待部門長承認", "待據點長承認"].includes(
     selected.approval?.stage || "",
   );
@@ -1035,7 +1060,7 @@ export default function Home() {
           <nav>
             <button className="active">
               <span className="nav-label">
-                ✓ 承認待辦
+                {ui("✓ 承認待辦", "✓ 承認待ち")}
                 {approvalQueue.length > 0 && <i className="pending-dot" />}
               </span>
             </button>
@@ -1045,7 +1070,7 @@ export default function Home() {
                 setView("library");
               }}
             >
-              ▦ 規程資料庫
+              {ui("▦ 規程資料庫", "▦ 規程ライブラリ")}
             </button>
           </nav>
         </aside>
@@ -1053,9 +1078,9 @@ export default function Home() {
           <header>
             <div>
               <p className="eyebrow">APPROVAL WORKFLOW</p>
-              <h1>{isDepartmentHead ? "部門長承認" : "據點長承認"}</h1>
+              <h1>{isDepartmentHead ? "部門長承認" : "拠点長承認"}</h1>
               <p className="sub">
-                查看原文、前後差異、改訂理由與預定發布日期後，進行承認或退回。
+                原文・変更差分・改訂理由・公開予定日を確認して、承認または差戻しを行います。
               </p>
             </div>
             <button
@@ -1065,7 +1090,9 @@ export default function Home() {
                 else setView("library");
               }}
             >
-              {selectedApproval ? "← 返回待承認清單" : "← 返回規程庫"}
+              {selectedApproval
+                ? "← 承認待ち一覧へ戻る"
+                : "← 規程ライブラリへ戻る"}
             </button>
           </header>
           <div className="approval-flow">
@@ -1073,9 +1100,9 @@ export default function Home() {
               1. 部門長承認
             </span>
             <i>→</i>
-            <span className={isSiteHead ? "current" : ""}>2. 據點長承認</span>
+            <span className={isSiteHead ? "current" : ""}>2. 拠点長承認</span>
             <i>→</i>
-            <span>3. 公開發布</span>
+            <span>3. 公開</span>
           </div>
           <div className="approval-list">
             {approvalQueue.length ? (
@@ -1103,19 +1130,19 @@ export default function Home() {
                       <div className="approval-meta">
                         <span>送審：{policy.approval?.submittedAt || "—"}</span>
                         <span>
-                          預定發布日：{policy.effectiveDate || "待設定"}
+                          公開予定日：{policy.publishDate || "未設定"}
                         </span>
                       </div>
                       <section className="approval-reason">
                         <b>改訂理由</b>
-                        <p>{policy.revisionNote || "未填寫改訂理由。"}</p>
+                        <p>{policy.revisionNote || "改訂理由は未入力です。"}</p>
                       </section>
                       <details className="approval-original">
-                        <summary>查看原文（上一公開版本）</summary>
+                        <summary>原文を確認（前回公開版）</summary>
                         <pre>{original}</pre>
                       </details>
                       <section className="approval-diff">
-                        <b>前後差異</b>
+                        <b>変更差分</b>
                         <div className="diff-box">
                           {diff(original, revised).map((row, index) => (
                             <p key={index} className={row.k}>
@@ -1130,7 +1157,7 @@ export default function Home() {
                         </div>
                       </section>
                       <label className="approval-comment">
-                        <b>退回意見（Admin 可見）</b>
+                        <b>差戻しコメント（Admin に表示）</b>
                         <textarea
                           rows={3}
                           value={returnComments[policy.id] || ""}
@@ -1140,7 +1167,7 @@ export default function Home() {
                               [policy.id]: event.target.value,
                             }))
                           }
-                          placeholder="請說明需調整的條文、原因或建議方向"
+                          placeholder="修正が必要な条文、理由、提案を記入してください"
                         />
                       </label>
                       <div className="approval-actions">
@@ -1153,7 +1180,7 @@ export default function Home() {
                             )
                           }
                         >
-                          退回重新修改
+                          差戻して修正依頼
                         </button>
                         <button
                           className="primary"
@@ -1164,8 +1191,8 @@ export default function Home() {
                           }
                         >
                           {isDepartmentHead
-                            ? "部門長承認並送據點長"
-                            : "據點長承認並公開"}
+                            ? "部門長が承認し拠点長へ送付"
+                            : "拠点長が承認して公開"}
                         </button>
                       </div>
                     </article>
@@ -1189,8 +1216,8 @@ export default function Home() {
                               policy.draft.zh.title}
                           </strong>
                           <small>
-                            送審：{policy.approval?.submittedAt || "—"}　·　
-                            預定發布日：{policy.publishDate || "待設定"}
+                            申請：{policy.approval?.submittedAt || "—"}　·　
+                            公開予定日：{policy.publishDate || "未設定"}
                           </small>
                         </span>
                         <span className="status draft">
@@ -1394,7 +1421,9 @@ export default function Home() {
           </div>
         </div>
         <nav>
-          <button className="active">▦ 規程資料庫</button>
+          <button className="active">
+            {ui("▦ 規程資料庫", "▦ 規程ライブラリ")}
+          </button>
           {isAdmin && (
             <button onClick={() => setView("audit")}>◷ 修改紀錄</button>
           )}
@@ -1406,7 +1435,7 @@ export default function Home() {
               }}
             >
               <span className="nav-label">
-                ✓ 承認待辦
+                {ui("✓ 承認待辦", "✓ 承認待ち")}
                 {approvalQueue.length > 0 && <i className="pending-dot" />}
               </span>
             </button>
@@ -1428,9 +1457,9 @@ export default function Home() {
               {role === "admin"
                 ? "Admin · 可管理規程"
                 : role === "department_head"
-                  ? "部門長 · 第一關承認"
+                  ? "部門長 · 第一次承認"
                   : role === "site_head"
-                    ? "據點長 · 最終承認"
+                    ? "拠点長 · 最終承認"
                     : "Employee · 僅可查看"}
             </small>
           </div>
@@ -1454,12 +1483,14 @@ export default function Home() {
       <section className="workspace">
         <header>
           <div>
-            <p className="eyebrow">人力資源管理系統</p>
-            <h1>人事規程資料庫</h1>
+            <p className="eyebrow">
+              {ui("人力資源管理系統", "人事管理システム")}
+            </p>
+            <h1>{ui("人事規程資料庫", "人事規程ライブラリ")}</h1>
             <p className="sub">
               {isAdmin
                 ? "可編輯草稿、發布新版本與管理狀態。"
-                : "目前為僅查看模式。"}
+                : ui("目前為僅查看模式。", "現在は閲覧モードです。")}
             </p>
           </div>
           {isAdmin && (
@@ -1493,7 +1524,7 @@ export default function Home() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="搜尋規程名稱或代碼"
+              placeholder={ui("搜尋規程名稱或代碼", "規程名またはコードを検索")}
             />
           </label>
           <select
@@ -1504,7 +1535,9 @@ export default function Home() {
               <option key={x}>{x}</option>
             ))}
           </select>
-          <span className="result-count">共 {list.length} 項</span>
+          <span className="result-count">
+            {ui(`共 ${list.length} 項`, `${list.length} 件`)}
+          </span>
         </div>
         {role !== "employee" && (
           <div className="status-bookmarks" aria-label="依狀態篩選規程">
@@ -1514,7 +1547,7 @@ export default function Home() {
                 className={statusFilter === status ? "active" : ""}
                 onClick={() => setStatusFilter(status)}
               >
-                <span>{status}</span>
+                <span>{statusName(status)}</span>
                 <b>{statusCounts[status]}</b>
               </button>
             ))}
@@ -1533,7 +1566,7 @@ export default function Home() {
                   <span
                     className={`status ${p.status === "草稿" ? "draft" : ["停用", "停用待更新"].includes(p.status) ? "disabled" : ""}`}
                   >
-                    {policyStatusLabel(p)}
+                    {statusName(policyStatusLabel(p))}
                   </span>
                 </div>
                 <h3>
@@ -1558,12 +1591,16 @@ export default function Home() {
                   <p className="eyebrow">
                     {selected.category} · {selected.code || "NEW"}
                   </p>
-                  <h2>{editing ? "編輯草稿" : displayedCopy[lang].title}</h2>
+                  <h2>
+                    {editing
+                      ? "編輯草稿"
+                      : displayedCopy[selectedDisplayLang].title}
+                  </h2>
                   <div className="detail-meta">
                     <span
                       className={`status ${selected.status === "草稿" ? "draft" : ["停用", "停用待更新"].includes(selected.status) ? "disabled" : ""}`}
                     >
-                      {selected.status}
+                      {statusName(selected.status)}
                     </span>
                     <span>最新版本 {versions.at(-1)?.number || "未發布"}</span>
                     <span>生效日 {selected.effectiveDate || "待定"}</span>
@@ -1625,19 +1662,23 @@ export default function Home() {
                 )}
               </div>
               <div className="language-bar">
-                <span>顯示語言</span>
-                <button
-                  className={lang === "zh" ? "selected-lang" : ""}
-                  onClick={() => setLang("zh")}
-                >
-                  繁體中文
-                </button>
-                <button
-                  className={lang === "ja" ? "selected-lang" : ""}
-                  onClick={() => setLang("ja")}
-                >
-                  日本語
-                </button>
+                <span>{isApprover ? "審査表示：日本語優先" : "顯示語言"}</span>
+                {!isApprover && (
+                  <>
+                    <button
+                      className={lang === "zh" ? "selected-lang" : ""}
+                      onClick={() => setLang("zh")}
+                    >
+                      繁體中文
+                    </button>
+                    <button
+                      className={lang === "ja" ? "selected-lang" : ""}
+                      onClick={() => setLang("ja")}
+                    >
+                      日本語
+                    </button>
+                  </>
+                )}
               </div>
               {editing ? (
                 <form onSubmit={saveDraft}>
@@ -1824,13 +1865,17 @@ export default function Home() {
               ) : (
                 <>
                   <div className="summary">
-                    <b>{lang === "zh" ? "規程摘要" : "規程概要"}</b>
-                    <p>{displayedCopy[lang].summary}</p>
+                    <b>
+                      {selectedDisplayLang === "zh" ? "規程摘要" : "規程概要"}
+                    </b>
+                    <p>{displayedCopy[selectedDisplayLang].summary}</p>
                   </div>
                   <div className="policy-structure">
                     {(
-                      displayedCopy[lang].chapters ||
-                      chaptersFromContent(displayedCopy[lang].content)
+                      displayedCopy[selectedDisplayLang].chapters ||
+                      chaptersFromContent(
+                        displayedCopy[selectedDisplayLang].content,
+                      )
                     ).map((chapter) => (
                       <section className="policy-chapter" key={chapter.id}>
                         <h3>{chapter.title}</h3>
@@ -1846,7 +1891,7 @@ export default function Home() {
                       </section>
                     ))}
                   </div>
-                  <Tables tables={displayedCopy[lang].tables} />
+                  <Tables tables={displayedCopy[selectedDisplayLang].tables} />
                   <section className="policy-links">
                     <div>
                       <b>附件／表單</b>
