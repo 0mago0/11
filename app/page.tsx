@@ -511,6 +511,7 @@ export default function Home() {
     [notice, setNotice] = useState(""),
     [audit, setAudit] = useState<Audit[]>([]),
     [returnComments, setReturnComments] = useState<Record<number, string>>({}),
+    [approvalSelectedId, setApprovalSelectedId] = useState<number | null>(null),
     [compare, setCompare] = useState<[number, number]>([0, 0]);
   useEffect(() => {
     try {
@@ -1002,6 +1003,9 @@ export default function Home() {
         ? policy.approval?.stage === "待據點長承認"
         : false,
   );
+  const selectedApproval = approvalQueue.find(
+    (policy) => policy.id === approvalSelectedId,
+  );
   if (view === "approval")
     return (
       <main>
@@ -1020,7 +1024,14 @@ export default function Home() {
                 {approvalQueue.length > 0 && <i className="pending-dot" />}
               </span>
             </button>
-            <button onClick={() => setView("library")}>▦ 規程資料庫</button>
+            <button
+              onClick={() => {
+                setApprovalSelectedId(null);
+                setView("library");
+              }}
+            >
+              ▦ 規程資料庫
+            </button>
           </nav>
         </aside>
         <section className="workspace approval-page">
@@ -1032,8 +1043,14 @@ export default function Home() {
                 查看原文、前後差異、改訂理由與預定發布日期後，進行承認或退回。
               </p>
             </div>
-            <button className="ghost" onClick={() => setView("library")}>
-              ← 返回規程庫
+            <button
+              className="ghost"
+              onClick={() => {
+                if (selectedApproval) setApprovalSelectedId(null);
+                else setView("library");
+              }}
+            >
+              {selectedApproval ? "← 返回待承認清單" : "← 返回規程庫"}
             </button>
           </header>
           <div className="approval-flow">
@@ -1047,95 +1064,123 @@ export default function Home() {
           </div>
           <div className="approval-list">
             {approvalQueue.length ? (
-              approvalQueue.map((policy) => {
-                const original =
-                  policy.versions.at(-1)?.copy[lang].content ||
-                  "（首次發布，無原始版本）";
-                const revised = policy.draft[lang].content;
-                return (
-                  <article className="approval-card" key={policy.id}>
-                    <div className="approval-card-head">
-                      <div>
-                        <span className="code">{policy.code}</span>
-                        <h2>
-                          {policy.draft[lang].title || policy.draft.zh.title}
-                        </h2>
+              selectedApproval ? (
+                [selectedApproval].map((policy) => {
+                  const original =
+                    policy.versions.at(-1)?.copy[lang].content ||
+                    "（首次發布，無原始版本）";
+                  const revised = policy.draft[lang].content;
+                  return (
+                    <article className="approval-card" key={policy.id}>
+                      <div className="approval-card-head">
+                        <div>
+                          <span className="code">{policy.code}</span>
+                          <h2>
+                            {policy.draft[lang].title || policy.draft.zh.title}
+                          </h2>
+                        </div>
+                        <span className="status draft">
+                          {policy.approval?.stage}
+                        </span>
                       </div>
+                      <div className="approval-meta">
+                        <span>送審：{policy.approval?.submittedAt || "—"}</span>
+                        <span>
+                          預定發布日：{policy.effectiveDate || "待設定"}
+                        </span>
+                      </div>
+                      <section className="approval-reason">
+                        <b>改訂理由</b>
+                        <p>{policy.revisionNote || "未填寫改訂理由。"}</p>
+                      </section>
+                      <details className="approval-original">
+                        <summary>查看原文（上一公開版本）</summary>
+                        <pre>{original}</pre>
+                      </details>
+                      <section className="approval-diff">
+                        <b>前後差異</b>
+                        <div className="diff-box">
+                          {diff(original, revised).map((row, index) => (
+                            <p key={index} className={row.k}>
+                              {row.k === "add"
+                                ? "+ "
+                                : row.k === "remove"
+                                  ? "− "
+                                  : "　"}
+                              {row.t}
+                            </p>
+                          ))}
+                        </div>
+                      </section>
+                      <label className="approval-comment">
+                        <b>退回意見（Admin 可見）</b>
+                        <textarea
+                          rows={3}
+                          value={returnComments[policy.id] || ""}
+                          onChange={(event) =>
+                            setReturnComments((comments) => ({
+                              ...comments,
+                              [policy.id]: event.target.value,
+                            }))
+                          }
+                          placeholder="請說明需調整的條文、原因或建議方向"
+                        />
+                      </label>
+                      <div className="approval-actions">
+                        <button
+                          className="ghost danger"
+                          onClick={() =>
+                            returnForRevision(
+                              policy,
+                              returnComments[policy.id] || "",
+                            )
+                          }
+                        >
+                          退回重新修改
+                        </button>
+                        <button
+                          className="primary"
+                          onClick={() =>
+                            isDepartmentHead
+                              ? departmentApprove(policy)
+                              : siteApprove(policy)
+                          }
+                        >
+                          {isDepartmentHead
+                            ? "部門長承認並送據點長"
+                            : "據點長承認並公開"}
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })
+              ) : (
+                <div className="approval-case-list">
+                  {approvalQueue.map((policy) => (
+                    <button
+                      className="approval-case-row"
+                      key={policy.id}
+                      onClick={() => setApprovalSelectedId(policy.id)}
+                    >
+                      <span className="approval-case-order">案件</span>
+                      <span className="approval-case-main">
+                        <b>{policy.code}</b>
+                        <strong>
+                          {policy.draft[lang].title || policy.draft.zh.title}
+                        </strong>
+                        <small>
+                          送審：{policy.approval?.submittedAt || "—"}　·　
+                          預定發布日：{policy.publishDate || "待設定"}
+                        </small>
+                      </span>
                       <span className="status draft">
                         {policy.approval?.stage}
                       </span>
-                    </div>
-                    <div className="approval-meta">
-                      <span>送審：{policy.approval?.submittedAt || "—"}</span>
-                      <span>
-                        預定發布日：{policy.effectiveDate || "待設定"}
-                      </span>
-                    </div>
-                    <section className="approval-reason">
-                      <b>改訂理由</b>
-                      <p>{policy.revisionNote || "未填寫改訂理由。"}</p>
-                    </section>
-                    <details className="approval-original">
-                      <summary>查看原文（上一公開版本）</summary>
-                      <pre>{original}</pre>
-                    </details>
-                    <section className="approval-diff">
-                      <b>前後差異</b>
-                      <div className="diff-box">
-                        {diff(original, revised).map((row, index) => (
-                          <p key={index} className={row.k}>
-                            {row.k === "add"
-                              ? "+ "
-                              : row.k === "remove"
-                                ? "− "
-                                : "　"}
-                            {row.t}
-                          </p>
-                        ))}
-                      </div>
-                    </section>
-                    <label className="approval-comment">
-                      <b>退回意見（Admin 可見）</b>
-                      <textarea
-                        rows={3}
-                        value={returnComments[policy.id] || ""}
-                        onChange={(event) =>
-                          setReturnComments((comments) => ({
-                            ...comments,
-                            [policy.id]: event.target.value,
-                          }))
-                        }
-                        placeholder="請說明需調整的條文、原因或建議方向"
-                      />
-                    </label>
-                    <div className="approval-actions">
-                      <button
-                        className="ghost danger"
-                        onClick={() =>
-                          returnForRevision(
-                            policy,
-                            returnComments[policy.id] || "",
-                          )
-                        }
-                      >
-                        退回重新修改
-                      </button>
-                      <button
-                        className="primary"
-                        onClick={() =>
-                          isDepartmentHead
-                            ? departmentApprove(policy)
-                            : siteApprove(policy)
-                        }
-                      >
-                        {isDepartmentHead
-                          ? "部門長承認並送據點長"
-                          : "據點長承認並公開"}
-                      </button>
-                    </div>
-                  </article>
-                );
-              })
+                      <span className="approval-case-arrow">›</span>
+                    </button>
+                  ))}
+                </div>
+              )
             ) : (
               <div className="empty">目前沒有待您承認的規程。</div>
             )}
@@ -1333,7 +1378,12 @@ export default function Home() {
             <button onClick={() => setView("audit")}>◷ 修改紀錄</button>
           )}
           {(isDepartmentHead || isSiteHead) && (
-            <button onClick={() => setView("approval")}>
+            <button
+              onClick={() => {
+                setApprovalSelectedId(null);
+                setView("approval");
+              }}
+            >
               <span className="nav-label">
                 ✓ 承認待辦
                 {approvalQueue.length > 0 && <i className="pending-dot" />}
