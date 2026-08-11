@@ -533,6 +533,11 @@ export default function Home() {
         )
       ) {
         setRole(preview as Role);
+        setLang(
+          preview === "department_head" || preview === "site_head"
+            ? "ja"
+            : "zh",
+        );
         setName(
           preview === "admin"
             ? "Admin preview"
@@ -550,6 +555,11 @@ export default function Home() {
       .then((x) => {
         if (x) {
           setRole(x.role);
+          setLang(
+            x.role === "department_head" || x.role === "site_head"
+              ? "ja"
+              : "zh",
+          );
           setName(x.name);
         }
       })
@@ -595,6 +605,10 @@ export default function Home() {
   );
   const canChooseChangeType =
     selected.versions.length > 0 || selected.approval?.stage === "已承認待發布";
+  const reviewLanguage = (policy: Policy): Lang =>
+    policy.draft.ja.title || policy.draft.ja.summary || policy.draft.ja.content
+      ? "ja"
+      : "zh";
   const policyStatusLabel = (policy: Policy) => {
     if (role === "employee") return "發布";
     if (policy.status === "停用待更新") return "停用待更新";
@@ -628,6 +642,7 @@ export default function Home() {
   const changePreviewRole = (next: Role) => {
     localStorage.setItem("hr-policy-role-preview", next);
     setRole(next);
+    setLang(next === "department_head" || next === "site_head" ? "ja" : "zh");
     setName(
       next === "admin"
         ? "Admin preview"
@@ -1066,17 +1081,19 @@ export default function Home() {
             {approvalQueue.length ? (
               selectedApproval ? (
                 [selectedApproval].map((policy) => {
+                  const reviewLang = reviewLanguage(policy);
                   const original =
-                    policy.versions.at(-1)?.copy[lang].content ||
+                    policy.versions.at(-1)?.copy[reviewLang].content ||
                     "（首次發布，無原始版本）";
-                  const revised = policy.draft[lang].content;
+                  const revised = policy.draft[reviewLang].content;
                   return (
                     <article className="approval-card" key={policy.id}>
                       <div className="approval-card-head">
                         <div>
                           <span className="code">{policy.code}</span>
                           <h2>
-                            {policy.draft[lang].title || policy.draft.zh.title}
+                            {policy.draft[reviewLang].title ||
+                              policy.draft.zh.title}
                           </h2>
                         </div>
                         <span className="status draft">
@@ -1156,29 +1173,33 @@ export default function Home() {
                 })
               ) : (
                 <div className="approval-case-list">
-                  {approvalQueue.map((policy) => (
-                    <button
-                      className="approval-case-row"
-                      key={policy.id}
-                      onClick={() => setApprovalSelectedId(policy.id)}
-                    >
-                      <span className="approval-case-order">案件</span>
-                      <span className="approval-case-main">
-                        <b>{policy.code}</b>
-                        <strong>
-                          {policy.draft[lang].title || policy.draft.zh.title}
-                        </strong>
-                        <small>
-                          送審：{policy.approval?.submittedAt || "—"}　·　
-                          預定發布日：{policy.publishDate || "待設定"}
-                        </small>
-                      </span>
-                      <span className="status draft">
-                        {policy.approval?.stage}
-                      </span>
-                      <span className="approval-case-arrow">›</span>
-                    </button>
-                  ))}
+                  {approvalQueue.map((policy) => {
+                    const reviewLang = reviewLanguage(policy);
+                    return (
+                      <button
+                        className="approval-case-row"
+                        key={policy.id}
+                        onClick={() => setApprovalSelectedId(policy.id)}
+                      >
+                        <span className="approval-case-order">案件</span>
+                        <span className="approval-case-main">
+                          <b>{policy.code}</b>
+                          <strong>
+                            {policy.draft[reviewLang].title ||
+                              policy.draft.zh.title}
+                          </strong>
+                          <small>
+                            送審：{policy.approval?.submittedAt || "—"}　·　
+                            預定發布日：{policy.publishDate || "待設定"}
+                          </small>
+                        </span>
+                        <span className="status draft">
+                          {policy.approval?.stage}
+                        </span>
+                        <span className="approval-case-arrow">›</span>
+                      </button>
+                    );
+                  })}
                 </div>
               )
             ) : (
