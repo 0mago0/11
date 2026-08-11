@@ -512,6 +512,7 @@ export default function Home() {
     [audit, setAudit] = useState<Audit[]>([]),
     [returnComments, setReturnComments] = useState<Record<number, string>>({}),
     [approvalSelectedId, setApprovalSelectedId] = useState<number | null>(null),
+    [auditPolicyId, setAuditPolicyId] = useState<number | null>(null),
     [compare, setCompare] = useState<[number, number]>([0, 0]);
   useEffect(() => {
     try {
@@ -1046,6 +1047,12 @@ export default function Home() {
   const selectedApproval = approvalQueue.find(
     (policy) => policy.id === approvalSelectedId,
   );
+  const selectedAuditPolicy = policies.find(
+    (policy) => policy.id === auditPolicyId,
+  );
+  const selectedAuditEntries = selectedAuditPolicy
+    ? audit.filter((entry) => entry.code === selectedAuditPolicy.code)
+    : [];
   if (view === "approval")
     return (
       <main>
@@ -1249,164 +1256,203 @@ export default function Home() {
           </div>
           <nav>
             <button className="active">◷ 修改紀錄</button>
-            <button onClick={() => setView("library")}>▦ 規程資料庫</button>
+            <button
+              onClick={() => {
+                setAuditPolicyId(null);
+                setView("library");
+              }}
+            >
+              ▦ 規程資料庫
+            </button>
           </nav>
         </aside>
         <section className="workspace audit-page">
           <header>
             <div>
               <p className="eyebrow">AUDIT TRAIL</p>
-              <h1>修改紀錄</h1>
-              <p className="sub">操作人、異動時間、規程與修改前後內容。</p>
+              <h1>
+                {selectedAuditPolicy
+                  ? `${selectedAuditPolicy.code} 修改紀錄`
+                  : "修改紀錄"}
+              </h1>
+              <p className="sub">
+                {selectedAuditPolicy
+                  ? "查看此規程的版本比較與完整異動內容。"
+                  : "先選擇規程，再查看各規程的修改紀錄。"}
+              </p>
             </div>
-            <button className="ghost" onClick={() => setView("library")}>
-              ← 返回規程庫
+            <button
+              className="ghost"
+              onClick={() => {
+                if (selectedAuditPolicy) setAuditPolicyId(null);
+                else setView("library");
+              }}
+            >
+              {selectedAuditPolicy ? "← 返回規程清單" : "← 返回規程庫"}
             </button>
           </header>
-          <div className="audit-list">
-            {audit.length ? (
-              audit.map((a) => (
-                <article className="audit-card" key={a.id}>
-                  <div className="audit-top">
-                    <span className={`audit-action ${a.action}`}>
-                      {a.action}
-                    </span>
-                    <b>{a.policy}</b>
-                    <time>{a.at}</time>
+          {selectedAuditPolicy ? (
+            <>
+              <div className="audit-list">
+                {selectedAuditEntries.length ? (
+                  selectedAuditEntries.map((a) => (
+                    <article className="audit-card" key={a.id}>
+                      <div className="audit-top">
+                        <span className={`audit-action ${a.action}`}>
+                          {a.action}
+                        </span>
+                        <b>{a.policy}</b>
+                        <time>{a.at}</time>
+                      </div>
+                      <p>
+                        <strong>操作人：</strong>
+                        {a.actor}　<strong>規程：</strong>
+                        {a.code}
+                      </p>
+                      <div className="audit-summary">
+                        <div className="audit-version-flow">
+                          <span>修改前版本</span>
+                          <b>{a.fromVersion || "歷史版本"}</b>
+                          <i>→</i>
+                          <span>修改後版本</span>
+                          <b>{a.toVersion || "草稿"}</b>
+                        </div>
+                        <div className="audit-changes">
+                          <small>修改項目</small>
+                          <div>
+                            {(a.changes?.length
+                              ? a.changes
+                              : changedFields(a.before, a.after)
+                            ).map((change) => (
+                              <span key={change}>{change}</span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      {a.comment && (
+                        <section className="audit-comment">
+                          <b>退回意見</b>
+                          <p>{a.comment}</p>
+                        </section>
+                      )}
+                    </article>
+                  ))
+                ) : (
+                  <div className="empty">此規程尚未有修改紀錄。</div>
+                )}
+              </div>
+              <section className="version-section audit-version-section">
+                <div className="audit-version-head">
+                  <div>
+                    <h3>版本紀錄與差異比較</h3>
+                    <p>選擇規程與任意兩個版本，查看內容差異。</p>
                   </div>
-                  <p>
-                    <strong>操作人：</strong>
-                    {a.actor}　<strong>規程：</strong>
-                    {a.code}
-                  </p>
-                  <div className="audit-summary">
-                    <div className="audit-version-flow">
-                      <span>修改前版本</span>
-                      <b>{a.fromVersion || "歷史版本"}</b>
-                      <i>→</i>
-                      <span>修改後版本</span>
-                      <b>{a.toVersion || "草稿"}</b>
+                  <label>
+                    規程：{selectedAuditPolicy.code} ·{" "}
+                    {selectedAuditPolicy.draft[lang].title ||
+                      selectedAuditPolicy.draft.zh.title}
+                  </label>
+                </div>
+                {versions.length ? (
+                  <>
+                    <div className="compare-pickers">
+                      <label>
+                        舊版本
+                        <select
+                          value={compare[0]}
+                          onChange={(e) =>
+                            setCompare([+e.target.value, compare[1]])
+                          }
+                        >
+                          {versions.map((v, i) => (
+                            <option key={v.id} value={i}>
+                              v{v.number} · {v.publishedAt}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <span>→</span>
+                      <label>
+                        新版本
+                        <select
+                          value={compare[1]}
+                          onChange={(e) =>
+                            setCompare([compare[0], +e.target.value])
+                          }
+                        >
+                          {versions.map((v, i) => (
+                            <option key={v.id} value={i}>
+                              v{v.number} · {v.publishedAt}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
                     </div>
-                    <div className="audit-changes">
-                      <small>修改項目</small>
-                      <div>
-                        {(a.changes?.length
-                          ? a.changes
-                          : changedFields(a.before, a.after)
-                        ).map((change) => (
-                          <span key={change}>{change}</span>
+                    <div className="diff-box">
+                      {diff(
+                        versions[compare[0]]?.copy[lang].content || "",
+                        versions[compare[1]]?.copy[lang].content || "",
+                      ).map((r, i) => (
+                        <p key={i} className={r.k}>
+                          {r.k === "add"
+                            ? "+ "
+                            : r.k === "remove"
+                              ? "− "
+                              : "　"}
+                          {r.t}
+                        </p>
+                      ))}
+                    </div>
+                    {isAdmin && (
+                      <div className="restore-row">
+                        {versions.map((v) => (
+                          <button
+                            className="ghost"
+                            key={v.id}
+                            onClick={() => restore(v)}
+                          >
+                            將 v{v.number} 載入草稿
+                          </button>
                         ))}
                       </div>
-                    </div>
-                  </div>
-                  {a.comment && (
-                    <section className="audit-comment">
-                      <b>退回意見</b>
-                      <p>{a.comment}</p>
-                    </section>
-                  )}
-                </article>
-              ))
-            ) : (
-              <div className="empty">尚未有修改紀錄。</div>
-            )}
-          </div>
-          <section className="version-section audit-version-section">
-            <div className="audit-version-head">
-              <div>
-                <h3>版本紀錄與差異比較</h3>
-                <p>選擇規程與任意兩個版本，查看內容差異。</p>
-              </div>
-              <label>
-                規程
-                <select
-                  value={selected.id}
-                  onChange={(e) => {
-                    const policy = policies.find(
-                      (p) => p.id === +e.target.value,
-                    );
-                    if (policy) {
+                    )}
+                  </>
+                ) : (
+                  <div className="empty">此規程尚未發布任何版本。</div>
+                )}
+              </section>
+            </>
+          ) : (
+            <div className="audit-policy-grid">
+              {policies.map((policy) => {
+                const entries = audit.filter(
+                  (entry) => entry.code === policy.code,
+                );
+                return (
+                  <button
+                    className="audit-policy-card"
+                    key={policy.id}
+                    onClick={() => {
+                      setAuditPolicyId(policy.id);
                       setSelectedId(policy.id);
                       setCompare([
                         Math.max(0, policy.versions.length - 2),
                         Math.max(0, policy.versions.length - 1),
                       ]);
-                    }
-                  }}
-                >
-                  {policies.map((policy) => (
-                    <option key={policy.id} value={policy.id}>
-                      {policy.code} ·{" "}
-                      {policy.draft[lang].title || policy.draft.zh.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                    }}
+                  >
+                    <span className="code">{policy.code}</span>
+                    <h2>{policy.draft[lang].title || policy.draft.zh.title}</h2>
+                    <p>{policy.category}</p>
+                    <footer>
+                      <b>{entries.length} 筆異動</b>
+                      <span>{entries[0]?.at || "尚無紀錄"}　›</span>
+                    </footer>
+                  </button>
+                );
+              })}
             </div>
-            {versions.length ? (
-              <>
-                <div className="compare-pickers">
-                  <label>
-                    舊版本
-                    <select
-                      value={compare[0]}
-                      onChange={(e) =>
-                        setCompare([+e.target.value, compare[1]])
-                      }
-                    >
-                      {versions.map((v, i) => (
-                        <option key={v.id} value={i}>
-                          v{v.number} · {v.publishedAt}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <span>→</span>
-                  <label>
-                    新版本
-                    <select
-                      value={compare[1]}
-                      onChange={(e) =>
-                        setCompare([compare[0], +e.target.value])
-                      }
-                    >
-                      {versions.map((v, i) => (
-                        <option key={v.id} value={i}>
-                          v{v.number} · {v.publishedAt}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-                <div className="diff-box">
-                  {diff(
-                    versions[compare[0]]?.copy[lang].content || "",
-                    versions[compare[1]]?.copy[lang].content || "",
-                  ).map((r, i) => (
-                    <p key={i} className={r.k}>
-                      {r.k === "add" ? "+ " : r.k === "remove" ? "− " : "　"}
-                      {r.t}
-                    </p>
-                  ))}
-                </div>
-                {isAdmin && (
-                  <div className="restore-row">
-                    {versions.map((v) => (
-                      <button
-                        className="ghost"
-                        key={v.id}
-                        onClick={() => restore(v)}
-                      >
-                        將 v{v.number} 載入草稿
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="empty">此規程尚未發布任何版本。</div>
-            )}
-          </section>
+          )}
         </section>
       </main>
     );
@@ -1425,7 +1471,14 @@ export default function Home() {
             {ui("▦ 規程資料庫", "▦ 規程ライブラリ")}
           </button>
           {isAdmin && (
-            <button onClick={() => setView("audit")}>◷ 修改紀錄</button>
+            <button
+              onClick={() => {
+                setAuditPolicyId(null);
+                setView("audit");
+              }}
+            >
+              ◷ 修改紀錄
+            </button>
           )}
           {(isDepartmentHead || isSiteHead) && (
             <button

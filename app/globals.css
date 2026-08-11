@@ -306,6 +306,45 @@ body .sidebar-foot::after {
   gap: 13px;
   margin-top: 28px;
 }
+.audit-policy-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(245px, 1fr));
+  gap: 14px;
+  margin-top: 26px;
+}
+.audit-policy-card {
+  border: 1px solid #e1eae4;
+  border-radius: 11px;
+  background: #fff;
+  padding: 18px;
+  color: inherit;
+  text-align: left;
+  transition: 0.15s;
+}
+.audit-policy-card:hover {
+  border-color: #75a18e;
+  box-shadow: 0 5px 16px #1b4c3c0d;
+}
+.audit-policy-card h2 {
+  margin: 8px 0 5px;
+  font-size: 16px;
+}
+.audit-policy-card p {
+  min-height: 22px;
+  margin: 0;
+  color: #718078;
+  font-size: 12px;
+}
+.audit-policy-card footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  border-top: 1px solid #edf1ee;
+  margin-top: 15px;
+  padding-top: 10px;
+  color: #547266;
+  font-size: 11px;
+}
 .audit-card {
   background: #fff;
   border: 1px solid #e1eae4;
