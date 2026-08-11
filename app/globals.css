@@ -1198,6 +1198,46 @@ p {
   color: #77847e;
   font-size: 12px;
 }
+.status-bookmarks {
+  display: flex;
+  gap: 7px;
+  margin: 0 0 16px;
+  overflow-x: auto;
+  padding: 2px 2px 5px;
+}
+.status-bookmarks button {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid #dce5df;
+  border-bottom: 3px solid #bdcbc2;
+  border-radius: 8px 8px 3px 3px;
+  background: #f8fbf9;
+  color: #617069;
+  padding: 8px 11px 7px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.status-bookmarks button b {
+  min-width: 18px;
+  border-radius: 10px;
+  background: #e7eeea;
+  padding: 1px 5px;
+  text-align: center;
+  font-size: 11px;
+}
+.status-bookmarks button.active {
+  border-color: #3f826b;
+  border-bottom-color: #215c4b;
+  background: #e7f3eb;
+  color: #1f604c;
+}
+.status-bookmarks button.active b {
+  background: #3f826b;
+  color: #fff;
+}
 .content-grid {
   display: grid;
   grid-template-columns: minmax(310px, 0.88fr) minmax(450px, 1.45fr);

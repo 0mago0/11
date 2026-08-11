@@ -11,6 +11,7 @@ type ApprovalStage =
   | "待據點長承認"
   | "退回修改"
   | "已承認待發布";
+type PolicyFilter = "全部" | Status | Exclude<ApprovalStage, "草稿">;
 type Approval = {
   stage: ApprovalStage;
   submittedAt?: string;
@@ -506,6 +507,7 @@ export default function Home() {
     [draft, setDraft] = useState<Policy>(clone(initial[0])),
     [search, setSearch] = useState(""),
     [category, setCategory] = useState("全部分類"),
+    [statusFilter, setStatusFilter] = useState<PolicyFilter>("全部"),
     [notice, setNotice] = useState(""),
     [audit, setAudit] = useState<Audit[]>([]),
     [returnComments, setReturnComments] = useState<Record<number, string>>({}),
@@ -592,6 +594,36 @@ export default function Home() {
   );
   const canChooseChangeType =
     selected.versions.length > 0 || selected.approval?.stage === "已承認待發布";
+  const policyStatusLabel = (policy: Policy) => {
+    if (role === "employee") return "發布";
+    if (policy.status === "停用待更新") return "停用待更新";
+    if (policy.changeType === "content" && policy.status === "停用")
+      return "停用";
+    return policy.approval?.stage && policy.approval.stage !== "草稿"
+      ? policy.approval.stage
+      : policy.status;
+  };
+  const statusOptions: PolicyFilter[] = [
+    "全部",
+    "草稿",
+    "待部門長承認",
+    "待據點長承認",
+    "退回修改",
+    "已承認待發布",
+    "發布",
+    "停用待更新",
+    "停用",
+  ];
+  const statusCounts = Object.fromEntries(
+    statusOptions.map((status) => [
+      status,
+      status === "全部"
+        ? visiblePolicies.length
+        : visiblePolicies.filter(
+            (policy) => policyStatusLabel(policy) === status,
+          ).length,
+    ]),
+  ) as Record<PolicyFilter, number>;
   const changePreviewRole = (next: Role) => {
     localStorage.setItem("hr-policy-role-preview", next);
     setRole(next);
@@ -615,11 +647,14 @@ export default function Home() {
       visiblePolicies.filter(
         (p) =>
           (category === "全部分類" || p.category === category) &&
+          (role === "employee" ||
+            statusFilter === "全部" ||
+            policyStatusLabel(p) === statusFilter) &&
           `${p.code} ${releasedCopy(p).zh.title} ${releasedCopy(p).ja.title}`
             .toLowerCase()
             .includes(search.toLowerCase()),
       ),
-    [visiblePolicies, category, search],
+    [visiblePolicies, category, search, role, statusFilter],
   );
   const changedFields = (before: string, after: string) => {
     if (before === after) return ["規程內容"];
@@ -1400,6 +1435,20 @@ export default function Home() {
           </select>
           <span className="result-count">共 {list.length} 項</span>
         </div>
+        {role !== "employee" && (
+          <div className="status-bookmarks" aria-label="依狀態篩選規程">
+            {statusOptions.map((status) => (
+              <button
+                key={status}
+                className={statusFilter === status ? "active" : ""}
+                onClick={() => setStatusFilter(status)}
+              >
+                <span>{status}</span>
+                <b>{statusCounts[status]}</b>
+              </button>
+            ))}
+          </div>
+        )}
         <div className="content-grid">
           <div className="reg-list">
             {list.map((p) => (
@@ -1413,15 +1462,7 @@ export default function Home() {
                   <span
                     className={`status ${p.status === "草稿" ? "draft" : ["停用", "停用待更新"].includes(p.status) ? "disabled" : ""}`}
                   >
-                    {role === "employee"
-                      ? "發布"
-                      : p.status === "停用待更新"
-                        ? "停用待更新"
-                        : p.changeType === "content" && p.status === "停用"
-                          ? "停用"
-                          : p.approval?.stage && p.approval.stage !== "草稿"
-                            ? p.approval.stage
-                            : p.status}
+                    {policyStatusLabel(p)}
                   </span>
                 </div>
                 <h3>
