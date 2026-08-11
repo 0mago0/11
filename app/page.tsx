@@ -836,8 +836,8 @@ export default function Home() {
         },
       },
     }));
-  function saveDraft(e: FormEvent) {
-    e.preventDefault();
+  function saveDraft(e?: FormEvent) {
+    e?.preventDefault();
     if (!isAdmin) return;
     if (
       ["待部門長承認", "待據點長承認"].includes(draft.approval?.stage || "")
@@ -888,6 +888,28 @@ export default function Home() {
           ? "內容更新草稿已建立為獨立規程卡片；原發布版本會持續供員工查看。"
           : "草稿已儲存；尚未建立發布版本。",
     );
+  }
+  function switchStatusFilter(nextStatus: PolicyFilter) {
+    const hasUnsavedChanges =
+      editing && JSON.stringify(draft.draft) !== JSON.stringify(selected.draft);
+    if (hasUnsavedChanges) {
+      if (window.confirm("目前有尚未儲存的編輯內容，是否先儲存草稿？")) {
+        saveDraft();
+      } else {
+        setEditing(false);
+        setDraft(clone(selected));
+      }
+    }
+    setStatusFilter(nextStatus);
+    const firstPolicy = visiblePolicies.find(
+      (policy) =>
+        (category === "全部分類" || policy.category === category) &&
+        (nextStatus === "全部" || matchesPolicyStatus(policy, nextStatus)),
+    );
+    if (firstPolicy) {
+      setSelectedId(firstPolicy.id);
+      setDraft(clone(firstPolicy));
+    }
   }
   function publishTypoFix() {
     if (!isAdmin) return;
@@ -1752,7 +1774,7 @@ export default function Home() {
               <button
                 key={status}
                 className={statusFilter === status ? "active" : ""}
-                onClick={() => setStatusFilter(status)}
+                onClick={() => switchStatusFilter(status)}
               >
                 <span>{statusName(status)}</span>
                 <b>{statusCounts[status]}</b>
