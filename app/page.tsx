@@ -671,7 +671,6 @@ export default function Home() {
       : "zh";
   const policyStatusLabel = (policy: Policy) => {
     if (role === "employee") return "發布";
-    if (policy.replacesPolicyId) return "內容更新中";
     if (policy.status === "停用待更新") return "停用";
     if (policy.changeType === "content" && policy.status === "停用")
       return "停用";
@@ -680,6 +679,7 @@ export default function Home() {
       : policy.status;
   };
   const matchesPolicyStatus = (policy: Policy, status: PolicyFilter) =>
+    (status === "內容更新中" && Boolean(policy.replacesPolicyId)) ||
     policyStatusLabel(policy) === status ||
     (Boolean(policy.replacesPolicyId) && policy.approval?.stage === status);
   const statusOptions: PolicyFilter[] = [
@@ -1721,10 +1721,17 @@ export default function Home() {
               >
                 <div className="card-top">
                   <span className="code">{p.code}</span>
-                  <span
-                    className={`status ${p.replacesPolicyId ? "updating" : p.status === "草稿" ? "draft" : ["停用", "停用待更新"].includes(p.status) ? "disabled" : ""}`}
-                  >
-                    {statusName(policyStatusLabel(p))}
+                  <span className="card-statuses">
+                    <span
+                      className={`status ${p.status === "草稿" ? "draft" : ["停用", "停用待更新"].includes(p.status) ? "disabled" : ""}`}
+                    >
+                      {statusName(policyStatusLabel(p))}
+                    </span>
+                    {p.replacesPolicyId && (
+                      <span className="status updating">
+                        {statusName("內容更新中")}
+                      </span>
+                    )}
                   </span>
                 </div>
                 <h3>{policyCopy(p)[lang].title || policyCopy(p).zh.title}</h3>
@@ -1753,10 +1760,17 @@ export default function Home() {
                       : displayedCopy[selectedDisplayLang].title}
                   </h2>
                   <div className="detail-meta">
-                    <span
-                      className={`status ${selected.replacesPolicyId ? "updating" : selected.status === "草稿" ? "draft" : ["停用", "停用待更新"].includes(selected.status) ? "disabled" : ""}`}
-                    >
-                      {statusName(policyStatusLabel(selected))}
+                    <span className="meta-statuses">
+                      <span
+                        className={`status ${selected.status === "草稿" ? "draft" : ["停用", "停用待更新"].includes(selected.status) ? "disabled" : ""}`}
+                      >
+                        {statusName(policyStatusLabel(selected))}
+                      </span>
+                      {selected.replacesPolicyId && (
+                        <span className="status updating">
+                          {statusName("內容更新中")}
+                        </span>
+                      )}
                     </span>
                     <span>最新版本 {versions.at(-1)?.number || "未發布"}</span>
                     <span>生效日 {selected.effectiveDate || "待定"}</span>
