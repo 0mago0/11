@@ -712,6 +712,56 @@ body .sidebar-foot::after {
   color: #405f9b;
   border-color: #c8d5f4;
 }
+
+/* Top navigation layout */
+main {
+  display: block;
+}
+.sidebar {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 0;
+  padding: 12px 32px;
+  position: static;
+  flex-direction: row;
+  align-items: center;
+  gap: 26px;
+}
+.brand {
+  margin: 0;
+  flex: 0 0 auto;
+}
+.sidebar nav {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.sidebar-foot {
+  margin: 0 0 0 auto;
+  padding: 0 0 0 18px;
+  border-top: 0;
+  border-left: 1px solid #396253;
+}
+.workspace {
+  box-sizing: border-box;
+  margin-left: 0;
+  width: 100%;
+  max-width: none !important;
+  padding: 30px 48px 52px;
+}
+.content-grid {
+  grid-template-columns: minmax(320px, 0.68fr) minmax(0, 2.7fr) !important;
+}
+@media (max-width: 900px) {
+  .sidebar {
+    width: 100%;
+    padding: 12px 18px;
+  }
+  .workspace {
+    margin-left: 0;
+    width: 100%;
+  }
+}
 .policy-links b,
 .revision-note b {
   font-size: 12px;
