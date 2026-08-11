@@ -707,6 +707,11 @@ body .sidebar-foot::after {
   font-size: 12px;
   line-height: 1.45;
 }
+.status.updating {
+  background: #e9efff;
+  color: #405f9b;
+  border-color: #c8d5f4;
+}
 .policy-links b,
 .revision-note b {
   font-size: 12px;

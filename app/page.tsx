@@ -11,7 +11,11 @@ type ApprovalStage =
   | "待據點長承認"
   | "退回修改"
   | "已承認待發布";
-type PolicyFilter = "全部" | Status | Exclude<ApprovalStage, "草稿">;
+type PolicyFilter =
+  | "全部"
+  | Status
+  | "內容更新中"
+  | Exclude<ApprovalStage, "草稿">;
 type Approval = {
   stage: ApprovalStage;
   submittedAt?: string;
@@ -50,6 +54,7 @@ type Policy = {
   revisionNote?: string;
   changeType?: ChangeType;
   approval?: Approval;
+  replacesPolicyId?: number;
 };
 type Audit = {
   id: string;
@@ -151,6 +156,28 @@ const normalizePolicy = (value: Policy): Policy => ({
     },
   })),
 });
+const splitLegacyUpdatePolicies = (values: Policy[]) => {
+  let nextId = Math.max(0, ...values.map((policy) => policy.id)) + 1;
+  return values.flatMap((policy) => {
+    if (policy.status !== "停用待更新" || !policy.versions.length) {
+      return [policy];
+    }
+    const published = {
+      ...policy,
+      status: "發布" as Status,
+      draft: clone(policy.versions.at(-1)!.copy),
+      approval: { stage: "草稿" as ApprovalStage },
+      replacesPolicyId: undefined,
+    };
+    const update = {
+      ...policy,
+      id: nextId++,
+      status: "草稿" as Status,
+      replacesPolicyId: policy.id,
+    };
+    return [published, update];
+  });
+};
 const ordinal = (number: number) =>
   ["一", "二", "三", "四", "五", "六", "七", "八", "九", "十"][number - 1] ||
   String(number);
@@ -520,7 +547,9 @@ export default function Home() {
       const s = localStorage.getItem("hr-policy-v8");
       if (s) {
         const d = JSON.parse(s) as { policies: Policy[]; audit: Audit[] };
-        const normalized = d.policies.map(normalizePolicy);
+        const normalized = splitLegacyUpdatePolicies(
+          d.policies.map(normalizePolicy),
+        );
         setPolicies(normalized);
         setAudit(d.audit || []);
         setSelectedId(normalized[0]?.id || 1);
@@ -594,6 +623,7 @@ export default function Home() {
           待據點長承認: "拠点長承認待ち",
           退回修改: "差戻し・修正待ち",
           已承認待發布: "承認済み・公開待ち",
+          內容更新中: "内容更新中",
           發布: "公開中",
           停用待更新: "停止・更新待ち",
           停用: "停止中",
@@ -614,10 +644,12 @@ export default function Home() {
   const versions = selected.versions;
   const releasedCopy = (policy: Policy) =>
     policy.versions.at(-1)?.copy || policy.draft;
+  const policyCopy = (policy: Policy) =>
+    policy.replacesPolicyId ? policy.draft : releasedCopy(policy);
   const hasSavedDraft = (policy: Policy) =>
     policy.versions.length > 0 &&
     JSON.stringify(policy.draft) !== JSON.stringify(releasedCopy(policy));
-  const displayedCopy = releasedCopy(selected);
+  const displayedCopy = policyCopy(selected);
   const selectedDisplayLang: Lang =
     isApprover &&
     !(
@@ -631,13 +663,16 @@ export default function Home() {
     selected.approval?.stage || "",
   );
   const canChooseChangeType =
-    selected.versions.length > 0 || selected.approval?.stage === "已承認待發布";
+    !selected.replacesPolicyId &&
+    (selected.versions.length > 0 ||
+      selected.approval?.stage === "已承認待發布");
   const reviewLanguage = (policy: Policy): Lang =>
     policy.draft.ja.title || policy.draft.ja.summary || policy.draft.ja.content
       ? "ja"
       : "zh";
   const policyStatusLabel = (policy: Policy) => {
     if (role === "employee") return "發布";
+    if (policy.replacesPolicyId) return "內容更新中";
     if (policy.status === "停用待更新") return "停用待更新";
     if (policy.changeType === "content" && policy.status === "停用")
       return "停用";
@@ -645,6 +680,9 @@ export default function Home() {
       ? policy.approval.stage
       : policy.status;
   };
+  const matchesPolicyStatus = (policy: Policy, status: PolicyFilter) =>
+    policyStatusLabel(policy) === status ||
+    (Boolean(policy.replacesPolicyId) && policy.approval?.stage === status);
   const statusOptions: PolicyFilter[] = [
     "全部",
     "草稿",
@@ -652,6 +690,7 @@ export default function Home() {
     "待據點長承認",
     "退回修改",
     "已承認待發布",
+    "內容更新中",
     "發布",
     "停用待更新",
     "停用",
@@ -661,8 +700,8 @@ export default function Home() {
       status,
       status === "全部"
         ? visiblePolicies.length
-        : visiblePolicies.filter(
-            (policy) => policyStatusLabel(policy) === status,
+        : visiblePolicies.filter((policy) =>
+            matchesPolicyStatus(policy, status),
           ).length,
     ]),
   ) as Record<PolicyFilter, number>;
@@ -692,8 +731,8 @@ export default function Home() {
           (category === "全部分類" || p.category === category) &&
           (role === "employee" ||
             statusFilter === "全部" ||
-            policyStatusLabel(p) === statusFilter) &&
-          `${p.code} ${releasedCopy(p).zh.title} ${releasedCopy(p).ja.title}`
+            matchesPolicyStatus(p, statusFilter)) &&
+          `${p.code} ${policyCopy(p).zh.title} ${policyCopy(p).ja.title}`
             .toLowerCase()
             .includes(search.toLowerCase()),
       ),
@@ -807,15 +846,30 @@ export default function Home() {
       return;
     }
     const exists = policies.some((p) => p.id === draft.id),
+      createsContentUpdate =
+        exists &&
+        !draft.replacesPolicyId &&
+        draft.changeType === "content" &&
+        draft.status === "發布" &&
+        draft.versions.length > 0,
       keepsScheduledApproval =
         draft.approval?.stage === "已承認待發布" && draft.changeType === "typo",
       before = exists ? JSON.stringify(selected.draft) : "（新增規程）",
-      savedDraft =
-        exists && draft.status === "停用" && hasSavedDraft(draft)
+      savedDraft = createsContentUpdate
+        ? {
+            ...draft,
+            id: Date.now(),
+            status: "草稿" as Status,
+            approval: { stage: "草稿" as ApprovalStage },
+            replacesPolicyId: draft.id,
+          }
+        : exists && draft.status === "停用" && hasSavedDraft(draft)
           ? { ...draft, status: "停用待更新" as Status }
           : draft,
       next = exists
-        ? policies.map((p) => (p.id === savedDraft.id ? savedDraft : p))
+        ? createsContentUpdate
+          ? [savedDraft, ...policies]
+          : policies.map((p) => (p.id === savedDraft.id ? savedDraft : p))
         : [savedDraft, ...policies],
       nextAudit = log(
         exists ? "修改草稿" : "新增",
@@ -828,7 +882,9 @@ export default function Home() {
     setNotice(
       keepsScheduledApproval
         ? `錯字修正已儲存，維持已承認狀態，將於 ${draft.publishDate || "發布日"} 公開。`
-        : "草稿已儲存；尚未建立發布版本。",
+        : createsContentUpdate
+          ? "內容更新草稿已建立為獨立規程卡片；原發布版本會持續供員工查看。"
+          : "草稿已儲存；尚未建立發布版本。",
     );
   }
   function submitForApproval() {
@@ -842,9 +898,11 @@ export default function Home() {
     }
     const next = {
         ...draft,
-        status: draft.versions.length
-          ? ("停用待更新" as Status)
-          : ("草稿" as Status),
+        status: draft.replacesPolicyId
+          ? ("草稿" as Status)
+          : draft.versions.length
+            ? ("停用待更新" as Status)
+            : ("草稿" as Status),
         approval: {
           stage: "待部門長承認" as ApprovalStage,
           submittedAt: now(),
@@ -860,9 +918,11 @@ export default function Home() {
     saveStore(all, nextAudit);
     open(next);
     setNotice(
-      draft.versions.length
-        ? "原公開版本已停用，已送交部門長承認。"
-        : "已送交部門長承認。",
+      draft.replacesPolicyId
+        ? "內容更新卡片已送交部門長承認；原發布版本持續可供員工查看。"
+        : draft.versions.length
+          ? "原公開版本已停用，已送交部門長承認。"
+          : "已送交部門長承認。",
     );
   }
   function departmentApprove(policy: Policy) {
@@ -922,8 +982,11 @@ export default function Home() {
       status: "發布" as Status,
       versions: [...policy.versions, version],
       approval: { stage: "草稿" as ApprovalStage },
+      replacesPolicyId: undefined,
     };
-    const all = policies.map((p) => (p.id === next.id ? next : p));
+    const all = policies
+      .filter((p) => p.id !== policy.replacesPolicyId)
+      .map((p) => (p.id === next.id ? next : p));
     saveStore(
       all,
       log(
@@ -945,6 +1008,11 @@ export default function Home() {
           policy.publishDate <= today,
       );
       if (!due.length) return;
+      const replacedIds = new Set(
+        due
+          .map((policy) => policy.replacesPolicyId)
+          .filter((id): id is number => typeof id === "number"),
+      );
       const released = due.map((policy) => {
         const last = policy.versions.at(-1)?.number || "0.0";
         const version: Version = {
@@ -959,11 +1027,14 @@ export default function Home() {
           status: "發布" as Status,
           versions: [...policy.versions, version],
           approval: { stage: "草稿" as ApprovalStage },
+          replacesPolicyId: undefined,
         };
       });
-      const next = policies.map(
-        (policy) => released.find((item) => item.id === policy.id) || policy,
-      );
+      const next = policies
+        .filter((policy) => !replacedIds.has(policy.id))
+        .map(
+          (policy) => released.find((item) => item.id === policy.id) || policy,
+        );
       const nextAudit = released.reduce<Audit[]>(
         (records, policy) => [
           {
@@ -1653,14 +1724,12 @@ export default function Home() {
                 <div className="card-top">
                   <span className="code">{p.code}</span>
                   <span
-                    className={`status ${p.status === "草稿" ? "draft" : ["停用", "停用待更新"].includes(p.status) ? "disabled" : ""}`}
+                    className={`status ${p.replacesPolicyId ? "updating" : p.status === "草稿" ? "draft" : ["停用", "停用待更新"].includes(p.status) ? "disabled" : ""}`}
                   >
                     {statusName(policyStatusLabel(p))}
                   </span>
                 </div>
-                <h3>
-                  {releasedCopy(p)[lang].title || releasedCopy(p).zh.title}
-                </h3>
+                <h3>{policyCopy(p)[lang].title || policyCopy(p).zh.title}</h3>
                 <p>
                   {p.category} · {lang === "zh" ? "中文" : "日文"}
                 </p>
@@ -1687,9 +1756,9 @@ export default function Home() {
                   </h2>
                   <div className="detail-meta">
                     <span
-                      className={`status ${selected.status === "草稿" ? "draft" : ["停用", "停用待更新"].includes(selected.status) ? "disabled" : ""}`}
+                      className={`status ${selected.replacesPolicyId ? "updating" : selected.status === "草稿" ? "draft" : ["停用", "停用待更新"].includes(selected.status) ? "disabled" : ""}`}
                     >
-                      {statusName(selected.status)}
+                      {statusName(policyStatusLabel(selected))}
                     </span>
                     <span>最新版本 {versions.at(-1)?.number || "未發布"}</span>
                     <span>生效日 {selected.effectiveDate || "待定"}</span>
@@ -1720,6 +1789,16 @@ export default function Home() {
                         <button
                           className="ghost"
                           onClick={() => {
+                            const pendingUpdate = policies.find(
+                              (policy) =>
+                                policy.replacesPolicyId === selected.id,
+                            );
+                            if (pendingUpdate) {
+                              open(pendingUpdate);
+                              setEditing(true);
+                              setNotice("已開啟此規程的內容更新中卡片。");
+                              return;
+                            }
                             setDraft({
                               ...clone(selected),
                               changeType: "content",
