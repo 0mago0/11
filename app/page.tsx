@@ -506,6 +506,7 @@ export default function Home() {
     [editing, setEditing] = useState(false),
     [draft, setDraft] = useState<Policy>(clone(initial[0])),
     [search, setSearch] = useState(""),
+    [auditSearch, setAuditSearch] = useState(""),
     [category, setCategory] = useState("全部分類"),
     [statusFilter, setStatusFilter] = useState<PolicyFilter>("全部"),
     [notice, setNotice] = useState(""),
@@ -1053,6 +1054,11 @@ export default function Home() {
   const selectedAuditEntries = selectedAuditPolicy
     ? audit.filter((entry) => entry.code === selectedAuditPolicy.code)
     : [];
+  const auditPolicyCards = policies.filter((policy) =>
+    `${policy.code} ${policy.draft.zh.title} ${policy.draft.ja.title}`
+      .toLowerCase()
+      .includes(auditSearch.toLowerCase()),
+  );
   if (view === "approval")
     return (
       <main>
@@ -1423,35 +1429,52 @@ export default function Home() {
               </section>
             </>
           ) : (
-            <div className="audit-policy-grid">
-              {policies.map((policy) => {
-                const entries = audit.filter(
-                  (entry) => entry.code === policy.code,
-                );
-                return (
-                  <button
-                    className="audit-policy-card"
-                    key={policy.id}
-                    onClick={() => {
-                      setAuditPolicyId(policy.id);
-                      setSelectedId(policy.id);
-                      setCompare([
-                        Math.max(0, policy.versions.length - 2),
-                        Math.max(0, policy.versions.length - 1),
-                      ]);
-                    }}
-                  >
-                    <span className="code">{policy.code}</span>
-                    <h2>{policy.draft[lang].title || policy.draft.zh.title}</h2>
-                    <p>{policy.category}</p>
-                    <footer>
-                      <b>{entries.length} 筆異動</b>
-                      <span>{entries[0]?.at || "尚無紀錄"}　›</span>
-                    </footer>
-                  </button>
-                );
-              })}
-            </div>
+            <>
+              <div className="toolbar audit-search-toolbar">
+                <label className="search">
+                  ⌕{" "}
+                  <input
+                    value={auditSearch}
+                    onChange={(event) => setAuditSearch(event.target.value)}
+                    placeholder="搜尋規程名稱或代碼"
+                  />
+                </label>
+                <span className="result-count">
+                  共 {auditPolicyCards.length} 項
+                </span>
+              </div>
+              <div className="audit-policy-grid">
+                {auditPolicyCards.map((policy) => {
+                  const entries = audit.filter(
+                    (entry) => entry.code === policy.code,
+                  );
+                  return (
+                    <button
+                      className="audit-policy-card"
+                      key={policy.id}
+                      onClick={() => {
+                        setAuditPolicyId(policy.id);
+                        setSelectedId(policy.id);
+                        setCompare([
+                          Math.max(0, policy.versions.length - 2),
+                          Math.max(0, policy.versions.length - 1),
+                        ]);
+                      }}
+                    >
+                      <span className="code">{policy.code}</span>
+                      <h2>
+                        {policy.draft[lang].title || policy.draft.zh.title}
+                      </h2>
+                      <p>{policy.category}</p>
+                      <footer>
+                        <b>{entries.length} 筆異動</b>
+                        <span>{entries[0]?.at || "尚無紀錄"}　›</span>
+                      </footer>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
           )}
         </section>
       </main>
