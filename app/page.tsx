@@ -663,6 +663,7 @@ export default function Home() {
   );
   const canChooseChangeType =
     !selected.replacesPolicyId &&
+    selected.status !== "停用" &&
     selected.approval?.stage !== "退回修改" &&
     (selected.versions.length > 0 ||
       selected.approval?.stage === "已承認待發布");
@@ -1890,9 +1891,11 @@ export default function Home() {
                         送交部門長承認
                       </button>
                     )}
-                    <button className="ghost danger" onClick={disable}>
-                      停用
-                    </button>
+                    {selected.status !== "停用" && (
+                      <button className="ghost danger" onClick={disable}>
+                        停用
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -1917,25 +1920,26 @@ export default function Home() {
               </div>
               {editing ? (
                 <form onSubmit={saveDraft}>
-                  {(draft.versions.length > 0 ||
-                    draft.approval?.stage === "已承認待發布") && (
-                    <div className="change-type-guide">
-                      <b>
-                        {draft.approval?.stage === "退回修改"
-                          ? "退回修改：不區分修改類型，完成修正後必須重新送交承認。"
-                          : draft.changeType === "typo"
-                            ? draft.approval?.stage === "已承認待發布"
-                              ? "純錯字修改：沿用既有承認，將於發布日期公開。"
-                              : draft.status === "發布"
-                                ? "純錯字修改：可不儲存草稿，直接發布新版。"
-                                : "純錯字修改：送審後也需依序完成承認。"
-                            : "修改內容事項：送審後會先停用原公開版本，再依序承認。"}
-                      </b>
-                      {draft.approval?.stage !== "退回修改" && (
-                        <span>可在下方「變更類型」切換流程。</span>
-                      )}
-                    </div>
-                  )}
+                  {draft.status !== "停用" &&
+                    (draft.versions.length > 0 ||
+                      draft.approval?.stage === "已承認待發布") && (
+                      <div className="change-type-guide">
+                        <b>
+                          {draft.approval?.stage === "退回修改"
+                            ? "退回修改：不區分修改類型，完成修正後必須重新送交承認。"
+                            : draft.changeType === "typo"
+                              ? draft.approval?.stage === "已承認待發布"
+                                ? "純錯字修改：沿用既有承認，將於發布日期公開。"
+                                : draft.status === "發布"
+                                  ? "純錯字修改：可不儲存草稿，直接發布新版。"
+                                  : "純錯字修改：送審後也需依序完成承認。"
+                              : "修改內容事項：送審後會先停用原公開版本，再依序承認。"}
+                        </b>
+                        {draft.approval?.stage !== "退回修改" && (
+                          <span>可在下方「變更類型」切換流程。</span>
+                        )}
+                      </div>
+                    )}
                   <div className="form-grid">
                     <label>
                       規程編號
@@ -1986,7 +1990,8 @@ export default function Home() {
                         }
                       />
                     </label>
-                    {(draft.versions.length > 0 ||
+                    {draft.status !== "停用" &&
+                    (draft.versions.length > 0 ||
                       draft.approval?.stage === "已承認待發布") &&
                     draft.approval?.stage !== "退回修改" ? (
                       <label>
