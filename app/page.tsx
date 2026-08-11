@@ -663,6 +663,7 @@ export default function Home() {
   );
   const canChooseChangeType =
     !selected.replacesPolicyId &&
+    selected.approval?.stage !== "退回修改" &&
     (selected.versions.length > 0 ||
       selected.approval?.stage === "已承認待發布");
   const reviewLanguage = (policy: Policy): Lang =>
@@ -847,7 +848,8 @@ export default function Home() {
       createsContentUpdate =
         exists &&
         !draft.replacesPolicyId &&
-        draft.changeType === "content" &&
+        (draft.changeType === "content" ||
+          draft.approval?.stage === "退回修改") &&
         draft.status === "發布" &&
         draft.versions.length > 0,
       keepsScheduledApproval =
@@ -859,6 +861,7 @@ export default function Home() {
             id: Date.now(),
             status: "草稿" as Status,
             approval: { stage: "草稿" as ApprovalStage },
+            changeType: "content" as ChangeType,
             replacesPolicyId: draft.id,
           }
         : exists && draft.status === "停用" && hasSavedDraft(draft)
@@ -891,7 +894,8 @@ export default function Home() {
       draft.changeType !== "typo" ||
       draft.status !== "發布" ||
       !draft.versions.length ||
-      draft.replacesPolicyId
+      draft.replacesPolicyId ||
+      draft.approval?.stage === "退回修改"
     ) {
       setNotice("只有已發布規程的純錯字修改可以直接發布。");
       return;
@@ -1917,15 +1921,19 @@ export default function Home() {
                     draft.approval?.stage === "已承認待發布") && (
                     <div className="change-type-guide">
                       <b>
-                        {draft.changeType === "typo"
-                          ? draft.approval?.stage === "已承認待發布"
-                            ? "純錯字修改：沿用既有承認，將於發布日期公開。"
-                            : draft.status === "發布"
-                              ? "純錯字修改：可不儲存草稿，直接發布新版。"
-                              : "純錯字修改：送審後也需依序完成承認。"
-                          : "修改內容事項：送審後會先停用原公開版本，再依序承認。"}
+                        {draft.approval?.stage === "退回修改"
+                          ? "退回修改：不區分修改類型，完成修正後必須重新送交承認。"
+                          : draft.changeType === "typo"
+                            ? draft.approval?.stage === "已承認待發布"
+                              ? "純錯字修改：沿用既有承認，將於發布日期公開。"
+                              : draft.status === "發布"
+                                ? "純錯字修改：可不儲存草稿，直接發布新版。"
+                                : "純錯字修改：送審後也需依序完成承認。"
+                            : "修改內容事項：送審後會先停用原公開版本，再依序承認。"}
                       </b>
-                      <span>可在下方「變更類型」切換流程。</span>
+                      {draft.approval?.stage !== "退回修改" && (
+                        <span>可在下方「變更類型」切換流程。</span>
+                      )}
                     </div>
                   )}
                   <div className="form-grid">
@@ -1978,8 +1986,9 @@ export default function Home() {
                         }
                       />
                     </label>
-                    {draft.versions.length > 0 ||
-                    draft.approval?.stage === "已承認待發布" ? (
+                    {(draft.versions.length > 0 ||
+                      draft.approval?.stage === "已承認待發布") &&
+                    draft.approval?.stage !== "退回修改" ? (
                       <label>
                         變更類型
                         <select
@@ -2005,7 +2014,14 @@ export default function Home() {
                     ) : (
                       <label>
                         核准狀態
-                        <input value="草稿" readOnly />
+                        <input
+                          value={
+                            draft.approval?.stage === "退回修改"
+                              ? "退回修改（需重新承認）"
+                              : "草稿"
+                          }
+                          readOnly
+                        />
                       </label>
                     )}
                   </div>
@@ -2101,7 +2117,8 @@ export default function Home() {
                     </button>
                     {draft.changeType === "typo" &&
                       draft.status === "發布" &&
-                      !draft.replacesPolicyId && (
+                      !draft.replacesPolicyId &&
+                      draft.approval?.stage !== "退回修改" && (
                         <button
                           type="button"
                           className="primary"
