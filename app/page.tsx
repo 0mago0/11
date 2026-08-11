@@ -1231,7 +1231,9 @@ export default function Home() {
             <button className="active">
               <span className="nav-label">
                 {ui("✓ 承認待辦", "✓ 承認待ち")}
-                {approvalQueue.length > 0 && <i className="pending-dot" />}
+                {approvalQueue.length > 0 && (
+                  <i className="pending-dot">{approvalQueue.length}</i>
+                )}
               </span>
             </button>
             <button
@@ -1669,7 +1671,9 @@ export default function Home() {
             >
               <span className="nav-label">
                 {ui("✓ 承認待辦", "✓ 承認待ち")}
-                {approvalQueue.length > 0 && <i className="pending-dot" />}
+                {approvalQueue.length > 0 && (
+                  <i className="pending-dot">{approvalQueue.length}</i>
+                )}
               </span>
             </button>
           )}

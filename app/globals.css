@@ -444,13 +444,20 @@ body .sidebar-foot::after {
 }
 .pending-dot {
   position: absolute;
-  top: -5px;
-  right: -9px;
-  width: 7px;
-  height: 7px;
+  top: -9px;
+  right: -15px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
   border-radius: 50%;
   background: #e34d4d;
   box-shadow: 0 0 0 2px #17352b;
+  color: #fff;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 800;
+  line-height: 16px;
+  text-align: center;
 }
 .sidebar nav button.active {
   background: #2c584a;
