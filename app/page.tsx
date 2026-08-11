@@ -885,6 +885,50 @@ export default function Home() {
           : "草稿已儲存；尚未建立發布版本。",
     );
   }
+  function publishTypoFix() {
+    if (!isAdmin) return;
+    if (
+      draft.changeType !== "typo" ||
+      draft.status !== "發布" ||
+      !draft.versions.length ||
+      draft.replacesPolicyId
+    ) {
+      setNotice("只有已發布規程的純錯字修改可以直接發布。");
+      return;
+    }
+    if (!draft.draft.zh.title && !draft.draft.ja.title) {
+      setNotice("請至少填寫一種語言的規程名稱。");
+      return;
+    }
+    const last = draft.versions.at(-1)?.number || "0.0";
+    const version: Version = {
+      id: String(Date.now()),
+      number: nextV(last),
+      publishedAt: new Date().toISOString().slice(0, 10),
+      copy: clone(draft.draft),
+      revisionNote: draft.revisionNote || "純錯字修正",
+    };
+    const next = {
+      ...draft,
+      status: "發布" as Status,
+      versions: [...draft.versions, version],
+      approval: { stage: "草稿" as ApprovalStage },
+    };
+    const all = policies.map((policy) =>
+      policy.id === next.id ? next : policy,
+    );
+    saveStore(
+      all,
+      log(
+        "發布",
+        JSON.stringify(draft.versions.at(-1)?.copy || {}),
+        JSON.stringify(version.copy),
+        next,
+      ),
+    );
+    open(next);
+    setNotice(`錯字修正已直接發布，v${version.number} 已公開。`);
+  }
   function submitForApproval() {
     if (!isAdmin) return;
     if (
@@ -1876,7 +1920,9 @@ export default function Home() {
                         {draft.changeType === "typo"
                           ? draft.approval?.stage === "已承認待發布"
                             ? "純錯字修改：沿用既有承認，將於發布日期公開。"
-                            : "純錯字修改：送審後也需依序完成承認。"
+                            : draft.status === "發布"
+                              ? "純錯字修改：可不儲存草稿，直接發布新版。"
+                              : "純錯字修改：送審後也需依序完成承認。"
                           : "修改內容事項：送審後會先停用原公開版本，再依序承認。"}
                       </b>
                       <span>可在下方「變更類型」切換流程。</span>
@@ -2053,7 +2099,18 @@ export default function Home() {
                     >
                       取消
                     </button>
-                    <button className="primary">儲存草稿</button>
+                    {draft.changeType === "typo" &&
+                      draft.status === "發布" &&
+                      !draft.replacesPolicyId && (
+                        <button
+                          type="button"
+                          className="primary"
+                          onClick={publishTypoFix}
+                        >
+                          發布錯字修正
+                        </button>
+                      )}
+                    <button className="ghost">儲存草稿</button>
                   </div>
                 </form>
               ) : (
