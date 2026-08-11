@@ -1,5 +1,5 @@
 "use client";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, MouseEvent, useEffect, useMemo, useState } from "react";
 
 type Lang = "zh" | "ja";
 type Role = "admin" | "employee" | "department_head" | "site_head";
@@ -802,15 +802,6 @@ export default function Home() {
     return [item, ...audit];
   };
   const open = (p: Policy) => {
-    const hasUnsavedChanges =
-      editing &&
-      (!policies.some((policy) => policy.id === draft.id) ||
-        JSON.stringify(draft) !== JSON.stringify(selected));
-    if (hasUnsavedChanges && p.id !== selected.id) {
-      if (window.confirm("目前有尚未儲存的編輯內容，是否先儲存草稿？")) {
-        saveDraft();
-      }
-    }
     setSelectedId(p.id);
     setDraft(clone(p));
     setEditing(false);
@@ -902,18 +893,6 @@ export default function Home() {
     );
   }
   function switchStatusFilter(nextStatus: PolicyFilter) {
-    const hasUnsavedChanges =
-      editing &&
-      (!policies.some((policy) => policy.id === draft.id) ||
-        JSON.stringify(draft.draft) !== JSON.stringify(selected.draft));
-    if (hasUnsavedChanges) {
-      if (window.confirm("目前有尚未儲存的編輯內容，是否先儲存草稿？")) {
-        saveDraft();
-      } else {
-        setEditing(false);
-        setDraft(clone(selected));
-      }
-    }
     setStatusFilter(nextStatus);
     const firstPolicy = visiblePolicies.find(
       (policy) =>
@@ -923,6 +902,21 @@ export default function Home() {
     if (firstPolicy) {
       setSelectedId(firstPolicy.id);
       setDraft(clone(firstPolicy));
+    }
+  }
+  function guardEditingNavigation(event: MouseEvent<HTMLElement>) {
+    if (!editing) return;
+    const target = event.target as HTMLElement;
+    if (target.closest("form")) return;
+    const changed =
+      !policies.some((policy) => policy.id === draft.id) ||
+      JSON.stringify(draft) !== JSON.stringify(selected);
+    if (!changed) return;
+    if (window.confirm("目前有尚未儲存的編輯內容，是否先儲存草稿？")) {
+      saveDraft();
+    } else {
+      setEditing(false);
+      setDraft(clone(selected));
     }
   }
   function publishTypoFix() {
@@ -1228,7 +1222,7 @@ export default function Home() {
   );
   if (view === "approval")
     return (
-      <main>
+      <main onClickCapture={guardEditingNavigation}>
         <aside className="sidebar">
           <div className="brand">
             <span className="brand-mark">人</span>
@@ -1418,7 +1412,7 @@ export default function Home() {
     );
   if (view === "audit")
     return (
-      <main>
+      <main onClickCapture={guardEditingNavigation}>
         <aside className="sidebar">
           <div className="brand">
             <span className="brand-mark">人</span>
@@ -1647,7 +1641,7 @@ export default function Home() {
       </main>
     );
   return (
-    <main>
+    <main onClickCapture={guardEditingNavigation}>
       <aside className="sidebar">
         <div className="brand">
           <span className="brand-mark">人</span>
