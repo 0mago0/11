@@ -700,6 +700,13 @@ body .sidebar-foot::after {
   line-height: 1.6;
   color: #594d41;
 }
+.scheduled-typo-note {
+  align-self: center;
+  max-width: 180px;
+  color: #7a5a25;
+  font-size: 12px;
+  line-height: 1.45;
+}
 .policy-links b,
 .revision-note b {
   font-size: 12px;

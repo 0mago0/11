@@ -807,6 +807,8 @@ export default function Home() {
       return;
     }
     const exists = policies.some((p) => p.id === draft.id),
+      keepsScheduledApproval =
+        draft.approval?.stage === "已承認待發布" && draft.changeType === "typo",
       before = exists ? JSON.stringify(selected.draft) : "（新增規程）",
       savedDraft =
         exists && draft.status === "停用" && hasSavedDraft(draft)
@@ -823,10 +825,21 @@ export default function Home() {
       );
     saveStore(next, nextAudit);
     open(savedDraft);
-    setNotice("草稿已儲存；尚未建立發布版本。");
+    setNotice(
+      keepsScheduledApproval
+        ? `錯字修正已儲存，維持已承認狀態，將於 ${draft.publishDate || "發布日"} 公開。`
+        : "草稿已儲存；尚未建立發布版本。",
+    );
   }
   function submitForApproval() {
     if (!isAdmin) return;
+    if (
+      draft.approval?.stage === "已承認待發布" &&
+      draft.changeType === "typo"
+    ) {
+      setNotice("錯字修正會沿用既有承認，等待發布日期即可公開。");
+      return;
+    }
     const next = {
         ...draft,
         status: draft.versions.length
@@ -1728,9 +1741,16 @@ export default function Home() {
                         ✎ 編輯草稿
                       </button>
                     )}
-                    <button className="primary" onClick={submitForApproval}>
-                      送交部門長承認
-                    </button>
+                    {selected.approval?.stage === "已承認待發布" &&
+                    selected.changeType === "typo" ? (
+                      <span className="scheduled-typo-note">
+                        錯字修正沿用既有承認，等待發布日公開
+                      </span>
+                    ) : (
+                      <button className="primary" onClick={submitForApproval}>
+                        送交部門長承認
+                      </button>
+                    )}
                     <button className="ghost danger" onClick={disable}>
                       停用
                     </button>
@@ -1763,7 +1783,9 @@ export default function Home() {
                     <div className="change-type-guide">
                       <b>
                         {draft.changeType === "typo"
-                          ? "純錯字修改：送審後也需依序完成承認。"
+                          ? draft.approval?.stage === "已承認待發布"
+                            ? "純錯字修改：沿用既有承認，將於發布日期公開。"
+                            : "純錯字修改：送審後也需依序完成承認。"
                           : "修改內容事項：送審後會先停用原公開版本，再依序承認。"}
                       </b>
                       <span>可在下方「變更類型」切換流程。</span>
@@ -1835,7 +1857,12 @@ export default function Home() {
                           <option value="content">
                             修改內容事項（需承認）
                           </option>
-                          <option value="typo">純錯字修改（需承認）</option>
+                          <option value="typo">
+                            純錯字修改
+                            {draft.approval?.stage === "已承認待發布"
+                              ? "（沿用既有承認）"
+                              : "（需承認）"}
+                          </option>
                         </select>
                       </label>
                     ) : (
