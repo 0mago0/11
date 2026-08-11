@@ -625,7 +625,6 @@ export default function Home() {
           已承認待發布: "承認済み・公開待ち",
           內容更新中: "内容更新中",
           發布: "公開中",
-          停用待更新: "停止・更新待ち",
           停用: "停止中",
         }[status] || status
       : status;
@@ -673,7 +672,7 @@ export default function Home() {
   const policyStatusLabel = (policy: Policy) => {
     if (role === "employee") return "發布";
     if (policy.replacesPolicyId) return "內容更新中";
-    if (policy.status === "停用待更新") return "停用待更新";
+    if (policy.status === "停用待更新") return "停用";
     if (policy.changeType === "content" && policy.status === "停用")
       return "停用";
     return policy.approval?.stage && policy.approval.stage !== "草稿"
@@ -692,7 +691,6 @@ export default function Home() {
     "已承認待發布",
     "內容更新中",
     "發布",
-    "停用待更新",
     "停用",
   ];
   const statusCounts = Object.fromEntries(
