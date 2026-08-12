@@ -1,5 +1,18 @@
 import { db } from "./db.js";
 
+// pg 通常會把 PostgreSQL array 轉成 JavaScript 陣列；但部分驅動／型別設定會
+// 回傳 `{admin,employee}` 形式的字串。登入邊界統一轉換，後續路由可安全使用 some/includes。
+const normalizeRoles = (value) => {
+  if (Array.isArray(value)) return value.filter(Boolean).map(String);
+  if (!value) return [];
+  return String(value)
+    .replace(/^\{/, "")
+    .replace(/\}$/, "")
+    .split(",")
+    .map((role) => role.trim().replace(/^"|"$/g, ""))
+    .filter(Boolean);
+};
+
 export const authenticate = async (req, res, next) => {
   // 此專案以員編 header 示範登入；正式環境應替換為 SSO/JWT 驗證後再設定 req.user。
   const employeeNo = req.header("X-Employee-No")?.trim().toUpperCase();
@@ -16,7 +29,7 @@ export const authenticate = async (req, res, next) => {
     [employeeNo],
   );
   if (!rows[0]) return res.status(401).json({ error: "Active user not found." });
-  req.user = { ...rows[0], roles: rows[0].roles || [] };
+  req.user = { ...rows[0], roles: normalizeRoles(rows[0].roles) };
   next();
 };
 
