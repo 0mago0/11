@@ -6,7 +6,7 @@ import { PolicyLibraryPage } from "../components/pages/PolicyLibraryPage";
 import { StructureEditor } from "../components/policy/StructureEditor";
 import { Tables } from "../components/policy/Tables";
 import {
-  approveChange, loadPolicyWorkspace, publishScheduledChanges, publishTypoChange,
+  approveChange, loadPolicyWorkspace, publishTypoChange,
   returnChange, saveNewPolicy, savePolicyChange, submitChange, updatePolicyChange,
   type ApiTranslation, type ApiWorkspacePolicy,
 } from "../lib/policy-api";
@@ -1360,75 +1360,6 @@ export default function Home() {
     );
     setNotice(`據點長已承認，v${version.number} 已公開。`);
   }
-  useEffect(() => {
-    const releaseDuePolicies = () => {
-      const today = new Date().toISOString().slice(0, 10);
-      const due = policies.filter(
-        (policy) =>
-          policy.approval?.stage === "已承認待發布" &&
-          policy.publishDate &&
-          policy.publishDate <= today,
-      );
-      if (!due.length) return;
-      const replacedIds = new Set(
-        due
-          .map((policy) => policy.replacesPolicyId)
-          .filter((id): id is number => typeof id === "number"),
-      );
-      const released = due.map((policy) => {
-        const last = policy.versions.at(-1)?.number || "0.0";
-        const version: Version = {
-          id: `${Date.now()}-${policy.id}`,
-          number: nextV(last),
-          publishedAt: today,
-          copy: clone(policy.draft),
-          revisionNote: policy.revisionNote || "定期發布",
-        };
-        return {
-          ...policy,
-          status: "發布" as Status,
-          versions: [...policy.versions, version],
-          approval: { stage: "草稿" as ApprovalStage },
-          replacesPolicyId: undefined,
-        };
-      });
-      const next = policies
-        .filter((policy) => !replacedIds.has(policy.id))
-        .map(
-          (policy) => released.find((item) => item.id === policy.id) || policy,
-        );
-      const nextAudit = released.reduce<Audit[]>(
-        (records, policy) => [
-          {
-            id: `scheduled-${Date.now()}-${policy.id}`,
-            at: now(),
-            actor: "系統排程",
-            action: "發布",
-            policy: policy.draft.zh.title || policy.draft.ja.title,
-            code: policy.code,
-            before: JSON.stringify(policy.versions.at(-2)?.copy || {}),
-            after: JSON.stringify(policy.versions.at(-1)?.copy || {}),
-            fromVersion: `v${policy.versions.at(-2)?.number || "未發布"}`,
-            toVersion: `v${policy.versions.at(-1)?.number || "發布中"}`,
-            changes: ["排程發布"],
-          },
-          ...records,
-        ],
-        audit,
-      );
-      saveStore(next, nextAudit);
-      // PostgreSQL 的正式排程由後端統一判斷到期日，前端計時器只是觸發入口。
-      if (role === "admin") {
-        void publishScheduledChanges(apiEmployeeNoByRole.admin)
-          .then(() => refreshWorkspace("admin"))
-          .catch(() => {});
-      }
-      setNotice("已依發布日期自動公開新版規程。 ");
-    };
-    releaseDuePolicies();
-    const timer = window.setInterval(releaseDuePolicies, 60000);
-    return () => window.clearInterval(timer);
-  }, [policies, audit, role]);
   function returnForRevision(policy: Policy, comment: string) {
     // 退回者與意見會同步進入規程資料與 audit，讓 Admin 可追溯原因。
     if (!isDepartmentHead && !isSiteHead) return;
