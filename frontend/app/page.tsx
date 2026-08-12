@@ -823,12 +823,15 @@ export default function Home() {
       : "zh";
   const policyStatusLabel = (policy: Policy) => {
     if (role === "employee") return "發布";
+    // 送審流程比資料庫的公開狀態更具體：新規程尚未公開時底層為 disabled，
+    // 但在 Admin／承認者畫面必須清楚顯示目前卡在哪一個承認關卡。
+    if (policy.approval?.stage && policy.approval.stage !== "草稿") {
+      return policy.approval.stage;
+    }
     if (policy.status === "停用待更新") return "停用";
     if (policy.changeType === "content" && policy.status === "停用")
       return "停用";
-    return policy.approval?.stage && policy.approval.stage !== "草稿"
-      ? policy.approval.stage
-      : policy.status;
+    return policy.status;
   };
   const matchesPolicyStatus = (policy: Policy, status: PolicyFilter) =>
     (status === "規程內容更新版本" && Boolean(policy.replacesPolicyId)) ||
