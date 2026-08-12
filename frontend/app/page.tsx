@@ -1003,9 +1003,6 @@ export default function Home() {
       Math.max(0, p.versions.length - 2),
       Math.max(0, p.versions.length - 1),
     ]);
-    if (p.approval?.stage === "已承認待發布" && p.changeType === "typo") {
-      setNotice("錯字修正沿用既有承認，等待發布日公開");
-    }
   };
   const update = (field: keyof Copy, value: Copy[keyof Copy]) =>
     setDraft((p) => ({
