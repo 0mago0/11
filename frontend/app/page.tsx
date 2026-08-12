@@ -833,6 +833,13 @@ export default function Home() {
       return "停用";
     return policy.status;
   };
+  // 色彩同樣以畫面真正顯示的流程狀態判斷，不能再直接使用資料庫的 disabled 值。
+  const policyStatusTone = (policy: Policy) => {
+    const label = policyStatusLabel(policy);
+    if (["草稿", "待部門長承認", "待據點長承認", "已承認待發布"].includes(label)) return "draft";
+    if (["停用", "退回修改"].includes(label)) return "disabled";
+    return "";
+  };
   const matchesPolicyStatus = (policy: Policy, status: PolicyFilter) =>
     (status === "規程內容更新版本" && Boolean(policy.replacesPolicyId)) ||
     policyStatusLabel(policy) === status ||
@@ -2161,7 +2168,7 @@ export default function Home() {
                   <span className="code">{p.code}</span>
                   <span className="card-statuses">
                     <span
-                      className={`status ${p.status === "草稿" ? "draft" : ["停用", "停用待更新"].includes(p.status) ? "disabled" : ""}`}
+                      className={`status ${policyStatusTone(p)}`}
                     >
                       {statusName(policyStatusLabel(p))}
                     </span>
@@ -2200,7 +2207,7 @@ export default function Home() {
                   <div className="detail-meta">
                     <span className="meta-statuses">
                       <span
-                        className={`status ${selected.status === "草稿" ? "draft" : ["停用", "停用待更新"].includes(selected.status) ? "disabled" : ""}`}
+                        className={`status ${policyStatusTone(selected)}`}
                       >
                         {statusName(policyStatusLabel(selected))}
                       </span>
