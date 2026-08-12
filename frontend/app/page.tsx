@@ -6,7 +6,7 @@ import { PolicyLibraryPage } from "../components/pages/PolicyLibraryPage";
 import { StructureEditor } from "../components/policy/StructureEditor";
 import { Tables } from "../components/policy/Tables";
 import {
-  approveChange, loadPolicyWorkspace, publishTypoChange,
+  approveChange, disablePolicy, loadPolicyWorkspace, publishTypoChange,
   returnChange, saveNewPolicy, savePolicyChange, submitChange, updatePolicyChange,
   type ApiTranslation, type ApiWorkspacePolicy,
 } from "../lib/policy-api";
@@ -1417,7 +1417,17 @@ export default function Home() {
       );
     saveStore(all, nextAudit);
     open(next);
-    setNotice("規程已停用。");
+    setNotice("規程停用處理中…");
+    void disablePolicy(apiEmployeeNoByRole.admin, draft.code)
+      .then(async () => {
+        await refreshWorkspace("admin", draft.code);
+        setNotice("規程已停用，PostgreSQL 已更新。");
+      })
+      .catch((error) => {
+        // 後端失敗時立即以資料庫狀態覆蓋樂觀更新，避免畫面誤顯示已停用。
+        void refreshWorkspace("admin", draft.code).catch(() => {});
+        setNotice(`規程停用失敗：${error instanceof Error ? error.message : "請確認 API 是否啟動"}`);
+      });
   }
   function restore(v: Version) {
     // 還原是複製舊內容到新草稿，不會覆蓋既有歷史版本。

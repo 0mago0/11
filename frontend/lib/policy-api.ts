@@ -71,6 +71,14 @@ export const submitChange = (employeeNo: string, changeRequestId: string) =>
 export const publishTypoChange = (employeeNo: string, changeRequestId: string) =>
   request(`/api/change-requests/${encodeURIComponent(changeRequestId)}/publish`, employeeNo, { method: "POST" });
 
+/** 停用會寫入 PostgreSQL，並產生不可竄改的停用稽核紀錄。 */
+export const disablePolicy = (employeeNo: string, policyCode: string) =>
+  request<{ status: "disabled"; alreadyDisabled: boolean }>(
+    `/api/policies/${encodeURIComponent(policyCode)}/disable`,
+    employeeNo,
+    { method: "POST" },
+  );
+
 export const approveChange = (employeeNo: string, changeRequestId: string, comment = "") =>
   request(`/api/change-requests/${encodeURIComponent(changeRequestId)}/approve`, employeeNo, { method: "POST", body: JSON.stringify({ comment }) });
 

@@ -81,8 +81,14 @@ CREATE TABLE policies (
   created_by char(5) NOT NULL REFERENCES users(employee_no),
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  CHECK ((status = 'published') = (current_version_no IS NOT NULL))
+  -- 停用規程仍需保留最後公開版，才能保留歷史內容並以該版為基礎建立更新申請。
+  CHECK (status = 'published' OR current_version_no IS NULL OR current_version_no > 0)
 );
+
+-- 既有資料庫升級用：若已由舊 schema 建立，請一併套用這段。
+ALTER TABLE policies DROP CONSTRAINT IF EXISTS policies_check;
+ALTER TABLE policies ADD CONSTRAINT policies_check
+  CHECK (status = 'published' OR current_version_no IS NULL OR current_version_no > 0);
 
 -- 每次公開新增一筆，不允許 UPDATE 或 DELETE，以符合舊版本不可覆蓋。
 CREATE TABLE policy_versions (

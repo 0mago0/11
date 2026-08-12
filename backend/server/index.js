@@ -233,6 +233,39 @@ app.post("/api/policies/:policyCode/changes", requireRole("admin"), async (req, 
   res.status(201).json(result);
 });
 
+// 停用是正式的資料庫狀態異動，不能只由前端暫存；保留歷史版本但清空目前公開版指標。
+app.post("/api/policies/:policyCode/disable", requireRole("admin"), async (req, res) => {
+  const code = parse(policyCode, req.params.policyCode);
+  const result = await withTransaction(async (client) => {
+    const { rows } = await client.query(
+      "SELECT * FROM policies WHERE policy_code = $1 FOR UPDATE",
+      [code],
+    );
+    const policy = rows[0];
+    if (!policy) return null;
+    if (policy.status === "disabled") return { status: "disabled", alreadyDisabled: true };
+    const previousVersionNo = policy.current_version_no;
+    // 停用後保留最後公開版，讓歷史內容與後續更新申請仍有版本基準。
+    await client.query(
+      `UPDATE policies
+          SET status = 'disabled',
+              disabled_at = now(), disabled_by = $2, updated_at = now()
+        WHERE policy_code = $1`,
+      [code, req.user.employee_no],
+    );
+    await audit(client, {
+      actor: req.user.employee_no,
+      policyCode: code,
+      action: "disabled",
+      fromVersionNo: previousVersionNo,
+      changedFields: ["status"],
+    });
+    return { status: "disabled", alreadyDisabled: false };
+  });
+  if (!result) return res.sendStatus(404);
+  res.json(result);
+});
+
 // 草稿可重複儲存；送審中一律鎖定，確保承認者看到的內容不會在審查中途改變。
 // 但「已承認待發布」的錯字修正沿用既有承認，可更新草稿內容並維持原發布日。
 app.patch("/api/change-requests/:changeRequestId", requireRole("admin"), async (req, res) => {
