@@ -5,7 +5,10 @@ import { AuditPage } from "../components/pages/AuditPage";
 import { PolicyLibraryPage } from "../components/pages/PolicyLibraryPage";
 import { StructureEditor } from "../components/policy/StructureEditor";
 import { Tables } from "../components/policy/Tables";
-import { loadPolicyWorkspace, type ApiTranslation, type ApiWorkspacePolicy } from "../lib/policy-api";
+import {
+  loadPolicyWorkspace, saveNewPolicy, savePolicyChange, submitChange, updatePolicyChange,
+  type ApiTranslation, type ApiWorkspacePolicy,
+} from "../lib/policy-api";
 
 type Lang = "zh" | "ja";
 type Role = "admin" | "employee" | "department_head" | "site_head";
@@ -611,6 +614,17 @@ const policyFromApi = (source: ApiWorkspacePolicy, index: number): Policy => {
   };
 };
 
+const categoryApiCodes: Record<string, string> = {
+  全社基本: "basic", 人事: "hr", IT管理: "it", 總務: "general_affairs", 營業管理: "sales",
+  會計管理: "accounting", EHS: "ehs", 進出口管理: "import_export", COW: "cow", ISO9001: "iso9001",
+};
+const apiTranslationsFromCopy = (draft: Record<Lang, Copy>): ApiTranslation[] => [
+  { language: "zh-TW", ...draft.zh }, { language: "ja-JP", ...draft.ja },
+].filter((item) => Boolean(item.title));
+const apiEmployeeNoByRole: Record<Role, string> = {
+  admin: "A0001", employee: "A0002", department_head: "A0003", site_head: "A0004",
+};
+
 export default function Home() {
   // 頁面狀態集中在此容器：子元件只接收資料與回呼，避免各頁有不同版本的流程判斷。
   const [policies, setPolicies] = useState(initial),
@@ -711,11 +725,8 @@ export default function Home() {
   }, []);
   useEffect(() => {
     // 角色預覽對應資料庫中的四個示範員編。正式登入串接後可改為登入 token 內的員編。
-    const employeeNoByRole: Record<Role, string> = {
-      admin: "A0001", employee: "A0002", department_head: "A0003", site_head: "A0004",
-    };
     let cancelled = false;
-    loadPolicyWorkspace(employeeNoByRole[role])
+    loadPolicyWorkspace(apiEmployeeNoByRole[role])
       .then((remotePolicies) => {
         if (cancelled) return;
         const hydrated = remotePolicies.map(policyFromApi);
@@ -1007,7 +1018,7 @@ export default function Home() {
       setNotice("此規程已送交承認，請等待承認完成或退回後再修改。");
       return;
     }
-    const exists = policies.some((p) => p.id === draft.id),
+    const exists = policies.some((p) => p.code === draft.code),
       createsContentUpdate =
         exists &&
         !draft.replacesPolicyId &&
@@ -1043,6 +1054,37 @@ export default function Home() {
       );
     saveStore(next, nextAudit);
     open(savedDraft);
+    // 寫入 PostgreSQL 成功後重新讀取，確保畫面版本、草稿 ID 與其他使用者看到的資料一致。
+    const apiBody = {
+      changeKind: savedDraft.changeType === "typo" ? ("typo" as const) : ("content" as const),
+      revisionReason: savedDraft.revisionNote || "",
+      requestedEffectiveDate: savedDraft.effectiveDate || undefined,
+      scheduledPublishDate: savedDraft.publishDate || undefined,
+      translations: apiTranslationsFromCopy(savedDraft.draft),
+    };
+    void (async () => {
+      try {
+        if (!exists) {
+          await saveNewPolicy(apiEmployeeNoByRole.admin, {
+            policyCode: savedDraft.code, categoryCode: categoryApiCodes[savedDraft.category] || "hr",
+            effectiveDate: savedDraft.effectiveDate || undefined, revisionReason: savedDraft.revisionNote || "",
+            translations: apiBody.translations,
+          });
+        } else if (savedDraft.changeRequestId) {
+          await updatePolicyChange(apiEmployeeNoByRole.admin, savedDraft.changeRequestId, apiBody);
+        } else {
+          await savePolicyChange(apiEmployeeNoByRole.admin, savedDraft.code, apiBody);
+        }
+        const remote = await loadPolicyWorkspace(apiEmployeeNoByRole.admin);
+        const refreshed = remote.map(policyFromApi);
+        setPolicies(refreshed);
+        const current = refreshed.find((policy) => policy.code === savedDraft.code) || refreshed[0];
+        if (current) open(current);
+        setNotice("草稿已儲存至 PostgreSQL。");
+      } catch (error) {
+        setNotice(`資料庫儲存失敗：${error instanceof Error ? error.message : "請確認 API 是否啟動"}`);
+      }
+    })();
     setNotice(
       keepsScheduledApproval
         ? `錯字修正已儲存，維持已承認狀態，將於 ${draft.publishDate || "發布日"} 公開。`
@@ -1160,13 +1202,21 @@ export default function Home() {
       );
     saveStore(all, nextAudit);
     open(next);
-    setNotice(
-      draft.replacesPolicyId
-        ? "內容更新卡片已送交部門長承認；原發布版本持續可供員工查看。"
-        : draft.versions.length
-          ? "原公開版本已停用，已送交部門長承認。"
-          : "已送交部門長承認。",
-    );
+    if (draft.changeRequestId) {
+      void submitChange(apiEmployeeNoByRole.admin, draft.changeRequestId)
+        .then(async () => {
+          const remote = await loadPolicyWorkspace(apiEmployeeNoByRole.admin);
+          const refreshed = remote.map(policyFromApi);
+          setPolicies(refreshed);
+          const current = refreshed.find((policy) => policy.code === draft.code);
+          if (current) open(current);
+          setNotice("已送交部門長承認（PostgreSQL 已更新）。");
+        })
+        .catch((error) => setNotice(`送審失敗：${error instanceof Error ? error.message : "請確認 API 是否啟動"}`));
+    } else {
+      setNotice("請先儲存草稿至 PostgreSQL，再送交承認。");
+      return;
+    }
   }
   function departmentApprove(policy: Policy) {
     // 第一關只改變承認階段，不產生版本；發布只能在據點長關卡後發生。

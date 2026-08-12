@@ -53,4 +53,28 @@ export async function loadPolicyWorkspace(employeeNo: string): Promise<ApiWorksp
   return Promise.all(list.map(({ policy_code }) => request<ApiWorkspacePolicy>(`/api/policies/${encodeURIComponent(policy_code)}`, employeeNo)));
 }
 
+export const saveNewPolicy = (employeeNo: string, body: {
+  policyCode: string; categoryCode: string; effectiveDate?: string; revisionReason: string; translations: ApiTranslation[];
+}) => request<{ change_request_id: string }>("/api/policies", employeeNo, { method: "POST", body: JSON.stringify(body) });
+
+export const savePolicyChange = (employeeNo: string, policyCode: string, body: {
+  changeKind: "typo" | "content"; revisionReason: string; requestedEffectiveDate?: string; scheduledPublishDate?: string; translations: ApiTranslation[];
+}) => request<{ change_request_id: string }>(`/api/policies/${encodeURIComponent(policyCode)}/changes`, employeeNo, { method: "POST", body: JSON.stringify(body) });
+
+export const updatePolicyChange = (employeeNo: string, changeRequestId: string, body: {
+  changeKind: "typo" | "content"; revisionReason: string; requestedEffectiveDate?: string; scheduledPublishDate?: string; translations: ApiTranslation[];
+}) => request(`/api/change-requests/${encodeURIComponent(changeRequestId)}`, employeeNo, { method: "PATCH", body: JSON.stringify(body) });
+
+export const submitChange = (employeeNo: string, changeRequestId: string) =>
+  request(`/api/change-requests/${encodeURIComponent(changeRequestId)}/submit`, employeeNo, { method: "POST" });
+
+export const publishTypoChange = (employeeNo: string, changeRequestId: string) =>
+  request(`/api/change-requests/${encodeURIComponent(changeRequestId)}/publish`, employeeNo, { method: "POST" });
+
+export const approveChange = (employeeNo: string, changeRequestId: string, comment = "") =>
+  request(`/api/change-requests/${encodeURIComponent(changeRequestId)}/approve`, employeeNo, { method: "POST", body: JSON.stringify({ comment }) });
+
+export const returnChange = (employeeNo: string, changeRequestId: string, comment: string) =>
+  request(`/api/change-requests/${encodeURIComponent(changeRequestId)}/return`, employeeNo, { method: "POST", body: JSON.stringify({ comment }) });
+
 export const apiConfig = { apiUrl };

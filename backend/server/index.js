@@ -233,6 +233,30 @@ app.post("/api/policies/:policyCode/changes", requireRole("admin"), async (req, 
   res.status(201).json(result);
 });
 
+// 草稿可重複儲存；送審後一律鎖定，確保承認者看到的內容不會在審查中途改變。
+app.patch("/api/change-requests/:changeRequestId", requireRole("admin"), async (req, res) => {
+  const input = parse(changeDraft, req.body);
+  const result = await withTransaction(async (client) => {
+    const { rows } = await client.query("SELECT * FROM policy_change_requests WHERE change_request_id = $1 FOR UPDATE", [req.params.changeRequestId]);
+    const change = rows[0];
+    if (!change) return null;
+    if (!['draft', 'returned_for_revision'].includes(change.status)) { const error = new Error("Only a draft or returned request can be edited."); error.status = 409; throw error; }
+    await client.query(
+      `UPDATE policy_change_requests
+          SET change_kind = $2, revision_reason = $3, requested_effective_date = $4,
+              scheduled_publish_date = $5, requires_approval = $6, updated_at = now()
+        WHERE change_request_id = $1`,
+      [change.change_request_id, input.changeKind, input.revisionReason, input.requestedEffectiveDate || null, input.scheduledPublishDate || null, input.changeKind !== 'typo'],
+    );
+    await client.query("DELETE FROM policy_change_translations WHERE change_request_id = $1", [change.change_request_id]);
+    await insertTranslations(client, "policy_change_translations", "change_request_id", change.change_request_id, input.translations);
+    await audit(client, { actor: req.user.employee_no, policyCode: change.policy_code, changeRequestId: change.change_request_id, action: "draft_saved", fromVersionNo: change.base_version_no, changedFields: ["translations", "revision_reason"] });
+    return { change_request_id: change.change_request_id, status: change.status };
+  });
+  if (!result) return res.sendStatus(404);
+  res.json(result);
+});
+
 app.post("/api/change-requests/:changeRequestId/submit", requireRole("admin"), async (req, res) => {
   const result = await withTransaction(async (client) => {
     const { rows } = await client.query("SELECT * FROM policy_change_requests WHERE change_request_id = $1 FOR UPDATE", [req.params.changeRequestId]);
