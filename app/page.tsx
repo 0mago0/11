@@ -1512,11 +1512,12 @@ export default function Home() {
     ];
   };
   const approvalQueue = policies.filter((policy) =>
-    ["待部門長承認", "待據點長承認"].includes(policy.approval?.stage || ""),
+    isDepartmentHead
+      ? policy.approval?.stage === "待部門長承認"
+      : isSiteHead
+        ? policy.approval?.stage === "待據點長承認"
+        : false,
   );
-  const canApproveSelected = (policy: Policy) =>
-    (isDepartmentHead && policy.approval?.stage === "待部門長承認") ||
-    (isSiteHead && policy.approval?.stage === "待據點長承認");
   const selectedApproval = approvalQueue.find(
     (policy) => policy.id === approvalSelectedId,
   );
@@ -1575,7 +1576,7 @@ export default function Home() {
               <p className="eyebrow">APPROVAL WORKFLOW</p>
               <h1>承認待ち一覧</h1>
               <p className="sub">
-                全分類の申請を確認できます。ご自身の承認段階の案件のみ、承認または差戻しができます。
+                ご自身の承認段階にある全分類の申請を確認し、承認または差戻しを行います。
               </p>
             </div>
             <button
@@ -1665,39 +1666,31 @@ export default function Home() {
                           placeholder="修正が必要な条文、理由、提案を記入してください"
                         />
                       </label>
-                      {canApproveSelected(policy) ? (
-                        <div className="approval-actions">
-                          <button
-                            className="ghost danger"
-                            onClick={() =>
-                              returnForRevision(
-                                policy,
-                                returnComments[policy.id] || "",
-                              )
-                            }
-                          >
-                            差戻して修正依頼
-                          </button>
-                          <button
-                            className="primary"
-                            onClick={() =>
-                              isDepartmentHead
-                                ? departmentApprove(policy)
-                                : siteApprove(policy)
-                            }
-                          >
-                            {isDepartmentHead
-                              ? "部門長が承認し拠点長へ送付"
-                              : "拠点長が承認して公開"}
-                          </button>
-                        </div>
-                      ) : (
-                        <p className="approval-readonly">
-                          {policy.approval?.stage === "待部門長承認"
-                            ? "部門長の承認待ちです。"
-                            : "拠点長の最終承認待ちです。"}
-                        </p>
-                      )}
+                      <div className="approval-actions">
+                        <button
+                          className="ghost danger"
+                          onClick={() =>
+                            returnForRevision(
+                              policy,
+                              returnComments[policy.id] || "",
+                            )
+                          }
+                        >
+                          差戻して修正依頼
+                        </button>
+                        <button
+                          className="primary"
+                          onClick={() =>
+                            isDepartmentHead
+                              ? departmentApprove(policy)
+                              : siteApprove(policy)
+                          }
+                        >
+                          {isDepartmentHead
+                            ? "部門長が承認し拠点長へ送付"
+                            : "拠点長が承認して公開"}
+                        </button>
+                      </div>
                     </article>
                   );
                 })
