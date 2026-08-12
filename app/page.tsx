@@ -536,6 +536,7 @@ export default function Home() {
     [auditSearch, setAuditSearch] = useState(""),
     [category, setCategory] = useState("全部分類"),
     [statusFilter, setStatusFilter] = useState<PolicyFilter>("全部"),
+    [sortMode, setSortMode] = useState<"status" | "updated">("status"),
     [notice, setNotice] = useState(""),
     [audit, setAudit] = useState<Audit[]>([]),
     [returnComments, setReturnComments] = useState<Record<number, string>>({}),
@@ -727,19 +728,40 @@ export default function Home() {
     "全部分類",
     ...Array.from(new Set(visiblePolicies.map((x) => x.category))),
   ];
+  const statusOrder = [
+    "待部門長承認",
+    "待據點長承認",
+    "退回修改",
+    "已承認待發布",
+    "規程內容更新版本",
+    "草稿",
+    "發布",
+    "停用",
+  ];
+  const lastUpdateIndex = (policy: Policy) => {
+    const index = audit.findIndex((entry) => entry.code === policy.code);
+    return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+  };
   const list = useMemo(
     () =>
-      visiblePolicies.filter(
-        (p) =>
-          (category === "全部分類" || p.category === category) &&
-          (role === "employee" ||
-            statusFilter === "全部" ||
-            matchesPolicyStatus(p, statusFilter)) &&
-          `${p.code} ${policyCopy(p).zh.title} ${policyCopy(p).zh.content} ${policyCopy(p).ja.title} ${policyCopy(p).ja.content} ${p.draft.zh.title} ${p.draft.zh.content} ${p.draft.ja.title} ${p.draft.ja.content}`
-            .toLowerCase()
-            .includes(search.toLowerCase()),
-      ),
-    [visiblePolicies, category, search, role, statusFilter],
+      [...visiblePolicies]
+        .filter(
+          (p) =>
+            (category === "全部分類" || p.category === category) &&
+            (role === "employee" ||
+              statusFilter === "全部" ||
+              matchesPolicyStatus(p, statusFilter)) &&
+            `${p.code} ${policyCopy(p).zh.title} ${policyCopy(p).zh.content} ${policyCopy(p).ja.title} ${policyCopy(p).ja.content} ${p.draft.zh.title} ${p.draft.zh.content} ${p.draft.ja.title} ${p.draft.ja.content}`
+              .toLowerCase()
+              .includes(search.toLowerCase()),
+        )
+        .sort((left, right) =>
+          sortMode === "updated"
+            ? lastUpdateIndex(left) - lastUpdateIndex(right)
+            : statusOrder.indexOf(policyStatusLabel(left)) -
+              statusOrder.indexOf(policyStatusLabel(right)),
+        ),
+    [visiblePolicies, category, search, role, statusFilter, sortMode, audit],
   );
   const changedFields = (before: string, after: string) => {
     if (before === after) return ["規程內容"];
@@ -1778,6 +1800,20 @@ export default function Home() {
               <option key={x}>{x}</option>
             ))}
           </select>
+          {role !== "employee" && statusFilter === "全部" && (
+            <select
+              value={sortMode}
+              onChange={(event) =>
+                setSortMode(event.target.value as "status" | "updated")
+              }
+              aria-label="規程排序方式"
+            >
+              <option value="status">{ui("依狀態排序", "状態順")}</option>
+              <option value="updated">
+                {ui("依最新修改時間", "最終更新順")}
+              </option>
+            </select>
+          )}
           <span className="result-count">
             {ui(`共 ${list.length} 項`, `${list.length} 件`)}
           </span>
