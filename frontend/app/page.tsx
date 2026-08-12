@@ -1668,6 +1668,14 @@ export default function Home() {
               {ui("▦ 規程資料庫", "▦ 規程ライブラリ")}
             </button>
           </nav>
+          <div className="sidebar-foot">
+            <div className="avatar">{role === "department_head" ? "部" : "據"}</div>
+            <div>
+              <b>{name}</b>
+              <small>{isDepartmentHead ? "部門長 · 第一次承認" : "拠点長 · 最終承認"}</small>
+            </div>
+            <button className="sign-out" onClick={signOut} aria-label="登出" title="登出">⇥</button>
+          </div>
         </aside>
         <section className="workspace approval-page">
           {notice && <div className="notice">✓ {notice}</div>}
@@ -1870,6 +1878,14 @@ export default function Home() {
               ▦ 規程資料庫
             </button>
           </nav>
+          <div className="sidebar-foot">
+            <div className="avatar">管</div>
+            <div>
+              <b>{name}</b>
+              <small>Admin · 可管理規程</small>
+            </div>
+            <button className="sign-out" onClick={signOut} aria-label="登出" title="登出">⇥</button>
+          </div>
         </aside>
         <section className="workspace audit-page">
           {notice && <div className="notice">✓ {notice}</div>}
