@@ -1,5 +1,10 @@
 "use client";
 import { FormEvent, MouseEvent, useEffect, useMemo, useState } from "react";
+import { ApprovalPage } from "../components/pages/ApprovalPage";
+import { AuditPage } from "../components/pages/AuditPage";
+import { PolicyLibraryPage } from "../components/pages/PolicyLibraryPage";
+import { StructureEditor } from "../components/policy/StructureEditor";
+import { Tables } from "../components/policy/Tables";
 
 type Lang = "zh" | "ja";
 type Role = "admin" | "employee" | "department_head" | "site_head";
@@ -568,223 +573,6 @@ const normalizeTables = (value: unknown): string[][][] => {
         .map((row) => (row as unknown[]).map((cell) => String(cell))),
     );
 };
-
-function Tables({
-  tables,
-  editing,
-  onChange,
-}: {
-  tables: unknown;
-  editing?: boolean;
-  onChange?: (v: string[][][]) => void;
-}) {
-  const safeTables = normalizeTables(tables);
-  const change = (i: number, r: number, c: number, value: string) =>
-    onChange?.(
-      safeTables.map((t, ti) =>
-        ti === i
-          ? t.map((row, ri) =>
-              ri === r ? row.map((cell, ci) => (ci === c ? value : cell)) : row,
-            )
-          : t,
-      ),
-    );
-  const addTable = () =>
-    onChange?.([
-      ...safeTables,
-      [
-        ["欄位 1", "欄位 2", "欄位 3"],
-        ["", "", ""],
-      ],
-    ]);
-  return (
-    <div className="policy-tables">
-      {safeTables.map((t, i) => (
-        <div className="policy-table" key={i}>
-          <span className="table-caption">表格 {i + 1}</span>
-          <table>
-            <tbody>
-              {t.map((row, r) => (
-                <tr key={r}>
-                  {row.map((cell, col) =>
-                    editing ? (
-                      <td key={col}>
-                        <input
-                          value={cell}
-                          onChange={(e) => change(i, r, col, e.target.value)}
-                          placeholder={r === 0 ? "欄位名稱" : "輸入文字"}
-                        />
-                      </td>
-                    ) : r === 0 ? (
-                      <th key={col}>{cell}</th>
-                    ) : (
-                      <td key={col}>{cell}</td>
-                    ),
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {editing && (
-            <div className="table-tools">
-              <button
-                type="button"
-                onClick={() =>
-                  onChange?.(
-                    safeTables.map((x, ti) =>
-                      ti === i ? [...x, Array(x[0]?.length || 3).fill("")] : x,
-                    ),
-                  )
-                }
-              >
-                ＋ 列
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  onChange?.(
-                    safeTables.map((x, ti) =>
-                      ti === i ? x.map((row) => [...row, ""]) : x,
-                    ),
-                  )
-                }
-              >
-                ＋ 欄
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  onChange?.(safeTables.filter((_, ti) => ti !== i))
-                }
-              >
-                刪除表格
-              </button>
-            </div>
-          )}
-        </div>
-      ))}
-      {editing && (
-        <button type="button" className="ghost" onClick={addTable}>
-          ＋ 新增表格
-        </button>
-      )}
-    </div>
-  );
-}
-
-function StructureEditor({
-  chapters,
-  onChange,
-}: {
-  chapters: Chapter[];
-  onChange: (chapters: Chapter[]) => void;
-}) {
-  const addChapter = () =>
-    onChange([
-      ...chapters,
-      {
-        id: String(Date.now()),
-        title: `第${ordinal(chapters.length + 1)}章`,
-        articles: [],
-      },
-    ]);
-  const addArticle = (chapterIndex: number) =>
-    onChange(
-      chapters.map((chapter, index) =>
-        index !== chapterIndex
-          ? chapter
-          : {
-              ...chapter,
-              articles: [
-                ...chapter.articles,
-                {
-                  id: `${Date.now()}-${chapterIndex}`,
-                  title: `第${ordinal(chapter.articles.length + 1)}條`,
-                  text: "",
-                },
-              ],
-            },
-      ),
-    );
-  const updateText = (
-    chapterIndex: number,
-    articleIndex: number,
-    text: string,
-  ) =>
-    onChange(
-      chapters.map((chapter, index) =>
-        index !== chapterIndex
-          ? chapter
-          : {
-              ...chapter,
-              articles: chapter.articles.map((article, articlePosition) =>
-                articlePosition === articleIndex
-                  ? { ...article, text }
-                  : article,
-              ),
-            },
-      ),
-    );
-  const removeArticle = (chapterIndex: number, articleIndex: number) =>
-    onChange(
-      chapters.map((chapter, index) =>
-        index !== chapterIndex
-          ? chapter
-          : {
-              ...chapter,
-              articles: chapter.articles.filter(
-                (_, position) => position !== articleIndex,
-              ),
-            },
-      ),
-    );
-  return (
-    <section className="structure-editor">
-      <div className="structure-editor-head">
-        <div>
-          <b>章節與條文</b>
-          <small>使用新增建立章節與條號；僅輸入條文內容。</small>
-        </div>
-        <button type="button" className="ghost" onClick={addChapter}>
-          ＋ 新增章節
-        </button>
-      </div>
-      {chapters.map((chapter, chapterIndex) => (
-        <div className="chapter-editor" key={chapter.id}>
-          <div className="chapter-title">
-            {chapter.title}
-            <button type="button" onClick={() => addArticle(chapterIndex)}>
-              ＋ 新增條文
-            </button>
-          </div>
-          {chapter.articles.map((article, articleIndex) => (
-            <div className="article-editor" key={article.id}>
-              <b>{article.title}</b>
-              <textarea
-                rows={3}
-                value={article.text}
-                placeholder="輸入條文內容"
-                onChange={(event) =>
-                  updateText(chapterIndex, articleIndex, event.target.value)
-                }
-              />
-              <button
-                type="button"
-                className="remove-article"
-                onClick={() => removeArticle(chapterIndex, articleIndex)}
-              >
-                刪除
-              </button>
-            </div>
-          ))}
-        </div>
-      ))}
-      {!chapters.length && (
-        <div className="empty">尚未建立條文。請先新增章節，再新增條文。</div>
-      )}
-    </section>
-  );
-}
 
 export default function Home() {
   const [policies, setPolicies] = useState(initial),
@@ -1542,7 +1330,7 @@ export default function Home() {
   );
   if (view === "approval")
     return (
-      <main onClickCapture={guardEditingNavigation}>
+      <ApprovalPage onNavigate={guardEditingNavigation}>
         <aside className="sidebar">
           <div className="brand">
             <span className="brand-mark">人</span>
@@ -1730,11 +1518,11 @@ export default function Home() {
             )}
           </div>
         </section>
-      </main>
+      </ApprovalPage>
     );
   if (view === "audit")
     return (
-      <main onClickCapture={guardEditingNavigation}>
+      <AuditPage onNavigate={guardEditingNavigation}>
         <aside className="sidebar">
           <div className="brand">
             <span className="brand-mark">人</span>
@@ -1987,10 +1775,10 @@ export default function Home() {
             </>
           )}
         </section>
-      </main>
+      </AuditPage>
     );
   return (
-    <main onClickCapture={guardEditingNavigation}>
+    <PolicyLibraryPage onNavigate={guardEditingNavigation}>
       <aside className="sidebar">
         <div className="brand">
           <span className="brand-mark">人</span>
@@ -2640,6 +2428,6 @@ export default function Home() {
           )}
         </div>
       </section>
-    </main>
+    </PolicyLibraryPage>
   );
 }
