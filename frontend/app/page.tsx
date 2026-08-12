@@ -2271,8 +2271,9 @@ export default function Home() {
                           pattern="[0-9]{1,4}"
                           aria-label="規程編號後四位數字"
                           placeholder="0001"
-                          // 資料庫以規程編號為主鍵；只有尚未建立的規程可以決定後四碼。
-                          readOnly={policies.some((policy) => policy.code === draft.code)}
+                          // 以「是否為這次新增的草稿」判斷，而不是用預設 DHT2-0000 是否存在判斷。
+                          // 否則人事分類若已曾建立過 0000，新的草稿會被誤鎖定。
+                          readOnly={!isNewPolicy}
                           value={editablePolicyCodeSuffix(draft.code)}
                           onFocus={(event) => event.currentTarget.select()}
                           onChange={(e) =>
@@ -2283,7 +2284,7 @@ export default function Home() {
                           }
                         />
                       </div>
-                      {policies.some((policy) => policy.code === draft.code) && (
+                      {!isNewPolicy && (
                         <small>規程已建立後，編號會作為資料庫主鍵，因此不可變更。</small>
                       )}
                     </label>
