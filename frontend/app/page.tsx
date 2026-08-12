@@ -1206,6 +1206,9 @@ export default function Home() {
     if (firstPolicy) {
       setSelectedId(firstPolicy.id);
       setDraft(clone(firstPolicy));
+    } else {
+      setSelectedId(0);
+      setEditing(false);
     }
   }
   function switchCategoryPage(nextCategory: string) {
@@ -1216,6 +1219,10 @@ export default function Home() {
     );
     setCategory(nextCategory);
     if (firstPolicy) open(firstPolicy);
+    else {
+      setSelectedId(0);
+      setEditing(false);
+    }
   }
   function guardEditingNavigation(event: MouseEvent<HTMLElement>) {
     if (!editing) return;
@@ -2307,7 +2314,7 @@ export default function Home() {
               </button>
             ))}
           </div>
-          {hasNoEmployeePolicies ? (
+          {hasNoEmployeePolicies || (list.length === 0 && !isNewPolicy) ? (
             <article className="detail" aria-label="尚無可查看的已發布規程" />
           ) : (
             <article className="detail">
