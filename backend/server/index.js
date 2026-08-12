@@ -243,8 +243,13 @@ app.patch("/api/change-requests/:changeRequestId", requireRole("admin"), async (
     if (!['draft', 'returned_for_revision'].includes(change.status)) { const error = new Error("Only a draft or returned request can be edited."); error.status = 409; throw error; }
     await client.query(
       `UPDATE policy_change_requests
-          SET change_kind = $2, revision_reason = $3, requested_effective_date = $4,
-              scheduled_publish_date = $5, requires_approval = $6, updated_at = now()
+          -- 新增規程的 base_version_no 必須永遠是 NULL。退回後前端雖以「內容修改」
+          -- 編輯，但不能把它改成 content，否則會違反資料庫的版本基準檢查。
+          SET change_kind = CASE WHEN change_kind = 'new_policy' THEN 'new_policy' ELSE $2::change_kind END,
+              revision_reason = $3, requested_effective_date = $4,
+              scheduled_publish_date = $5,
+              requires_approval = CASE WHEN change_kind = 'new_policy' THEN true ELSE $6 END,
+              updated_at = now()
         WHERE change_request_id = $1`,
       [change.change_request_id, input.changeKind, input.revisionReason, input.requestedEffectiveDate || null, input.scheduledPublishDate || null, input.changeKind !== 'typo'],
     );
