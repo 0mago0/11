@@ -30,7 +30,16 @@ npm run build
 
 目前規程資料以瀏覽器的 `localStorage` 保存，鍵名為 `hr-policies-v5`。這表示資料保存在目前使用的瀏覽器與裝置中；不同電腦或瀏覽器之間不會自動同步。資料結構更新時會換用新的鍵名，以避免舊資料被錯誤解讀。
 
-若未來需要多人共用、權限控管或跨裝置同步，應改用 D1 資料庫作為正式資料來源。
+若未來需要多人共用、權限控管或跨裝置同步，應改用正式資料庫作為資料來源。
+
+## PostgreSQL 資料庫設計
+
+可直接執行 [db/postgresql_schema.sql](db/postgresql_schema.sql) 建立 PostgreSQL 結構。此設計已涵蓋規程、公開版本、雙語內容、條文／表格 JSON 結構、送審草稿、兩階段承認、附件、關聯規程、通知與不可竄改的修改紀錄。
+
+- `policies.policy_code` 是規程主鍵，格式固定為 `AAA1-0000`；資料庫會比對所屬分類的固定前綴。
+- `users.employee_no` 是使用者主鍵，格式固定為 `A0000`。
+- `policy_versions`、`policy_version_translations` 與 `policy_audit_logs` 設有不可修改／刪除觸發器，符合舊版本不可覆蓋的要求。
+- `employee_published_policies` 視圖只回傳發布中的最新版本，供 Employee 權限使用。
 
 ## 檔案與資料夾說明
 
@@ -47,7 +56,8 @@ npm run build
 | `vite.config.ts`               | Vite、vinext 與 Cloudflare 本機開發環境設定。                         |
 | `.openai/hosting.json`         | Sites 發布設定，保存網站專案 ID；目前 D1 和 R2 都尚未啟用。           |
 | `package.json`                 | 套件清單與常用指令，例如開發、建置與測試。                            |
-| `db/schema.ts`                 | 資料庫結構預留檔；目前沒有使用資料庫。                                |
+| `db/postgresql_schema.sql`     | PostgreSQL 正式資料庫設計，含資料表、索引、觸發器、初始分類與公開視圖。 |
+| `db/schema.ts`                 | D1／Drizzle 資料庫結構預留檔；目前網站尚未串接資料庫。                 |
 | `db/index.ts`                  | 資料庫連線預留檔。                                                    |
 | `drizzle.config.ts`            | 未來啟用 D1／Drizzle 資料庫遷移時使用的設定。                         |
 | `drizzle/`                     | Drizzle 遷移紀錄資料夾。                                              |
