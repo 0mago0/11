@@ -34,7 +34,7 @@ npm run build
 
 ## PostgreSQL 資料庫設計
 
-可直接執行 [db/postgresql_schema.sql](db/postgresql_schema.sql) 建立 PostgreSQL 結構。此設計已涵蓋規程、公開版本、雙語內容、條文／表格 JSON 結構、送審草稿、兩階段承認、附件、關聯規程、通知與不可竄改的修改紀錄。
+可直接執行 [backend/db/postgresql_schema.sql](backend/db/postgresql_schema.sql) 建立 PostgreSQL 結構。此設計已涵蓋規程、公開版本、雙語內容、條文／表格 JSON 結構、送審草稿、兩階段承認、附件、關聯規程、通知與不可竄改的修改紀錄。
 
 - `policies.policy_code` 是規程主鍵，格式固定為 `DHT1-0000` 至 `DHT99-0000`；資料庫會比對所屬分類的固定前綴。
 - `users.employee_no` 是使用者主鍵，格式固定為 `A0000`。
@@ -43,37 +43,35 @@ npm run build
 
 ## Node.js／Express 後端 API
 
-後端原始碼位於 `server/`，使用 Express 與 PostgreSQL `pg` 驅動，API 說明見 [docs/express-api.md](docs/express-api.md)。設定 `.env` 後可用 `npm run api:dev` 啟動；目前前端仍使用本機資料，下一步可改由前端呼叫此 API。
+後端原始碼位於 `backend/server/`，使用 Express 與 PostgreSQL `pg` 驅動，API 說明見 [backend/docs/express-api.md](backend/docs/express-api.md)。設定 `backend/.env` 後可用 `npm run api:dev` 啟動；目前前端仍使用本機資料，下一步可改由前端呼叫此 API。
+
+## 前後端資料夾結構
+
+| 資料夾 | 用途 |
+| --- | --- |
+| `frontend/` | 網頁介面、樣式、Cloudflare Worker、前端測試與網站發布設定。 |
+| `backend/` | Express API、PostgreSQL schema、資料庫設定與 API 文件。 |
 
 ## 檔案與資料夾說明
 
-| 位置                           | 用途                                                                    |
-| ------------------------------ | ----------------------------------------------------------------------- |
-| `app/page.tsx`                 | 網站的主要頁面與所有規程管理互動功能。絕大多數產品功能都在此檔案。      |
-| `app/globals.css`              | 全站樣式，包括側邊欄、規程卡片、版本比較視窗、語言切換和表格編輯器。    |
-| `app/layout.tsx`               | 網站的根版面，設定 HTML 語言、網站標題、描述和共用 CSS 載入。           |
-| `app/chatgpt-auth.ts`          | 可選用的 ChatGPT 登入輔助函式；目前規程頁面沒有呼叫它。                 |
-| `app/_sites-preview/`          | 建站範本原本提供的預覽骨架元件，目前主頁不使用。                        |
-| `public/`                      | 靜態檔案，例如網站圖示。                                                |
-| `worker/index.ts`              | Cloudflare Worker 的進入點，將請求交給 vinext，並處理圖片最佳化請求。   |
-| `build/sites-vite-plugin.ts`   | Sites 平台使用的 Vite 建置外掛設定。                                    |
-| `vite.config.ts`               | Vite、vinext 與 Cloudflare 本機開發環境設定。                           |
-| `.openai/hosting.json`         | Sites 發布設定，保存網站專案 ID；目前 D1 和 R2 都尚未啟用。             |
-| `package.json`                 | 套件清單與常用指令，例如開發、建置與測試。                              |
-| `db/postgresql_schema.sql`     | PostgreSQL 正式資料庫設計，含資料表、索引、觸發器、初始分類與公開視圖。 |
-| `server/index.js`              | Express API 進入點，提供規程、送審、承認、退回與修改紀錄路由。             |
-| `server/auth.js`               | 員編身分驗證與角色權限中介層。                                             |
-| `server/db.js`                 | PostgreSQL 連線池與交易輔助函式。                                          |
-| `server/validation.js`         | API 輸入資料與 DHT 規程編號格式驗證。                                     |
-| `docs/express-api.md`          | 後端啟動方式與 API 路由說明。                                              |
-| `db/schema.ts`                 | D1／Drizzle 資料庫結構預留檔；目前網站尚未串接資料庫。                  |
-| `db/index.ts`                  | 資料庫連線預留檔。                                                      |
-| `drizzle.config.ts`            | 未來啟用 D1／Drizzle 資料庫遷移時使用的設定。                           |
-| `drizzle/`                     | Drizzle 遷移紀錄資料夾。                                                |
-| `examples/d1/`                 | D1 資料庫範例，不影響目前網站功能。                                     |
-| `tests/rendered-html.test.mjs` | 範本提供的基本渲染測試。                                                |
+| 位置 | 用途 |
+| --- | --- |
+| `frontend/app/page.tsx` | 網站的主要頁面與規程管理互動。 |
+| `frontend/app/globals.css` | 前端全站樣式。 |
+| `frontend/public/` | 網站圖示等靜態檔案。 |
+| `frontend/worker/index.ts` | Cloudflare Worker 前端進入點。 |
+| `frontend/vite.config.ts` | Vite、vinext 與 Cloudflare 前端設定。 |
+| `frontend/.openai/hosting.json` | 網站發布設定與專案 ID。 |
+| `backend/server/index.js` | Express API 進入點。 |
+| `backend/server/auth.js` | 員編驗證與角色權限中介層。 |
+| `backend/server/db.js` | PostgreSQL 連線池與交易輔助。 |
+| `backend/server/validation.js` | API 輸入與 DHT 編號驗證。 |
+| `backend/db/postgresql_schema.sql` | PostgreSQL schema、索引、觸發器與公開視圖。 |
+| `backend/docs/express-api.md` | 後端 API 文件。 |
+| `backend/.env.example` | 後端環境變數範本。 |
+| `package.json` | 共用套件與前端／後端啟動指令。 |
 
-## `app/page.tsx` 詳解
+## `frontend/app/page.tsx` 詳解
 
 ### 資料型別
 
@@ -140,11 +138,11 @@ npm run build
 | `npm run dev`         | 啟動本機開發網站。                        |
 | `npm run build`       | 建置並檢查正式部署版本。                  |
 | `npm test`            | 執行範本測試。                            |
-| `npm run db:generate` | 未來變更資料庫結構後產生 Drizzle 遷移檔。 |
+| `npm run db:generate` | 未來變更後端資料庫結構時產生 Drizzle 遷移檔。 |
 
 ## 維護建議
 
-1. 修改規程功能時，優先調整 `app/page.tsx` 的資料型別與 `save()` 流程，確保每次修改都能正確建立版本。
+1. 修改規程功能時，優先調整 `frontend/app/page.tsx` 的資料型別與 `save()` 流程，確保每次修改都能正確建立版本。
 2. 新增可保存的欄位時，應同時更新 `Copy` 或 `Policy` 型別、`blank()` 預設資料，以及編輯／閱讀兩種畫面。
-3. 調整表格外觀時，在 `app/globals.css` 搜尋 `policy-table`、`table-editor` 或 `editable-table`。
-4. 要支援多人同步前，先啟用 D1，將目前 `localStorage` 的 `persist()` 邏輯改為呼叫後端 API。
+3. 調整表格外觀時，在 `frontend/app/globals.css` 搜尋 `policy-table`、`table-editor` 或 `editable-table`。
+4. 要支援多人同步，將目前前端 `localStorage` 邏輯改為呼叫 `backend/server/` 的 Express API。

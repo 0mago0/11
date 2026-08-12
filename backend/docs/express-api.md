@@ -1,6 +1,6 @@
 # Express API
 
-後端位於 `server/`，使用 Node.js、Express 與 PostgreSQL 的 `pg` 驅動。先建立資料庫並執行 `db/postgresql_schema.sql`，再複製 `.env.example` 為 `.env` 並填入 `DATABASE_URL`。
+後端位於 `backend/server/`，使用 Node.js、Express 與 PostgreSQL 的 `pg` 驅動。先建立資料庫並執行 `backend/db/postgresql_schema.sql`，再複製 `backend/.env.example` 為 `backend/.env` 並填入 `DATABASE_URL`。
 
 啟動：
 

@@ -6,14 +6,14 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "dev": "WRANGLER_LOG_PATH=.wrangler/wrangler.log node node_modules/vinext/dist/cli.js dev",
-    "build": "WRANGLER_LOG_PATH=.wrangler/wrangler.log node node_modules/vinext/dist/cli.js build",
-    "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log node node_modules/vinext/dist/cli.js start",
-    "api:dev": "node --watch server/index.js",
-    "api:start": "node server/index.js",
-    "test": "npm run build && node --test tests/rendered-html.test.mjs",
-    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
-    "db:generate": "drizzle-kit generate"
+    "dev": "cd frontend && WRANGLER_LOG_PATH=.wrangler/wrangler.log ../node_modules/vinext/dist/cli.js dev",
+    "build": "cd frontend && WRANGLER_LOG_PATH=.wrangler/wrangler.log ../node_modules/vinext/dist/cli.js build",
+    "start": "cd frontend && WRANGLER_LOG_PATH=.wrangler/wrangler.log ../node_modules/vinext/dist/cli.js start",
+    "api:dev": "cd backend && node --watch server/index.js",
+    "api:start": "cd backend && node server/index.js",
+    "test": "npm run build && node --test frontend/tests/rendered-html.test.mjs",
+    "lint": "eslint frontend backend --ignore-pattern dist --ignore-pattern .next",
+    "db:generate": "drizzle-kit generate --config backend/drizzle.config.ts"
   },
   "dependencies": {
     "dotenv": "17.2.3",
