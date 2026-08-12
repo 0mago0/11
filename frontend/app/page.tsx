@@ -1,5 +1,5 @@
 "use client";
-import { FormEvent, MouseEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { ApprovalPage } from "../components/pages/ApprovalPage";
 import { AuditPage } from "../components/pages/AuditPage";
 import { PolicyLibraryPage } from "../components/pages/PolicyLibraryPage";
@@ -693,6 +693,7 @@ export default function Home() {
     [approvalBusy, setApprovalBusy] = useState(false),
     [auditPolicyId, setAuditPolicyId] = useState<number | null>(null),
     [compare, setCompare] = useState<[number, number]>([0, 0]);
+  const restoringHistory = useRef(false);
   useEffect(() => {
     // 舊版 localStorage 可能缺少後來加入的欄位，讀取後先正規化再放入畫面。
     try {
@@ -775,6 +776,37 @@ export default function Home() {
     const timer = window.setTimeout(() => setNotice(""), 2000);
     return () => window.clearTimeout(timer);
   }, [notice]);
+  // 將主要頁面與所選案件存入瀏覽器歷史，讓上一頁／下一頁能恢復原畫面。
+  useEffect(() => {
+    const restore = () => {
+      const state = window.history.state?.policyCenter;
+      if (!state) return;
+      if (editing) {
+        const saveBeforeLeaving = window.confirm("目前有尚未儲存的編輯內容，是否先儲存草稿？");
+        if (saveBeforeLeaving) saveDraft();
+        else setEditing(false);
+      }
+      restoringHistory.current = true;
+      setView(state.view || "library");
+      setApprovalSelectedId(state.approvalSelectedId ?? null);
+      setAuditPolicyId(state.auditPolicyId ?? null);
+      window.setTimeout(() => { restoringHistory.current = false; }, 0);
+    };
+    const current = window.history.state?.policyCenter;
+    if (!current) {
+      window.history.replaceState({ ...window.history.state, policyCenter: { view, approvalSelectedId, auditPolicyId } }, "");
+    }
+    window.addEventListener("popstate", restore);
+    return () => window.removeEventListener("popstate", restore);
+  }, [editing]);
+  useEffect(() => {
+    if (restoringHistory.current || !employeeNo) return;
+    const next = { view, approvalSelectedId, auditPolicyId };
+    const current = window.history.state?.policyCenter;
+    if (JSON.stringify(current) !== JSON.stringify(next)) {
+      window.history.pushState({ ...window.history.state, policyCenter: next }, "");
+    }
+  }, [view, approvalSelectedId, auditPolicyId, employeeNo]);
   const saveStore = (next: Policy[], nextAudit: Audit[] = audit) => {
     // 所有會改變規程的動作都經過這裡，確保畫面與瀏覽器暫存同步。
     setPolicies(next);
