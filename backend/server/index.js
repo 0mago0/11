@@ -28,6 +28,7 @@ const parse = (schema, value) => {
   return result.data;
 };
 
+// 所有工作流動作均呼叫此函式寫入稽核表，留下操作者、前後版本與退回意見。
 const audit = async (client, { actor, policyCode: code, changeRequestId = null, action, fromVersionNo = null, toVersionNo = null, changedFields = [], beforeContent = null, afterContent = null, comment = null }) => {
   await client.query(
     `INSERT INTO policy_audit_logs
@@ -37,6 +38,7 @@ const audit = async (client, { actor, policyCode: code, changeRequestId = null, 
   );
 };
 
+// 規程版本與修改申請都採相同的中日文翻譯資料結構，因此共用寫入邏輯。
 const insertTranslations = async (client, table, ownerColumn, ownerId, translations) => {
   for (const item of translations) {
     await client.query(
@@ -47,6 +49,7 @@ const insertTranslations = async (client, table, ownerColumn, ownerId, translati
   }
 };
 
+// 發布會新增 version（絕不更新舊 version）、更新規程狀態，並寫入 audit；呼叫端必須包在交易內。
 const publishChangeRequest = async (client, change, actorEmployeeNo) => {
   const { rows: policyRows } = await client.query(
     "SELECT current_version_no FROM policies WHERE policy_code = $1 FOR UPDATE",

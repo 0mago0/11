@@ -1,148 +1,198 @@
 # 企業規程資料庫（Policy Center）
 
-這是一個用於管理企業各類規程的網站。使用者可以搜尋與閱讀規程，建立或編輯規程內容，保留歷史版本、比較版本差異，並以繁體中文與日文分別維護內容。規程編輯區支援可直接輸入文字的表格。規程分類包含全社基本、人事、IT管理、總務、營業管理、會計管理、EHS、進出口管理、COW 與 ISO9001。
+企業內部使用的規程管理系統。系統目前提供繁體中文、日文規程內容，涵蓋全社基本、人事、IT 管理、總務、營業管理、會計管理、EHS、進出口管理、COW 與 ISO9001。可管理草稿、版本、差異、送審、兩層承認、預定發布與修改紀錄。
 
-## 使用方式
+> 前端現在以瀏覽器 `localStorage` 保存示範資料；Express API 與 PostgreSQL schema 已完成，供下一階段切換為多人共用資料庫使用。
+
+## 快速開始
+
+### 必要環境
+
+- Node.js 22 以上
+- npm
+- PostgreSQL 16 以上（只有啟動後端 API 時需要）
+
+### 啟動前端
 
 ```bash
 npm install
 npm run dev
 ```
 
-完成修改後，可用下列指令確認網站能正常建置：
+本機網址通常是 <http://localhost:3000>。終端機若顯示不同網址，請以終端機顯示者為準。
+
+### 啟動後端 API
 
 ```bash
-npm run build
+cp backend/.env.example backend/.env
+# 編輯 backend/.env，填入正確的 DATABASE_URL
+psql "$DATABASE_URL" -f backend/db/postgresql_schema.sql
+npm run api:dev
 ```
 
-## 主要功能
+API 預設網址是 <http://localhost:3001>。前端目前尚未改為呼叫 API，因此可分別啟動、逐步串接。
 
-- 規程瀏覽：以「全部規程」及十個固定分類專屬頁面瀏覽、搜尋與閱讀規程；每個分類均提供一筆中日雙語的已發布示範規程。新增規程會自動歸屬目前開啟的分類頁。
-- 規程編號：各分類有固定前綴，格式為「前綴-四位數字」，例如人事 `DHT2-0001`；編輯時僅需輸入後四位數字。IT 管理與總務共用 `DHT3` 前綴。
-- 承認待辦示範：IT 管理、EHS 與會計管理各提供一筆待承認案件，可用部門長／據點長角色檢視原文、差異與承認流程。
-- 新增與編輯：新增規程或調整既有規程，儲存時自動產生新版本。
-- 版本管理：查看每次儲存的歷史內容，並將舊版還原成一個新的版本。
-- 差異比較：選取兩個版本，標示文字的新增與刪除。
-- 多語言：同一份規程可分別編輯繁體中文與日文內容。
-- 表格編輯：新增表格，直接在儲存格輸入文字，並可增加列、欄或刪除表格。
+### 常用指令
 
-## 資料保存方式
-
-目前規程資料以瀏覽器的 `localStorage` 保存，鍵名為 `hr-policies-v5`。這表示資料保存在目前使用的瀏覽器與裝置中；不同電腦或瀏覽器之間不會自動同步。資料結構更新時會換用新的鍵名，以避免舊資料被錯誤解讀。
-
-若未來需要多人共用、權限控管或跨裝置同步，應改用正式資料庫作為資料來源。
-
-## PostgreSQL 資料庫設計
-
-可直接執行 [backend/db/postgresql_schema.sql](backend/db/postgresql_schema.sql) 建立 PostgreSQL 結構。此設計已涵蓋規程、公開版本、雙語內容、條文／表格 JSON 結構、送審草稿、兩階段承認、附件、關聯規程、通知與不可竄改的修改紀錄。
-
-- `policies.policy_code` 是規程主鍵，格式固定為 `DHT1-0000` 至 `DHT99-0000`；資料庫會比對所屬分類的固定前綴。
-- `users.employee_no` 是使用者主鍵，格式固定為 `A0000`。
-- `policy_versions`、`policy_version_translations` 與 `policy_audit_logs` 設有不可修改／刪除觸發器，符合舊版本不可覆蓋的要求。
-- `employee_published_policies` 視圖只回傳發布中的最新版本，供 Employee 權限使用。
-
-## Node.js／Express 後端 API
-
-後端原始碼位於 `backend/server/`，使用 Express 與 PostgreSQL `pg` 驅動，API 說明見 [backend/docs/express-api.md](backend/docs/express-api.md)。設定 `backend/.env` 後可用 `npm run api:dev` 啟動；目前前端仍使用本機資料，下一步可改由前端呼叫此 API。
-
-## 前後端資料夾結構
-
-| 資料夾 | 用途 |
+| 指令 | 說明 |
 | --- | --- |
-| `frontend/` | 網頁介面、樣式、Cloudflare Worker、前端測試與網站發布設定。 |
-| `backend/` | Express API、PostgreSQL schema、資料庫設定與 API 文件。 |
+| `npm run dev` | 啟動前端開發伺服器。 |
+| `npm run build` | 建置前端正式版本。 |
+| `npm run api:dev` | 以監看模式啟動 Express API。 |
+| `npm run api:start` | 啟動 Express API。 |
+| `npm run db:generate` | 依 Drizzle schema 產生資料庫遷移檔。 |
+| `npm run lint` | 檢查前後端程式碼風格。 |
 
-## 檔案與資料夾說明
+## 功能與權限
 
-| 位置 | 用途 |
+| 角色 | 可做的事 |
 | --- | --- |
-| `frontend/app/page.tsx` | 網站的主要頁面與規程管理互動。 |
-| `frontend/app/globals.css` | 前端全站樣式。 |
-| `frontend/public/` | 網站圖示等靜態檔案。 |
-| `frontend/worker/index.ts` | Cloudflare Worker 前端進入點。 |
-| `frontend/vite.config.ts` | Vite、vinext 與 Cloudflare 前端設定。 |
-| `frontend/.openai/hosting.json` | 網站發布設定與專案 ID。 |
-| `backend/server/index.js` | Express API 進入點。 |
-| `backend/server/auth.js` | 員編驗證與角色權限中介層。 |
-| `backend/server/db.js` | PostgreSQL 連線池與交易輔助。 |
-| `backend/server/validation.js` | API 輸入與 DHT 編號驗證。 |
-| `backend/db/postgresql_schema.sql` | PostgreSQL schema、索引、觸發器與公開視圖。 |
-| `backend/docs/express-api.md` | 後端 API 文件。 |
-| `backend/.env.example` | 後端環境變數範本。 |
-| `package.json` | 共用套件與前端／後端啟動指令。 |
+| Employee | 只可查看已發布規程。 |
+| Admin | 建立、編輯、儲存草稿、送審、發布錯字修正、停用規程、查看修改紀錄。 |
+| 部門長 | 只看到「待部門長承認」的案件，以日文優先檢閱、承認或退回。 |
+| 據點長 | 只看到「待據點長承認」的案件，以日文優先檢閱、承認或退回。 |
 
-## `frontend/app/page.tsx` 詳解
+### 主要流程
 
-### 資料型別
+1. Admin 建立規程或編輯草稿。
+2. 新規程與內容修改送交部門長承認，再送交據點長。
+3. 據點長承認後，若發布日期尚未到達，狀態為「已承認待發布」；到期後由排程或 Admin 發布。
+4. 純錯字修正的已發布規程可由 Admin 直接發布；已承認待發布的錯字修正沿用既有承認。
+5. 每次發布均建立不可覆蓋的版本快照，並寫入修改紀錄。
 
-| 型別／函式            | 用途                                                                            |
-| --------------------- | ------------------------------------------------------------------------------- |
-| `Lang`                | 語言代碼，只允許 `zh`（繁體中文）或 `ja`（日文）。                              |
-| `TableBlock`          | 一個規程表格，包含唯一 `id` 與二維 `cells` 陣列；每個字串就是一個儲存格的內容。 |
-| `Copy`                | 單一語言的規程內容：標題、摘要、全文與表格清單。                                |
-| `Version`             | 規程的一次歷史快照，含版本號、日期、說明與中日雙語內容。                        |
-| `Policy`              | 一份完整規程，含編號、分類、生效日、狀態及所有版本。                            |
-| `c()`                 | 建立一個 `Copy` 物件的簡寫函式。                                                |
-| `v()`                 | 建立一個 `Version` 物件的簡寫函式。                                             |
-| `seed`                | 首次開啟網站時使用的示範規程資料。                                              |
-| `current(policy)`     | 回傳該規程最後一筆版本，也就是目前生效的內容。                                  |
-| `nextVersion(number)` | 將次版本號加一，例如 `3.2` 變成 `3.3`。                                         |
-| `blank()`             | 建立一份空白草稿規程，供「新增規程」按鈕使用。                                  |
+## 規程編號與分類
 
-### 畫面元件
+規程編號固定為 `DHTx-0000`：前綴由分類決定，後四碼由使用者輸入。使用者主鍵為員編，格式 `A0000`。
 
-| 元件           | 用途                                                                       |
-| -------------- | -------------------------------------------------------------------------- |
-| `PolicyTables` | 閱讀模式的表格顯示元件。第一列會以表頭樣式呈現。                           |
-| `TableEditor`  | 編輯模式的表格工具。提供新增表格、直接打字、新增列、新增欄與刪除表格功能。 |
-| `Home`         | 主頁元件，負責清單、閱讀、編輯、版本紀錄、版本比較及語言切換。             |
+| 分類 | 前綴 |
+| --- | --- |
+| 全社基本 | `DHT1` |
+| 人事 | `DHT2` |
+| IT管理 | `DHT3` |
+| 總務 | `DHT3` |
+| 營業管理 | `DHT4` |
+| 會計管理 | `DHT5` |
+| EHS | `DHT6` |
+| 進出口管理 | `DHT7` |
+| COW | `DHT10` |
+| ISO9001 | `DHT99` |
 
-### `Home` 的主要狀態
+## 專案結構
 
-| 狀態                | 用途                                           |
-| ------------------- | ---------------------------------------------- |
-| `items`             | 所有規程資料。                                 |
-| `selectedId`        | 目前正在閱讀或編輯的規程 ID。                  |
-| `lang`              | 目前畫面顯示與編輯的語言。                     |
-| `query`、`category` | 搜尋文字與分類篩選條件。                       |
-| `editing`           | 控制目前是閱讀模式還是編輯模式。               |
-| `draft`             | 編輯中的暫存規程；取消編輯時不會寫回正式資料。 |
-| `modal`             | 控制版本紀錄或差異比較視窗是否開啟。           |
-| `compare`           | 差異比較時所選的舊版與新版索引。               |
-| `notice`            | 儲存或還原成功時顯示的短暫通知。               |
+```text
+role_web/
+├── frontend/                         # React / vinext 前端
+│   ├── app/
+│   │   ├── page.tsx                  # 首頁容器：資料狀態與工作流程
+│   │   ├── globals.css               # 全站與元件樣式
+│   │   ├── layout.tsx                # HTML metadata 與頁面外框
+│   │   └── api/me/route.ts           # 前端登入角色示範 API
+│   ├── components/
+│   │   ├── pages/                    # 資料庫、待辦、修改紀錄頁外框
+│   │   └── policy/                   # 可重用的表格、條文章節編輯元件
+│   ├── lib/
+│   │   ├── policy-types.ts           # 前端資料型別定義
+│   │   └── policy-utils.ts           # 編號、內容、表格與版本工具函式
+│   ├── worker/index.ts               # Cloudflare Worker 進入點
+│   ├── vite.config.ts                # Vite / Cloudflare 開發及建置設定
+│   └── .openai/hosting.json          # 網站發布設定
+├── backend/                          # Node.js / Express / PostgreSQL 後端
+│   ├── server/
+│   │   ├── index.js                  # API 路由與承認流程
+│   │   ├── auth.js                   # 員編驗證及角色授權中介層
+│   │   ├── db.js                     # PostgreSQL 連線池與交易工具
+│   │   └── validation.js             # Zod 請求資料驗證規則
+│   ├── db/
+│   │   ├── postgresql_schema.sql     # 正式 PostgreSQL schema、觸發器及 view
+│   │   ├── schema.ts                 # Drizzle schema
+│   │   └── index.ts                  # Drizzle 資料庫設定
+│   ├── docs/express-api.md           # API 請求／回應範例
+│   └── .env.example                  # 後端環境變數範本
+└── package.json                      # 共用指令與套件
+```
 
-### `Home` 的主要函式
+## 前端檔案與函式說明
 
-| 函式                       | 做什麼                                                                   |
-| -------------------------- | ------------------------------------------------------------------------ |
-| `persist(next)`            | 更新畫面上的規程資料，並同步寫入瀏覽器儲存空間。                         |
-| `open(policy)`             | 選取一份規程，切回閱讀模式並關閉版本視窗。                               |
-| `updateCopy(field, value)` | 更新目前語言的標題、摘要、全文或表格；修改只會先存在 `draft`。           |
-| `save(event)`              | 送出編輯表單。既有規程會遞增版本號並保留新快照；新規程則建立第一版。     |
-| `restore(version)`         | 把指定歷史版本複製成最新版本，不會覆蓋或刪除原有紀錄。                   |
-| `diff(oldText, newText)`   | 將兩段全文拆成段落，比對後回傳相同、刪除與新增的項目，用於差異比較視窗。 |
+### `frontend/app/page.tsx`
 
-### `TableEditor` 的主要函式
+此檔案是流程容器，負責載入本機資料、角色切換、草稿保護、承認工作流與畫面選擇。可重用的編輯元件已移至 `components/policy/`；共用型別與工具規格位於 `lib/`。
 
-| 函式                                | 做什麼                             |
-| ----------------------------------- | ---------------------------------- |
-| `add()`                             | 新增預設 2 列 × 3 欄的表格。       |
-| `update(table, row, column, value)` | 在使用者輸入時更新指定儲存格文字。 |
-| `addRow(table)`                     | 在指定表格尾端增加一列空白儲存格。 |
-| `addCol(table)`                     | 在指定表格右側增加一欄空白儲存格。 |
+| 函式／區塊 | 說明 |
+| --- | --- |
+| `normalizePolicy()` | 將舊資料補齊預設欄位、正規化編號及雙語內容，避免 localStorage 舊資料造成錯誤。 |
+| `splitLegacyUpdatePolicies()` | 將舊格式的「停用待更新」資料拆為原發布卡與新的內容更新卡。 |
+| `saveStore()` | 同步更新 React state 與 `localStorage` 的 `hr-policy-v8`。 |
+| `changePreviewRole()` | 儲存角色預覽設定，並讓部門長／據點長自動切換日文界面。 |
+| `open()` | 切換目前規程、建立可編輯的草稿副本與預設差異比較版本。 |
+| `saveDraft()` | 儲存草稿；必要時建立獨立的內容更新規程卡。 |
+| `publishTypoFix()` | 將純錯字修正直接建立新版，不經承認流程。 |
+| `submitForApproval()` | 將草稿送交部門長，並處理原版與內容更新卡的狀態。 |
+| `departmentApprove()` | 部門長承認後，移交據點長。 |
+| `siteApprove()` | 據點長承認後立即發布，或改成已承認待發布。 |
+| `returnForRevision()` | 退回案件並記錄退回者及意見。 |
+| `restore()` | 將歷史版本複製回草稿，從不覆蓋舊版。 |
+| `guardEditingNavigation()` | 編輯未儲存時攔截換頁、切換分類或規程，詢問是否先儲存。 |
 
-## 常用指令
+### `frontend/components/`
 
-| 指令                  | 用途                                      |
-| --------------------- | ----------------------------------------- |
-| `npm run dev`         | 啟動本機開發網站。                        |
-| `npm run build`       | 建置並檢查正式部署版本。                  |
-| `npm test`            | 執行範本測試。                            |
-| `npm run db:generate` | 未來變更後端資料庫結構時產生 Drizzle 遷移檔。 |
+| 檔案 | 說明 |
+| --- | --- |
+| `policy/Tables.tsx` | 顯示與編輯規程表格；可新增／刪除表格、列、欄，並在儲存格直接輸入。 |
+| `policy/StructureEditor.tsx` | 編輯章節與條文；條號由系統新增，使用者只輸入條文內容。 |
+| `pages/PolicyLibraryPage.tsx` | 規程資料庫頁的外框，統一套用未儲存草稿保護。 |
+| `pages/ApprovalPage.tsx` | 承認待辦頁的外框。 |
+| `pages/AuditPage.tsx` | 修改紀錄頁的外框。 |
 
-## 維護建議
+### `frontend/lib/`
 
-1. 修改規程功能時，優先調整 `frontend/app/page.tsx` 的資料型別與 `save()` 流程，確保每次修改都能正確建立版本。
-2. 新增可保存的欄位時，應同時更新 `Copy` 或 `Policy` 型別、`blank()` 預設資料，以及編輯／閱讀兩種畫面。
-3. 調整表格外觀時，在 `frontend/app/globals.css` 搜尋 `policy-table`、`table-editor` 或 `editable-table`。
-4. 要支援多人同步，將目前前端 `localStorage` 邏輯改為呼叫 `backend/server/` 的 Express API。
+| 檔案 | 重要內容 |
+| --- | --- |
+| `policy-types.ts` | `Policy`、`Version`、`Copy`、`Approval`、`Audit` 等資料契約。新增欄位時先調整此處。 |
+| `policy-utils.ts` | `policyCode()` 統一產生 DHT 編號；`normalizeTables()` 防止非陣列表格錯誤；`chaptersFromContent()` / `contentFromChapters()` 轉換條文結構；`clone()` 建立不共用參考的草稿。 |
+
+## 後端 API 與資料庫
+
+完整 API 範例請閱讀 [backend/docs/express-api.md](backend/docs/express-api.md)。所有 `/api/*` 呼叫須帶入 header：
+
+```http
+X-Employee-No: A0000
+```
+
+| 位置 | 職責 |
+| --- | --- |
+| `backend/server/auth.js` | 從 header 讀取員編、驗證使用者是否啟用，再以 `requireRole()` 限制管理者與承認者。 |
+| `backend/server/db.js` | 建立 `pg.Pool`，以 `withTransaction()` 確保一個發布或承認動作全部成功或全部回滾。 |
+| `backend/server/validation.js` | 用 Zod 驗證 DHT 編號、雙語內容、建立規程與修改草稿的請求內容。 |
+| `backend/server/index.js` | REST 路由、建立修改申請、兩階段承認、預定發布、退回與 audit 寫入。 |
+| `backend/db/postgresql_schema.sql` | 建立分類、使用者、規程、版本、翻譯、修改申請、承認、通知與稽核表；版本及稽核表有防覆寫觸發器。 |
+
+### 核心 API 路由
+
+| 方法 | 路徑 | 角色 | 用途 |
+| --- | --- | --- | --- |
+| `GET` | `/health` | 無 | 檢查後端與資料庫連線。 |
+| `GET` | `/api/me` | 任一登入者 | 取得員編、姓名與角色。 |
+| `GET` | `/api/policies` | 任一登入者 | 搜尋規程；Employee 僅取得已發布資料。 |
+| `POST` | `/api/policies` | Admin | 新增規程與初始修改申請。 |
+| `POST` | `/api/policies/:policyCode/changes` | Admin | 建立草稿、錯字或內容修改。 |
+| `POST` | `/api/change-requests/:id/submit` | Admin | 送交部門長承認。 |
+| `GET` | `/api/approval-queue` | 部門長／據點長 | 取得該角色應承認的案件。 |
+| `POST` | `/api/change-requests/:id/approve` | 部門長／據點長 | 完成自己的承認階段。 |
+| `POST` | `/api/change-requests/:id/return` | 部門長／據點長 | 退回並保留意見。 |
+| `POST` | `/api/change-requests/:id/publish` | Admin | 發布已承認的案件。 |
+| `GET` | `/api/policies/:policyCode/audit-logs` | Admin | 查詢單一規程修改紀錄。 |
+
+## 資料保存與正式上線注意事項
+
+- 前端示範資料使用 `localStorage`，鍵名為 `hr-policy-v8`，不同電腦／瀏覽器不會同步。
+- 正式環境請以 Express API + PostgreSQL 為唯一資料來源，並移除前端的示範資料寫入。
+- `policy_versions`、翻譯與稽核紀錄在 PostgreSQL 中設有不可修改／刪除保護，確保舊版本不會被覆蓋。
+- `.env` 不應提交到 Git；請只提交 `.env.example`。
+- 部署前請執行 `npm run build`。舊的 `npm test` 仍是初始化範本的 loading-skeleton 測試，與目前完成的介面不相符，不應作為功能驗收依據。
+
+## 建議維護順序
+
+1. 新增資料欄位：先更新 `frontend/lib/policy-types.ts` 與 PostgreSQL schema。
+2. 調整編輯功能：更新 `StructureEditor.tsx` 或 `Tables.tsx`，再修改 `page.tsx` 的草稿保存流程。
+3. 調整權限：先修改 `backend/server/auth.js`，再同步更新前端角色顯示規則。
+4. 變更工作流：集中調整 `page.tsx` 的送審／承認函式與 `backend/server/index.js` 的對應 API，並新增 audit 事件。

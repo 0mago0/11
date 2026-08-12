@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+// DHT 前綴與四位流水號為資料庫及 API 共用的規程識別格式。
 export const policyCode = z.string().regex(/^DHT\d{1,2}-\d{4}$/);
 export const translation = z.object({
   language: z.enum(["zh-TW", "ja-JP"]),

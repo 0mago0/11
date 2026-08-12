@@ -1,6 +1,7 @@
 import { db } from "./db.js";
 
 export const authenticate = async (req, res, next) => {
+  // 此專案以員編 header 示範登入；正式環境應替換為 SSO/JWT 驗證後再設定 req.user。
   const employeeNo = req.header("X-Employee-No")?.trim().toUpperCase();
   if (!employeeNo || !/^[A-Z][0-9]{4}$/.test(employeeNo)) {
     return res.status(401).json({ error: "X-Employee-No must be in A0000 format." });
@@ -20,6 +21,7 @@ export const authenticate = async (req, res, next) => {
 };
 
 export const requireRole = (...roles) => (req, res, next) => {
+  // 一個帳號可同時擁有多個角色，只要其中一個符合即可通過。
   if (!roles.some((role) => req.user.roles.includes(role))) {
     return res.status(403).json({ error: "Insufficient role." });
   }

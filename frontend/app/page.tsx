@@ -575,6 +575,7 @@ const normalizeTables = (value: unknown): string[][][] => {
 };
 
 export default function Home() {
+  // 頁面狀態集中在此容器：子元件只接收資料與回呼，避免各頁有不同版本的流程判斷。
   const [policies, setPolicies] = useState(initial),
     [selectedId, setSelectedId] = useState(1),
     [lang, setLang] = useState<Lang>("zh"),
@@ -598,6 +599,7 @@ export default function Home() {
     [auditPolicyId, setAuditPolicyId] = useState<number | null>(null),
     [compare, setCompare] = useState<[number, number]>([0, 0]);
   useEffect(() => {
+    // 舊版 localStorage 可能缺少後來加入的欄位，讀取後先正規化再放入畫面。
     try {
       const s = localStorage.getItem("hr-policy-v8");
       if (s) {
@@ -676,6 +678,7 @@ export default function Home() {
     return () => window.clearTimeout(timer);
   }, [notice]);
   const saveStore = (next: Policy[], nextAudit: Audit[] = audit) => {
+    // 所有會改變規程的動作都經過這裡，確保畫面與瀏覽器暫存同步。
     setPolicies(next);
     setAudit(nextAudit);
     localStorage.setItem(
@@ -783,6 +786,7 @@ export default function Home() {
     ]),
   ) as Record<PolicyFilter, number>;
   const changePreviewRole = (next: Role) => {
+    // 僅供展示角色權限；正式登入時改由 /api/me 的使用者資料取代。
     localStorage.setItem("hr-policy-role-preview", next);
     setRole(next);
     setLang(next === "department_head" || next === "site_head" ? "ja" : "zh");
@@ -897,6 +901,7 @@ export default function Home() {
     return [item, ...audit];
   };
   const open = (p: Policy) => {
+    // 使用深複製避免編輯草稿時直接修改清單中的已保存資料。
     setSelectedId(p.id);
     setDraft(clone(p));
     setEditing(false);
@@ -935,6 +940,7 @@ export default function Home() {
       },
     }));
   function saveDraft(e?: FormEvent) {
+    // 已送審的規程鎖定內容，直到承認完成或被退回，避免審核版本在途中改變。
     e?.preventDefault();
     if (!isAdmin) return;
     if (
@@ -1020,6 +1026,7 @@ export default function Home() {
     }
   }
   function publishTypoFix() {
+    // 錯字修正只允許已發布、非退回、非獨立內容更新卡的規程直接建立新版。
     if (!isAdmin) return;
     if (
       draft.changeType !== "typo" ||
@@ -1065,6 +1072,7 @@ export default function Home() {
     setNotice(`錯字修正已直接發布，v${version.number} 已公開。`);
   }
   function submitForApproval() {
+    // 內容更新會保留原發布卡給 Employee 閱讀，草稿則以獨立卡片走承認流程。
     if (!isAdmin) return;
     if (
       draft.approval?.stage === "已承認待發布" &&
@@ -1103,6 +1111,7 @@ export default function Home() {
     );
   }
   function departmentApprove(policy: Policy) {
+    // 第一關只改變承認階段，不產生版本；發布只能在據點長關卡後發生。
     if (!isDepartmentHead) return;
     const next = {
       ...policy,
@@ -1121,6 +1130,7 @@ export default function Home() {
     setNotice("已承認，已送交據點長承認。");
   }
   function siteApprove(policy: Policy) {
+    // 若預定發布日在未來，保留已承認狀態；否則立即建立不可覆寫的新版本。
     if (!isSiteHead) return;
     const today = new Date().toISOString().slice(0, 10);
     if (policy.publishDate && policy.publishDate > today) {
@@ -1239,6 +1249,7 @@ export default function Home() {
     return () => window.clearInterval(timer);
   }, [policies, audit]);
   function returnForRevision(policy: Policy, comment: string) {
+    // 退回者與意見會同步進入規程資料與 audit，讓 Admin 可追溯原因。
     if (!isDepartmentHead && !isSiteHead) return;
     const returnReason = comment.trim();
     if (!returnReason) {
@@ -1286,6 +1297,7 @@ export default function Home() {
     setNotice("規程已停用。");
   }
   function restore(v: Version) {
+    // 還原是複製舊內容到新草稿，不會覆蓋既有歷史版本。
     if (!isAdmin) return;
     setDraft({ ...draft, draft: clone(v.copy), status: "草稿" });
     setEditing(true);

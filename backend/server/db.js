@@ -13,6 +13,7 @@ export const db = new Pool({
 });
 
 export const withTransaction = async (work) => {
+  // 發布、承認與稽核紀錄必須同時成功；任何錯誤都回滾，避免出現半完成資料。
   const client = await db.connect();
   try {
     await client.query("BEGIN");
