@@ -8,7 +8,7 @@ import { Tables } from "../components/policy/Tables";
 import {
   approveChange, disablePolicy, loadPolicyAuditLogs, loadPolicyWorkspace, publishTypoChange,
   returnChange, saveNewPolicy, savePolicyChange, submitChange, updatePolicyChange,
-  type ApiAuditLog, type ApiTranslation, type ApiWorkspacePolicy,
+  signIn, type ApiAuditLog, type ApiTranslation, type ApiWorkspacePolicy,
 } from "../lib/policy-api";
 
 type Lang = "zh" | "ja";
@@ -669,7 +669,12 @@ export default function Home() {
     [selectedId, setSelectedId] = useState(1),
     [lang, setLang] = useState<Lang>("zh"),
     [role, setRole] = useState<Role>("employee"),
-    [name, setName] = useState("Employee"),
+    [name, setName] = useState(""),
+    [employeeNo, setEmployeeNo] = useState(""),
+    [loginAccount, setLoginAccount] = useState("A0001"),
+    [loginPassword, setLoginPassword] = useState("admin123"),
+    [loginError, setLoginError] = useState(""),
+    [loginBusy, setLoginBusy] = useState(false),
     [view, setView] = useState<"library" | "audit" | "approval">("library"),
     [editing, setEditing] = useState(false),
     [draft, setDraft] = useState<Policy>(clone(initial[0])),
@@ -721,29 +726,13 @@ export default function Home() {
           JSON.stringify({ policies: hydrated, audit: normalizedAudit }),
         );
       }
-      const preview = localStorage.getItem(
-        "hr-policy-role-preview",
-      ) as Role | null;
-      if (
-        ["admin", "employee", "department_head", "site_head"].includes(
-          preview || "",
-        )
-      ) {
-        setRole(preview as Role);
-        setLang(
-          preview === "department_head" || preview === "site_head"
-            ? "ja"
-            : "zh",
-        );
-        setName(
-          preview === "admin"
-            ? "Admin preview"
-            : preview === "department_head"
-              ? "部門長 preview"
-              : preview === "site_head"
-                ? "據點長 preview"
-                : "Employee preview",
-        );
+      const savedSession = localStorage.getItem("policy-center-session");
+      if (savedSession) {
+        const session = JSON.parse(savedSession) as { employeeNo: string; name: string; role: Role };
+        setEmployeeNo(session.employeeNo);
+        setName(session.name);
+        setRole(session.role);
+        setLang(["department_head", "site_head"].includes(session.role) ? "ja" : "zh");
         return;
       }
     } catch {}
@@ -765,7 +754,8 @@ export default function Home() {
   useEffect(() => {
     // 角色預覽對應資料庫中的四個示範員編。正式登入串接後可改為登入 token 內的員編。
     let cancelled = false;
-    loadPolicyWorkspace(apiEmployeeNoByRole[role])
+    if (!employeeNo) return;
+    loadPolicyWorkspace(employeeNo)
       .then((remotePolicies) => {
         if (cancelled) return;
         const hydrated = policiesFromApi(remotePolicies);
@@ -779,7 +769,7 @@ export default function Home() {
         // API 尚未啟動時仍保留 localStorage 示範資料，方便單獨開發前端。
       });
     return () => { cancelled = true; };
-  }, [role]);
+  }, [role, employeeNo]);
   useEffect(() => {
     if (!notice) return;
     const timer = window.setTimeout(() => setNotice(""), 2000);
@@ -797,6 +787,8 @@ export default function Home() {
   const isAdmin = role === "admin";
   const isDepartmentHead = role === "department_head";
   const isSiteHead = role === "site_head";
+  // 所有動作使用登入者的員編；保留 fallback 僅讓尚未登入的開發畫面不會出錯。
+  const currentEmployeeNo = employeeNo || apiEmployeeNoByRole[role];
   const isApprover = isDepartmentHead || isSiteHead;
   const ui = (zh: string, ja: string) => (isApprover ? ja : zh);
   const statusName = (status: string) =>
@@ -924,6 +916,28 @@ export default function Home() {
             ? "據點長 preview"
             : "Employee preview",
     );
+    setView("library");
+  };
+  const submitLogin = (event: FormEvent) => {
+    event.preventDefault();
+    setLoginBusy(true);
+    setLoginError("");
+    void signIn(loginAccount, loginPassword)
+      .then((user) => {
+        const session = { employeeNo: user.employeeNo, name: user.name, role: user.role as Role };
+        localStorage.setItem("policy-center-session", JSON.stringify(session));
+        setEmployeeNo(session.employeeNo);
+        setName(session.name);
+        setRole(session.role);
+        setLang(["department_head", "site_head"].includes(session.role) ? "ja" : "zh");
+      })
+      .catch((error) => setLoginError(error instanceof Error ? error.message : "登入未完成，請再試一次。"))
+      .finally(() => setLoginBusy(false));
+  };
+  const signOut = () => {
+    localStorage.removeItem("policy-center-session");
+    setEmployeeNo("");
+    setName("");
     setView("library");
   };
   const categoryPages = ["全部規程", ...policyCategories];
@@ -1118,17 +1132,17 @@ export default function Home() {
     void (async () => {
       try {
         if (!exists) {
-          await saveNewPolicy(apiEmployeeNoByRole.admin, {
+          await saveNewPolicy(currentEmployeeNo, {
             policyCode: savedDraft.code, categoryCode: categoryApiCodes[savedDraft.category] || "hr",
             effectiveDate: savedDraft.effectiveDate || undefined, revisionReason: savedDraft.revisionNote || "",
             translations: apiBody.translations,
           });
         } else if (savedDraft.changeRequestId) {
-          await updatePolicyChange(apiEmployeeNoByRole.admin, savedDraft.changeRequestId, apiBody);
+          await updatePolicyChange(currentEmployeeNo, savedDraft.changeRequestId, apiBody);
         } else {
-          await savePolicyChange(apiEmployeeNoByRole.admin, savedDraft.code, apiBody);
+          await savePolicyChange(currentEmployeeNo, savedDraft.code, apiBody);
         }
-        const remote = await loadPolicyWorkspace(apiEmployeeNoByRole.admin);
+        const remote = await loadPolicyWorkspace(currentEmployeeNo);
         const refreshed = policiesFromApi(remote);
         setPolicies(refreshed);
         const current = refreshed.find((policy) => policy.code === savedDraft.code) || refreshed[0];
@@ -1211,8 +1225,8 @@ export default function Home() {
       try {
         const change = draft.changeRequestId
           ? { change_request_id: draft.changeRequestId }
-          : await savePolicyChange(apiEmployeeNoByRole.admin, draft.code, apiBody);
-        await publishTypoChange(apiEmployeeNoByRole.admin, change.change_request_id);
+          : await savePolicyChange(currentEmployeeNo, draft.code, apiBody);
+        await publishTypoChange(currentEmployeeNo, change.change_request_id);
         await refreshWorkspace("admin", draft.code);
         setNotice("錯字修正已發布。");
       } catch (error) {
@@ -1262,7 +1276,7 @@ export default function Home() {
     // 不能先把前端改成待承認，否則部門長會收到資料庫仍是草稿的假案件。
     setNotice("正在送交部門長承認…");
     void resolveChangeRequestId(draft, "admin")
-      .then((changeRequestId) => submitChange(apiEmployeeNoByRole.admin, changeRequestId))
+      .then((changeRequestId) => submitChange(currentEmployeeNo, changeRequestId))
       .then(async () => {
         await refreshWorkspace("admin", draft.code);
         setNotice("已送交部門長承認。");
@@ -1271,7 +1285,7 @@ export default function Home() {
   }
   /** API 成功後以資料庫的最新狀態覆蓋前端暫存，避免兩套狀態逐漸不同步。 */
   async function refreshWorkspace(targetRole: Role = role, selectedCode?: string) {
-    const remote = await loadPolicyWorkspace(apiEmployeeNoByRole[targetRole]);
+    const remote = await loadPolicyWorkspace(currentEmployeeNo);
     const refreshed = policiesFromApi(remote);
     setPolicies(refreshed);
     const current = refreshed.find((policy) => policy.code === selectedCode) || refreshed[0];
@@ -1283,7 +1297,7 @@ export default function Home() {
    */
   async function resolveChangeRequestId(policy: Policy, targetRole: Role = role) {
     if (policy.changeRequestId) return policy.changeRequestId;
-    const remote = await loadPolicyWorkspace(apiEmployeeNoByRole[targetRole]);
+    const remote = await loadPolicyWorkspace(currentEmployeeNo);
     const fresh = policiesFromApi(remote).find(
       (item) => item.code === policy.code && item.changeRequestId === policy.changeRequestId,
     ) || policiesFromApi(remote).find((item) => item.code === policy.code);
@@ -1311,7 +1325,7 @@ export default function Home() {
     setApprovalBusy(true);
     setNotice("正在完成承認…");
     void resolveChangeRequestId(policy, "department_head")
-      .then((changeRequestId) => approveChange(apiEmployeeNoByRole.department_head, changeRequestId))
+      .then((changeRequestId) => approveChange(currentEmployeeNo, changeRequestId))
       .then(() => {
         setApprovalSelectedId(null);
         setNotice("已承認，已送交據點長承認。");
@@ -1329,7 +1343,7 @@ export default function Home() {
       setApprovalBusy(true);
       setNotice("正在完成承認…");
       void resolveChangeRequestId(policy, "site_head")
-        .then((changeRequestId) => approveChange(apiEmployeeNoByRole.site_head, changeRequestId))
+        .then((changeRequestId) => approveChange(currentEmployeeNo, changeRequestId))
         .then(() => {
           setApprovalSelectedId(null);
           setNotice("已完成承認，系統會依發布日期公開。");
@@ -1429,7 +1443,7 @@ export default function Home() {
     setReturnComments((comments) => ({ ...comments, [policy.id]: "" }));
     setNotice("正在退回修改…");
     void resolveChangeRequestId(policy, role)
-      .then((changeRequestId) => returnChange(apiEmployeeNoByRole[role], changeRequestId, returnReason))
+      .then((changeRequestId) => returnChange(currentEmployeeNo, changeRequestId, returnReason))
       .then(async () => {
         await refreshWorkspace(role, policy.code);
         setApprovalSelectedId(null);
@@ -1451,7 +1465,7 @@ export default function Home() {
     saveStore(all, nextAudit);
     open(next);
     setNotice("正在停用規程…");
-    void disablePolicy(apiEmployeeNoByRole.admin, draft.code)
+    void disablePolicy(currentEmployeeNo, draft.code)
       .then(async () => {
         await refreshWorkspace("admin", draft.code);
         setNotice("規程已停用。 ");
@@ -1540,7 +1554,7 @@ export default function Home() {
     void Promise.all(
       codes.map(async (code) => ({
         code,
-        entries: await loadPolicyAuditLogs(apiEmployeeNoByRole.admin, code),
+        entries: await loadPolicyAuditLogs(currentEmployeeNo, code),
       })),
     )
       .then((results) => {
@@ -1557,6 +1571,35 @@ export default function Home() {
       });
     return () => { cancelled = true; };
   }, [view, isAdmin, policies]);
+  if (!employeeNo)
+    return (
+      <main className="login-page">
+        <section className="login-panel">
+          <div className="login-mark">人</div>
+          <p className="eyebrow">POLICY CENTER</p>
+          <h1>企業規程庫</h1>
+          <p>請使用公司帳號登入以查看規程與待辦。</p>
+          <form onSubmit={submitLogin} className="login-form">
+            <label>
+              員工編號
+              <input value={loginAccount} onChange={(event) => setLoginAccount(event.target.value.toUpperCase())} placeholder="A0001" autoComplete="username" required />
+            </label>
+            <label>
+              密碼
+              <input type="password" value={loginPassword} onChange={(event) => setLoginPassword(event.target.value)} autoComplete="current-password" required />
+            </label>
+            {loginError && <p className="login-error">{loginError}</p>}
+            <button className="primary" disabled={loginBusy}>
+              {loginBusy ? "登入中…" : "登入"}
+            </button>
+          </form>
+          <details className="demo-accounts">
+            <summary>測試帳號</summary>
+            <small>A0001 / admin123（Admin）<br />A0002 / employee123（Employee）<br />A0003 / department123（部門長）<br />A0004 / site123（據點長）</small>
+          </details>
+        </section>
+      </main>
+    );
   if (view === "approval")
     return (
       <ApprovalPage onNavigate={guardEditingNavigation}>
@@ -2086,21 +2129,7 @@ export default function Home() {
                     : "Employee · 僅可查看"}
             </small>
           </div>
-          <label className="role-switcher">
-            <span>角色預覽</span>
-            <select
-              value={role}
-              onChange={(event) =>
-                changePreviewRole(event.target.value as Role)
-              }
-              aria-label="切換預覽角色"
-            >
-              <option value="admin">Admin</option>
-              <option value="department_head">部門長</option>
-              <option value="site_head">據點長</option>
-              <option value="employee">Employee</option>
-            </select>
-          </label>
+          <button className="sign-out" onClick={signOut}>登出</button>
         </div>
       </aside>
       <section className="workspace">

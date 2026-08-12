@@ -6,6 +6,13 @@
  */
 const apiUrl = (import.meta.env.VITE_POLICY_API_URL || "http://localhost:3001").replace(/\/$/, "");
 
+export type SignedInUser = {
+  employeeNo: string;
+  name: string;
+  role: "admin" | "employee" | "department_head" | "site_head";
+  roles: string[];
+};
+
 export type ApiTranslation = {
   language: "zh-TW" | "ja-JP";
   title: string;
@@ -45,6 +52,20 @@ const request = async <T>(path: string, employeeNo: string, init?: RequestInit):
     throw new Error(body.error || `API request failed (${response.status})`);
   }
   return response.json() as Promise<T>;
+};
+
+/** 登入入口；未來公司 API／SSO 串接時仍維持這個前端契約。 */
+export const signIn = async (account: string, password: string) => {
+  const response = await fetch(`${apiUrl}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ account, password }),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error || "登入失敗，請重新確認帳號與密碼。");
+  }
+  return response.json() as Promise<SignedInUser>;
 };
 
 /** 先讀清單再讀詳情，讓畫面取得各版本的中日文內容與目前草稿。 */

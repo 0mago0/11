@@ -32,6 +32,29 @@ npm run api:dev
 
 API 預設網址是 <http://localhost:3001>。前端目前尚未改為呼叫 API，因此可分別啟動、逐步串接。
 
+### 登入測試帳號
+
+啟動前端與後端後，先由登入頁登入。預設測試帳號如下：
+
+| 角色 | 員工編號 | 密碼 |
+| --- | --- | --- |
+| Admin | `A0001` | `admin123` |
+| Employee | `A0002` | `employee123` |
+| 部門長 | `A0003` | `department123` |
+| 據點長 | `A0004` | `site123` |
+
+測試密碼可在 `backend/.env` 覆寫，請勿在正式環境使用預設密碼。
+
+### 日後串接公司登入 API
+
+登入邏輯集中在 `backend/server/auth.js` 的 `authenticateWithCompanyApi()`。正式串接時：
+
+1. 在 `backend/.env` 設定 `AUTH_PROVIDER=company_api`。
+2. 在 `authenticateWithCompanyApi(account, password)` 呼叫公司 SSO／登入 API。
+3. 讓該函式回傳公司驗證後的 `{ employeeNo }`。
+
+系統會再以員編從本資料庫讀取角色與權限，因此前端登入頁、規程權限與承認流程不需要修改。
+
 ### 常用指令
 
 | 指令 | 說明 |
@@ -162,7 +185,7 @@ X-Employee-No: A0000
 
 | 位置 | 職責 |
 | --- | --- |
-| `backend/server/auth.js` | 從 header 讀取員編、驗證使用者是否啟用，再以 `requireRole()` 限制管理者與承認者。 |
+| `backend/server/auth.js` | 提供測試登入帳號與可替換的公司 API 登入接點；從登入員編載入角色，再以 `requireRole()` 限制管理者與承認者。 |
 | `backend/server/db.js` | 建立 `pg.Pool`，以 `withTransaction()` 確保一個發布或承認動作全部成功或全部回滾。 |
 | `backend/server/validation.js` | 用 Zod 驗證 DHT 編號、雙語內容、建立規程與修改草稿的請求內容。 |
 | `backend/server/index.js` | REST 路由、建立修改申請、兩階段承認、預定發布、退回與 audit 寫入。 |

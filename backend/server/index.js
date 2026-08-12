@@ -1,7 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import { db, withTransaction } from "./db.js";
-import { authenticate, isAdmin, requireRole } from "./auth.js";
+import { authenticate, isAdmin, requireRole, signIn } from "./auth.js";
 import { changeDraft, policyCode, policyCreate } from "./validation.js";
 
 const app = express();
@@ -159,6 +159,19 @@ const startScheduledPublisher = () => {
 app.get("/health", async (_req, res) => {
   await db.query("SELECT 1");
   res.json({ status: "ok" });
+});
+
+// 登入只回傳員工識別與角色；瀏覽器後續以員編作為 API 權限識別。
+// 正式環境改用公司 API 時，登入頁與其他業務 API 不需改動。
+app.post("/auth/login", async (req, res) => {
+  const user = await signIn(req.body?.account, req.body?.password);
+  if (!user) return res.status(401).json({ error: "帳號或密碼不正確。" });
+  res.json({
+    employeeNo: user.employee_no,
+    name: user.display_name,
+    role: user.roles[0] || "employee",
+    roles: user.roles,
+  });
 });
 
 app.use("/api", authenticate);
