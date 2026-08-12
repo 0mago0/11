@@ -1437,6 +1437,35 @@ p {
   color: #4b5a53;
   font-size: 13px;
 }
+.policy-code-input {
+  display: flex;
+  align-items: stretch;
+  overflow: hidden;
+  border: 1px solid #dce4df;
+  border-radius: 8px;
+  background: #fff;
+}
+.policy-code-input span {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  background: #eef4f0;
+  color: #275c4a;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 800;
+}
+.policy-code-input input {
+  min-width: 0;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.08em;
+}
+.policy-code-input:focus-within {
+  border-color: #3f826b;
+  box-shadow: 0 0 0 3px rgba(63, 130, 107, 0.14);
+}
 .result-count {
   margin-left: auto;
   color: #77847e;

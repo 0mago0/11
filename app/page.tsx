@@ -69,6 +69,26 @@ const policyCategories = [
   "COW",
   "ISO9001",
 ];
+const categoryCodePrefixes: Record<string, string> = {
+  全社基本: "BAS1",
+  人事: "HRM1",
+  IT管理: "ITM1",
+  總務: "ADM1",
+  營業管理: "SAL1",
+  會計管理: "ACC1",
+  EHS: "EHS1",
+  進出口管理: "IMP1",
+  COW: "COW1",
+  ISO9001: "ISO1",
+};
+const categoryCodePrefix = (category: string) =>
+  categoryCodePrefixes[category] || categoryCodePrefixes["全社基本"];
+const policyCode = (category: string, value: string, fallback = "0000") => {
+  const digits = value.replace(/\D/g, "").slice(-4) || fallback;
+  return `${categoryCodePrefix(category)}-${digits.padStart(4, "0")}`;
+};
+const policyCodeSuffix = (value: string) =>
+  (value.replace(/\D/g, "").slice(-4) || "0000").padStart(4, "0");
 type Audit = {
   id: string;
   at: string;
@@ -148,28 +168,34 @@ const needsDisabledUpdateStatus = (value: Policy) => {
   );
   return value.status === "停用" && (hasEditedDraft || awaitingApproval);
 };
-const normalizePolicy = (value: Policy): Policy => ({
-  ...value,
-  category: policyCategories.includes(value.category) ? value.category : "人事",
-  status: needsDisabledUpdateStatus(value) ? "停用待更新" : value.status,
-  attachments: value.attachments || [],
-  relatedPolicies: value.relatedPolicies || [],
-  revisionNote: value.revisionNote || "",
-  publishDate: value.publishDate || "",
-  changeType: value.changeType || "content",
-  approval: value.approval || { stage: "草稿" },
-  draft: {
-    zh: normalizeCopy(value.draft.zh),
-    ja: normalizeCopy(value.draft.ja),
-  },
-  versions: (value.versions || []).map((version) => ({
-    ...version,
-    copy: {
-      zh: normalizeCopy(version.copy.zh),
-      ja: normalizeCopy(version.copy.ja),
+const normalizePolicy = (value: Policy): Policy => {
+  const category = policyCategories.includes(value.category)
+    ? value.category
+    : "人事";
+  return {
+    ...value,
+    category,
+    code: policyCode(category, value.code, String(value.id)),
+    status: needsDisabledUpdateStatus(value) ? "停用待更新" : value.status,
+    attachments: value.attachments || [],
+    relatedPolicies: value.relatedPolicies || [],
+    revisionNote: value.revisionNote || "",
+    publishDate: value.publishDate || "",
+    changeType: value.changeType || "content",
+    approval: value.approval || { stage: "草稿" },
+    draft: {
+      zh: normalizeCopy(value.draft.zh),
+      ja: normalizeCopy(value.draft.ja),
     },
-  })),
-});
+    versions: (value.versions || []).map((version) => ({
+      ...version,
+      copy: {
+        zh: normalizeCopy(version.copy.zh),
+        ja: normalizeCopy(version.copy.ja),
+      },
+    })),
+  };
+};
 const splitLegacyUpdatePolicies = (values: Policy[]) => {
   let nextId = Math.max(0, ...values.map((policy) => policy.id)) + 1;
   return values.flatMap((policy) => {
@@ -213,7 +239,7 @@ const samplePolicy = (
   jaContent: string,
 ): Policy => ({
   id,
-  code,
+  code: policyCode(category, code, String(id)),
   category,
   effectiveDate: "2025-04-01",
   publishDate: "2025-04-01",
@@ -341,7 +367,7 @@ const categoryDemoPolicies: Policy[] = [
 const initial: Policy[] = [
   {
     id: 1,
-    code: "HR-001",
+    code: "HRM1-0001",
     category: "人事",
     effectiveDate: "2025-01-01",
     status: "發布",
@@ -396,7 +422,7 @@ const initial: Policy[] = [
   },
   {
     id: 2,
-    code: "HR-002",
+    code: "HRM1-0002",
     category: "人事",
     effectiveDate: "2024-07-01",
     status: "發布",
@@ -706,6 +732,16 @@ export default function Home() {
         const normalized = splitLegacyUpdatePolicies(
           d.policies.map(normalizePolicy),
         );
+        const codeMap = Object.fromEntries(
+          d.policies.map((policy, index) => [
+            policy.code,
+            normalized[index]?.code || policy.code,
+          ]),
+        );
+        const normalizedAudit = (d.audit || []).map((entry) => ({
+          ...entry,
+          code: codeMap[entry.code] || entry.code,
+        }));
         const existingCodes = new Set(normalized.map((policy) => policy.code));
         const hydrated = [
           ...normalized,
@@ -714,12 +750,12 @@ export default function Home() {
           ),
         ];
         setPolicies(hydrated);
-        setAudit(d.audit || []);
+        setAudit(normalizedAudit);
         setSelectedId(hydrated[0]?.id || 1);
         setDraft(clone(hydrated[0] || initial[0]));
         localStorage.setItem(
           "hr-policy-v8",
-          JSON.stringify({ policies: hydrated, audit: d.audit || [] }),
+          JSON.stringify({ policies: hydrated, audit: normalizedAudit }),
         );
       }
       const preview = localStorage.getItem(
@@ -1975,8 +2011,11 @@ export default function Home() {
               onClick={() => {
                 const p: Policy = {
                   id: Date.now(),
-                  code: "",
                   category: category === "全部規程" ? "全社基本" : category,
+                  code: policyCode(
+                    category === "全部規程" ? "全社基本" : category,
+                    "",
+                  ),
                   effectiveDate: "",
                   publishDate: "",
                   status: "草稿",
@@ -2236,13 +2275,23 @@ export default function Home() {
                   <div className="form-grid">
                     <label>
                       規程編號
-                      <input
-                        required
-                        value={draft.code}
-                        onChange={(e) =>
-                          setDraft({ ...draft, code: e.target.value })
-                        }
-                      />
+                      <div className="policy-code-input">
+                        <span>{categoryCodePrefix(draft.category)}-</span>
+                        <input
+                          required
+                          inputMode="numeric"
+                          maxLength={4}
+                          pattern="[0-9]{4}"
+                          aria-label="規程編號後四位數字"
+                          value={policyCodeSuffix(draft.code)}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              code: policyCode(draft.category, e.target.value),
+                            })
+                          }
+                        />
+                      </div>
                     </label>
                     <label>
                       規程分類
