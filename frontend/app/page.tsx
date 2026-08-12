@@ -1588,6 +1588,7 @@ export default function Home() {
           </nav>
         </aside>
         <section className="workspace approval-page">
+          {notice && <div className="notice">✓ {notice}</div>}
           <header>
             <div>
               <p className="eyebrow">APPROVAL WORKFLOW</p>
@@ -1789,6 +1790,7 @@ export default function Home() {
           </nav>
         </aside>
         <section className="workspace audit-page">
+          {notice && <div className="notice">✓ {notice}</div>}
           <header>
             <div>
               <p className="eyebrow">AUDIT TRAIL</p>
