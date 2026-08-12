@@ -802,7 +802,10 @@ export default function Home() {
   const releasedCopy = (policy: Policy) =>
     policy.versions.at(-1)?.copy || policy.draft;
   const policyCopy = (policy: Policy) =>
-    policy.replacesPolicyId ? policy.draft : releasedCopy(policy);
+    // 承認者需要閱讀本次送審草稿，而不是上一個公開版本。
+    (isApprover && policy.approval?.stage !== "草稿") || policy.replacesPolicyId
+      ? policy.draft
+      : releasedCopy(policy);
   const hasSavedDraft = (policy: Policy) =>
     policy.versions.length > 0 &&
     JSON.stringify(policy.draft) !== JSON.stringify(releasedCopy(policy));
@@ -1593,8 +1596,8 @@ export default function Home() {
               selectedApproval ? (
                 [selectedApproval].map((policy) => {
                   const reviewLang = reviewLanguage(policy);
-                  const original =
-                    policy.versions.at(-1)?.copy[reviewLang].content ||
+                  const originalCopy = policy.versions.at(-1)?.copy[reviewLang];
+                  const original = originalCopy?.content ||
                     "（首次發布，無原始版本）";
                   const revised = policy.draft[reviewLang].content;
                   return (
@@ -1624,6 +1627,12 @@ export default function Home() {
                       <details className="approval-original">
                         <summary>原文を確認（前回公開版）</summary>
                         <pre>{original}</pre>
+                        {!!originalCopy?.tables?.length && (
+                          <>
+                            <b>前回公開版の表</b>
+                            <Tables tables={originalCopy.tables} />
+                          </>
+                        )}
                       </details>
                       <section className="approval-diff">
                         <b>変更差分</b>
@@ -1640,6 +1649,12 @@ export default function Home() {
                           ))}
                         </div>
                       </section>
+                      {!!policy.draft[reviewLang].tables?.length && (
+                        <section className="approval-diff">
+                          <b>改訂案の表</b>
+                          <Tables tables={policy.draft[reviewLang].tables} />
+                        </section>
+                      )}
                       <label className="approval-comment">
                         <b>差戻しコメント（Admin に表示）</b>
                         <textarea
