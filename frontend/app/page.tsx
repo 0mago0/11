@@ -658,6 +658,7 @@ export default function Home() {
     [audit, setAudit] = useState<Audit[]>([]),
     [returnComments, setReturnComments] = useState<Record<number, string>>({}),
     [approvalSelectedId, setApprovalSelectedId] = useState<number | null>(null),
+    [approvalBusy, setApprovalBusy] = useState(false),
     [auditPolicyId, setAuditPolicyId] = useState<number | null>(null),
     [compare, setCompare] = useState<[number, number]>([0, 0]);
   useEffect(() => {
@@ -1269,6 +1270,8 @@ export default function Home() {
         next,
       ),
     );
+    if (approvalBusy) return;
+    setApprovalBusy(true);
     setNotice("部門長承認處理中…");
     void resolveChangeRequestId(policy, "department_head")
       .then((changeRequestId) => approveChange(apiEmployeeNoByRole.department_head, changeRequestId))
@@ -1278,12 +1281,15 @@ export default function Home() {
         // 承認交易已完成；刷新畫面失敗不可將成功結果誤顯示為承認失敗。
         return refreshWorkspace("department_head", policy.code).catch(() => {});
       })
-      .catch((error) => setNotice(`部門長承認失敗：${error instanceof Error ? error.message : "請確認 API 是否啟動"}`));
+      .catch((error) => setNotice(`部門長承認失敗：${error instanceof Error ? error.message : "請確認 API 是否啟動"}`))
+      .finally(() => setApprovalBusy(false));
   }
   function siteApprove(policy: Policy) {
     // 若預定發布日在未來，保留已承認狀態；否則立即建立不可覆寫的新版本。
     if (!isSiteHead) return;
     if (policy.changeRequestId || policy.approval?.stage === "待據點長承認") {
+      if (approvalBusy) return;
+      setApprovalBusy(true);
       setNotice("據點長承認處理中…");
       void resolveChangeRequestId(policy, "site_head")
         .then((changeRequestId) => approveChange(apiEmployeeNoByRole.site_head, changeRequestId))
@@ -1293,7 +1299,8 @@ export default function Home() {
           // 已發布的新版本已在資料庫交易內建立，刷新失敗不應覆蓋成功提示。
           return refreshWorkspace("site_head", policy.code).catch(() => {});
         })
-        .catch((error) => setNotice(`據點長承認失敗：${error instanceof Error ? error.message : "請確認 API 是否啟動"}`));
+        .catch((error) => setNotice(`據點長承認失敗：${error instanceof Error ? error.message : "請確認 API 是否啟動"}`))
+        .finally(() => setApprovalBusy(false));
       return;
     }
     const today = new Date().toISOString().slice(0, 10);
@@ -1426,6 +1433,8 @@ export default function Home() {
       setNotice("請先填寫退回意見。");
       return;
     }
+    if (approvalBusy) return;
+    setApprovalBusy(true);
     const next = {
       ...policy,
       status: policy.status,
@@ -1458,7 +1467,8 @@ export default function Home() {
         setApprovalSelectedId(null);
         setNotice("已退回管理員重新修改（PostgreSQL 已更新）。");
       })
-      .catch((error) => setNotice(`退回失敗：${error instanceof Error ? error.message : "請確認 API 是否啟動"}`));
+      .catch((error) => setNotice(`退回失敗：${error instanceof Error ? error.message : "請確認 API 是否啟動"}`))
+      .finally(() => setApprovalBusy(false));
   }
   function disable() {
     if (!isAdmin) return;
@@ -1647,6 +1657,7 @@ export default function Home() {
                       <div className="approval-actions">
                         <button
                           className="ghost danger"
+                          disabled={approvalBusy}
                           onClick={() =>
                             returnForRevision(
                               policy,
@@ -1658,13 +1669,16 @@ export default function Home() {
                         </button>
                         <button
                           className="primary"
+                          disabled={approvalBusy}
                           onClick={() =>
                             isDepartmentHead
                               ? departmentApprove(policy)
                               : siteApprove(policy)
                           }
                         >
-                          {isDepartmentHead
+                          {approvalBusy
+                            ? "処理中…"
+                            : isDepartmentHead
                             ? "部門長が承認し拠点長へ送付"
                             : "拠点長が承認して公開"}
                         </button>
