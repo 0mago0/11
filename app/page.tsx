@@ -534,6 +534,9 @@ export default function Home() {
     [draft, setDraft] = useState<Policy>(clone(initial[0])),
     [search, setSearch] = useState(""),
     [auditSearch, setAuditSearch] = useState(""),
+    [auditActionFilter, setAuditActionFilter] = useState<
+      Audit["action"] | "全部"
+    >("全部"),
     [category, setCategory] = useState("全部分類"),
     [statusFilter, setStatusFilter] = useState<PolicyFilter>("全部"),
     [sortMode, setSortMode] = useState<"status" | "updated">("status"),
@@ -1236,6 +1239,14 @@ export default function Home() {
   const selectedAuditEntries = selectedAuditPolicy
     ? audit.filter((entry) => entry.code === selectedAuditPolicy.code)
     : [];
+  const filteredAuditEntries = selectedAuditEntries.filter(
+    (entry) =>
+      auditActionFilter === "全部" || entry.action === auditActionFilter,
+  );
+  const auditActionOptions: Array<Audit["action"] | "全部"> = [
+    "全部",
+    ...Array.from(new Set(selectedAuditEntries.map((entry) => entry.action))),
+  ];
   const auditPolicyCards = policies.filter((policy) =>
     `${policy.code} ${policy.draft.zh.title} ${policy.draft.ja.title}`
       .toLowerCase()
@@ -1483,9 +1494,29 @@ export default function Home() {
           </header>
           {selectedAuditPolicy ? (
             <>
+              <div className="audit-filter-bar">
+                <label>
+                  修改類型
+                  <select
+                    value={auditActionFilter}
+                    onChange={(event) =>
+                      setAuditActionFilter(
+                        event.target.value as Audit["action"] | "全部",
+                      )
+                    }
+                  >
+                    {auditActionOptions.map((action) => (
+                      <option key={action} value={action}>
+                        {action === "全部" ? "全部修改" : action}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <span>共 {filteredAuditEntries.length} 筆紀錄</span>
+              </div>
               <div className="audit-list">
-                {selectedAuditEntries.length ? (
-                  selectedAuditEntries.map((a) => (
+                {filteredAuditEntries.length ? (
+                  filteredAuditEntries.map((a) => (
                     <article className="audit-card" key={a.id}>
                       <div className="audit-top">
                         <span className={`audit-action ${a.action}`}>
@@ -1637,6 +1668,7 @@ export default function Home() {
                       className="audit-policy-card"
                       key={policy.id}
                       onClick={() => {
+                        setAuditActionFilter("全部");
                         setAuditPolicyId(policy.id);
                         setSelectedId(policy.id);
                         setCompare([
@@ -1650,6 +1682,12 @@ export default function Home() {
                         {policy.draft[lang].title || policy.draft.zh.title}
                       </h2>
                       <p>{policy.category}</p>
+                      <div className="audit-policy-meta">
+                        <span className="status draft">
+                          {policyStatusLabel(policy)}
+                        </span>
+                        <span>已發布 {policy.versions.length} 版</span>
+                      </div>
                       <footer>
                         <b>{entries.length} 筆異動</b>
                         <span>{entries[0]?.at || "尚無紀錄"}　›</span>

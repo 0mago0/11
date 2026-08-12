@@ -335,6 +335,36 @@ body .sidebar-foot::after {
   color: #718078;
   font-size: 12px;
 }
+.audit-policy-meta,
+.audit-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.audit-policy-meta {
+  margin-top: 11px;
+  color: #5d7569;
+  font-size: 11px;
+}
+.audit-filter-bar {
+  justify-content: space-between;
+  margin-top: 22px;
+  padding: 12px 14px;
+  border: 1px solid #e1eae4;
+  border-radius: 9px;
+  background: #f9fcfa;
+  color: #5c7167;
+  font-size: 12px;
+}
+.audit-filter-bar label {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 700;
+}
+.audit-filter-bar select {
+  min-width: 132px;
+}
 .audit-policy-card footer {
   display: flex;
   justify-content: space-between;
