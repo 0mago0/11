@@ -1215,42 +1215,16 @@ export default function Home() {
       setNotice("錯字修正會沿用既有承認，等待發布日期即可公開。");
       return;
     }
-    const next = {
-        ...draft,
-        status: draft.replacesPolicyId
-          ? ("草稿" as Status)
-          : draft.versions.length
-            ? ("停用待更新" as Status)
-            : ("草稿" as Status),
-        approval: {
-          stage: "待部門長承認" as ApprovalStage,
-          submittedAt: now(),
-        },
-      },
-      all = policies.map((p) => (p.id === next.id ? next : p)),
-      nextAudit = log(
-        "送審",
-        JSON.stringify(selected.versions.at(-1)?.copy || {}),
-        JSON.stringify(next.draft),
-        next,
-      );
-    saveStore(all, nextAudit);
-    open(next);
-    if (draft.changeRequestId) {
-      void submitChange(apiEmployeeNoByRole.admin, draft.changeRequestId)
-        .then(async () => {
-          const remote = await loadPolicyWorkspace(apiEmployeeNoByRole.admin);
-          const refreshed = remote.map(policyFromApi);
-          setPolicies(refreshed);
-          const current = refreshed.find((policy) => policy.code === draft.code);
-          if (current) open(current);
-          setNotice("已送交部門長承認（PostgreSQL 已更新）。");
-        })
-        .catch((error) => setNotice(`送審失敗：${error instanceof Error ? error.message : "請確認 API 是否啟動"}`));
-    } else {
-      setNotice("請先儲存草稿至 PostgreSQL，再送交承認。");
-      return;
-    }
+    // 僅在後端成功切換為 pending_department_head 後才重載畫面；
+    // 不能先把前端改成待承認，否則部門長會收到資料庫仍是草稿的假案件。
+    setNotice("送交部門長承認處理中…");
+    void resolveChangeRequestId(draft, "admin")
+      .then((changeRequestId) => submitChange(apiEmployeeNoByRole.admin, changeRequestId))
+      .then(async () => {
+        await refreshWorkspace("admin", draft.code);
+        setNotice("已送交部門長承認（PostgreSQL 已更新）。");
+      })
+      .catch((error) => setNotice(`送審失敗：${error instanceof Error ? error.message : "請確認 API 是否啟動"}`));
   }
   /** API 成功後以資料庫的最新狀態覆蓋前端暫存，避免兩套狀態逐漸不同步。 */
   async function refreshWorkspace(targetRole: Role = role, selectedCode?: string) {
