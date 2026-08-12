@@ -102,6 +102,60 @@ const publishChangeRequest = async (client, change, actorEmployeeNo) => {
   return { policyCode: change.policy_code, versionNo };
 };
 
+/**
+ * 發布所有已到期的預定案件。以資料庫的台灣日期判定，確保伺服器所在時區不影響發布日。
+ * 此函式同時提供 HTTP 管理端點與伺服器排程使用，避免兩套發布邏輯不一致。
+ */
+const publishDueScheduledChanges = (actorEmployeeNo = 'A0000') =>
+  withTransaction(async (client) => {
+    const { rows } = await client.query(
+      `SELECT * FROM policy_change_requests
+        WHERE status = 'approved_scheduled'
+          AND scheduled_publish_date <= (now() AT TIME ZONE 'Asia/Taipei')::date
+        FOR UPDATE`,
+    );
+    const results = [];
+    for (const change of rows) {
+      // A0000 是 schema 預留的 System 使用者，稽核紀錄可辨識為排程發布。
+      results.push(await publishChangeRequest(client, change, actorEmployeeNo));
+    }
+    return results;
+  });
+
+/** 取得距離下一個台灣時間 00:05 的毫秒數。 */
+const millisecondsUntilTaipeiDailyRun = () => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date());
+  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  let nextTaipeiRun = Date.UTC(
+    Number(value.year), Number(value.month) - 1, Number(value.day),
+    0, 5, 0,
+  ) - (8 * 60 * 60 * 1000);
+  if (nextTaipeiRun <= Date.now()) nextTaipeiRun += 24 * 60 * 60 * 1000;
+  return Math.max(1_000, nextTaipeiRun - Date.now());
+};
+
+// 先補跑一次，避免伺服器停機後錯過發布日；再固定於台灣時間每天 00:05 執行。
+const startScheduledPublisher = () => {
+  const run = async () => {
+    try {
+      const published = await publishDueScheduledChanges();
+      if (published.length) console.log(`Scheduled publisher released ${published.length} policy change(s).`);
+    } catch (error) {
+      console.error('Scheduled publisher failed:', error);
+    }
+  };
+  void run();
+  const scheduleNext = () => {
+    setTimeout(async () => {
+      await run();
+      scheduleNext();
+    }, millisecondsUntilTaipeiDailyRun());
+  };
+  scheduleNext();
+};
+
 app.get("/health", async (_req, res) => {
   await db.query("SELECT 1");
   res.json({ status: "ok" });
@@ -378,16 +432,7 @@ app.post("/api/change-requests/:changeRequestId/publish", requireRole("admin"), 
 });
 
 app.post("/api/system/publish-scheduled", requireRole("admin"), async (req, res) => {
-  const published = await withTransaction(async (client) => {
-    const { rows } = await client.query(
-      `SELECT * FROM policy_change_requests
-        WHERE status = 'approved_scheduled' AND scheduled_publish_date <= CURRENT_DATE
-        FOR UPDATE`,
-    );
-    const results = [];
-    for (const change of rows) results.push(await publishChangeRequest(client, change, req.user.employee_no));
-    return results;
-  });
+  const published = await publishDueScheduledChanges(req.user.employee_no);
   res.json({ published });
 });
 
@@ -424,4 +469,7 @@ app.use((error, _req, res, _next) => {
   res.status(error.status || 500).json({ error: error.message || "Internal server error.", details: error.details });
 });
 
-app.listen(port, () => console.log(`Policy API listening on http://localhost:${port}`));
+app.listen(port, () => {
+  console.log(`Policy API listening on http://localhost:${port}`);
+  startScheduledPublisher();
+});
