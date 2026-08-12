@@ -1265,10 +1265,11 @@ export default function Home() {
     setNotice("部門長承認處理中…");
     void resolveChangeRequestId(policy, "department_head")
       .then((changeRequestId) => approveChange(apiEmployeeNoByRole.department_head, changeRequestId))
-      .then(async () => {
-        await refreshWorkspace("department_head", policy.code);
+      .then(() => {
         setApprovalSelectedId(null);
         setNotice("已承認，已送交據點長承認（PostgreSQL 已更新）。");
+        // 承認交易已完成；刷新畫面失敗不可將成功結果誤顯示為承認失敗。
+        return refreshWorkspace("department_head", policy.code).catch(() => {});
       })
       .catch((error) => setNotice(`部門長承認失敗：${error instanceof Error ? error.message : "請確認 API 是否啟動"}`));
   }
@@ -1279,10 +1280,11 @@ export default function Home() {
       setNotice("據點長承認處理中…");
       void resolveChangeRequestId(policy, "site_head")
         .then((changeRequestId) => approveChange(apiEmployeeNoByRole.site_head, changeRequestId))
-        .then(async () => {
-          await refreshWorkspace("site_head", policy.code);
+        .then(() => {
           setApprovalSelectedId(null);
           setNotice("據點長承認已完成；系統已依發布日期更新 PostgreSQL。 ");
+          // 已發布的新版本已在資料庫交易內建立，刷新失敗不應覆蓋成功提示。
+          return refreshWorkspace("site_head", policy.code).catch(() => {});
         })
         .catch((error) => setNotice(`據點長承認失敗：${error instanceof Error ? error.message : "請確認 API 是否啟動"}`));
       return;
