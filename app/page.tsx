@@ -1494,26 +1494,6 @@ export default function Home() {
           </header>
           {selectedAuditPolicy ? (
             <>
-              <div className="audit-filter-bar">
-                <label>
-                  修改類型
-                  <select
-                    value={auditActionFilter}
-                    onChange={(event) =>
-                      setAuditActionFilter(
-                        event.target.value as Audit["action"] | "全部",
-                      )
-                    }
-                  >
-                    {auditActionOptions.map((action) => (
-                      <option key={action} value={action}>
-                        {action === "全部" ? "全部修改" : action}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <span>共 {filteredAuditEntries.length} 筆紀錄</span>
-              </div>
               <div className="audit-list">
                 {filteredAuditEntries.length ? (
                   filteredAuditEntries.map((a) => (
@@ -1642,6 +1622,26 @@ export default function Home() {
                   <div className="empty">此規程尚未發布任何版本。</div>
                 )}
               </section>
+              <div className="audit-filter-bar">
+                <label>
+                  修改類型
+                  <select
+                    value={auditActionFilter}
+                    onChange={(event) =>
+                      setAuditActionFilter(
+                        event.target.value as Audit["action"] | "全部",
+                      )
+                    }
+                  >
+                    {auditActionOptions.map((action) => (
+                      <option key={action} value={action}>
+                        {action === "全部" ? "全部修改" : action}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <span>共 {filteredAuditEntries.length} 筆紀錄</span>
+              </div>
             </>
           ) : (
             <>

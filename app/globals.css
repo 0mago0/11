@@ -290,6 +290,7 @@ body .sidebar-foot::after {
   grid-template-areas:
     "header"
     "versions"
+    "filter"
     "list";
 }
 .audit-page > header {
@@ -300,6 +301,9 @@ body .sidebar-foot::after {
 }
 .audit-page > .audit-list {
   grid-area: list;
+}
+.audit-page > .audit-filter-bar {
+  grid-area: filter;
 }
 .audit-list {
   display: grid;
