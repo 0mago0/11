@@ -34,7 +34,21 @@
 .login-error { margin: 0; color: #b43c36; font-size: 13px; }
 .demo-accounts { margin-top: 20px; color: #667a70; font-size: 12px; line-height: 1.7; }
 .demo-accounts summary { cursor: pointer; color: #34725c; font-weight: 700; }
-.sign-out { margin-left: auto; border: 1px solid #55786a; border-radius: 6px; background: transparent; color: #e4f0e8; padding: 6px 9px; font-size: 11px; }
+.sign-out {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  margin-left: auto;
+  place-items: center;
+  border: 1px solid #8ab19d;
+  border-radius: 50%;
+  background: transparent;
+  color: #f1f7f3;
+  font-size: 19px;
+  line-height: 1;
+  transition: background .15s, color .15s;
+}
+.sign-out:hover { background: #fff; color: #276c56; }
 body .sidebar-foot {
   cursor: default;
 }

@@ -2161,7 +2161,14 @@ export default function Home() {
                     : "Employee · 僅可查看"}
             </small>
           </div>
-          <button className="sign-out" onClick={signOut}>登出</button>
+          <button
+            className="sign-out"
+            onClick={signOut}
+            aria-label="登出"
+            title="登出"
+          >
+            ⇥
+          </button>
         </div>
       </aside>
       <section className="workspace">
