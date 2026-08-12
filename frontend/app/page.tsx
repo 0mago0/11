@@ -896,12 +896,16 @@ export default function Home() {
   const visibleStatusOptions = isApprover
     ? (["全部", "發布", "已承認待發布"] as PolicyFilter[])
     : statusOptions;
+  // 狀態標籤跟隨目前選擇的分類頁：切到人事就只統計人事，不再顯示全資料庫總數。
+  const categoryScopedPolicies = visiblePolicies.filter(
+    (policy) => category === "全部規程" || policy.category === category,
+  );
   const statusCounts = Object.fromEntries(
     visibleStatusOptions.map((status) => [
       status,
       status === "全部"
-        ? visiblePolicies.length
-        : visiblePolicies.filter((policy) =>
+        ? categoryScopedPolicies.length
+        : categoryScopedPolicies.filter((policy) =>
             matchesPolicyStatus(policy, status),
           ).length,
     ]),
