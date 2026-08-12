@@ -1502,20 +1502,27 @@ export default function Home() {
       .toLowerCase()
       .includes(auditSearch.toLowerCase()),
   );
-  // 稽核資料以 PostgreSQL 為準。載入後只替換該規程的暫存紀錄，其他規程不受影響。
+  // 稽核資料以 PostgreSQL 為準。進入修改紀錄總覽時就批次讀取，
+  // 因此每張規程卡片的「幾筆異動」不需要點進去才會更新。
   useEffect(() => {
-    if (view !== "audit" || !isAdmin || !selectedAuditPolicy) return;
+    if (view !== "audit" || !isAdmin) return;
     const actionName: Record<string, Audit["action"]> = {
       created: "新增", draft_saved: "修改草稿", submitted: "送審",
       department_approved: "部門長承認", site_approved: "據點長承認",
       returned: "退回修改", published: "發布", disabled: "停用", restored: "還原",
     };
+    const titleByCode = Object.fromEntries(
+      policies.map((policy) => [
+        policy.code,
+        policy.draft.zh.title || policy.draft.ja.title,
+      ]),
+    );
     const toAudit = (entry: ApiAuditLog): Audit => ({
       id: entry.audit_id,
       at: new Date(entry.occurred_at).toLocaleString("zh-TW"),
       actor: entry.actor_name || entry.actor_employee_no,
       action: actionName[entry.action] || "修改草稿",
-      policy: selectedAuditPolicy.draft.zh.title || selectedAuditPolicy.draft.ja.title,
+      policy: titleByCode[entry.policy_code] || entry.policy_code,
       code: entry.policy_code,
       before: JSON.stringify(entry.before_content || {}),
       after: JSON.stringify(entry.after_content || {}),
@@ -1525,19 +1532,27 @@ export default function Home() {
       comment: entry.comment || undefined,
     });
     let cancelled = false;
-    void loadPolicyAuditLogs(apiEmployeeNoByRole.admin, selectedAuditPolicy.code)
-      .then((entries) => {
+    const codes = Array.from(new Set(policies.map((policy) => policy.code)));
+    void Promise.all(
+      codes.map(async (code) => ({
+        code,
+        entries: await loadPolicyAuditLogs(apiEmployeeNoByRole.admin, code),
+      })),
+    )
+      .then((results) => {
         if (cancelled) return;
+        const loaded = results.flatMap((result) => result.entries.map(toAudit));
+        const loadedCodes = new Set(codes);
         setAudit((current) => [
-          ...entries.map(toAudit),
-          ...current.filter((entry) => entry.code !== selectedAuditPolicy.code),
+          ...loaded,
+          ...current.filter((entry) => !loadedCodes.has(entry.code)),
         ]);
       })
       .catch((error) => {
         if (!cancelled) setNotice(`讀取修改紀錄失敗：${error instanceof Error ? error.message : "請確認 API 是否啟動"}`);
       });
     return () => { cancelled = true; };
-  }, [view, isAdmin, auditPolicyId, selectedAuditPolicy?.code]);
+  }, [view, isAdmin, policies]);
   if (view === "approval")
     return (
       <ApprovalPage onNavigate={guardEditingNavigation}>
