@@ -695,8 +695,11 @@ export default function Home() {
     "發布",
     "停用",
   ];
+  const visibleStatusOptions = isApprover
+    ? (["全部", "發布", "已承認待發布"] as PolicyFilter[])
+    : statusOptions;
   const statusCounts = Object.fromEntries(
-    statusOptions.map((status) => [
+    visibleStatusOptions.map((status) => [
       status,
       status === "全部"
         ? visiblePolicies.length
@@ -732,7 +735,7 @@ export default function Home() {
           (role === "employee" ||
             statusFilter === "全部" ||
             matchesPolicyStatus(p, statusFilter)) &&
-          `${p.code} ${policyCopy(p).zh.title} ${policyCopy(p).ja.title}`
+          `${p.code} ${policyCopy(p).zh.title} ${policyCopy(p).zh.content} ${policyCopy(p).ja.title} ${policyCopy(p).ja.content} ${p.draft.zh.title} ${p.draft.zh.content} ${p.draft.ja.title} ${p.draft.ja.content}`
             .toLowerCase()
             .includes(search.toLowerCase()),
       ),
@@ -1761,7 +1764,10 @@ export default function Home() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder={ui("搜尋規程名稱或代碼", "規程名またはコードを検索")}
+              placeholder={ui(
+                "搜尋規程名稱、代碼或內容",
+                "規程名・コード・本文を検索",
+              )}
             />
           </label>
           <select
@@ -1778,7 +1784,7 @@ export default function Home() {
         </div>
         {role !== "employee" && (
           <div className="status-bookmarks" aria-label="依狀態篩選規程">
-            {statusOptions.map((status) => (
+            {visibleStatusOptions.map((status) => (
               <button
                 key={status}
                 className={statusFilter === status ? "active" : ""}
