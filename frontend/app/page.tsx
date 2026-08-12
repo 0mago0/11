@@ -773,7 +773,7 @@ export default function Home() {
         setAudit([]);
         setSelectedId(hydrated[0]?.id || 0);
         setDraft(clone(hydrated[0] || initial[0]));
-        setNotice("已從 PostgreSQL 載入規程資料。");
+        // 初次載入屬於預期行為，不需要以跳出訊息打斷使用者。
       })
       .catch(() => {
         // API 尚未啟動時仍保留 localStorage 示範資料，方便單獨開發前端。
@@ -1136,18 +1136,18 @@ export default function Home() {
         setNotice(
           keepsScheduledApproval
             ? `錯字修正已直接更新，維持已承認待發布，將於 ${savedDraft.publishDate || "發布日"} 公開。`
-            : "草稿已儲存至 PostgreSQL。",
+            : "草稿已儲存。",
         );
       } catch (error) {
-        setNotice(`資料庫儲存失敗：${error instanceof Error ? error.message : "請確認 API 是否啟動"}`);
+        setNotice("草稿尚未儲存，請稍後再試。");
       }
     })();
     setNotice(
       keepsScheduledApproval
-        ? `錯字修正已儲存，維持已承認狀態，將於 ${draft.publishDate || "發布日"} 公開。`
+          ? `錯字已更新，將於 ${draft.publishDate || "發布日"} 公開。`
         : createsContentUpdate
-          ? "內容更新草稿已建立為獨立規程卡片；原發布版本會持續供員工查看。"
-          : "草稿已儲存；尚未建立發布版本。",
+          ? "已建立內容更新版本，原發布版本維持可查看。"
+          : "草稿已儲存。",
     );
   }
   function switchStatusFilter(nextStatus: PolicyFilter) {
@@ -1214,9 +1214,9 @@ export default function Home() {
           : await savePolicyChange(apiEmployeeNoByRole.admin, draft.code, apiBody);
         await publishTypoChange(apiEmployeeNoByRole.admin, change.change_request_id);
         await refreshWorkspace("admin", draft.code);
-        setNotice("錯字修正已直接發布，PostgreSQL 已建立新版。 ");
+        setNotice("錯字修正已發布。");
       } catch (error) {
-        setNotice(`錯字修正發布失敗：${error instanceof Error ? error.message : "請確認 API 是否啟動"}`);
+        setNotice("錯字修正尚未發布，請稍後再試。");
       }
     })();
     const last = draft.versions.at(-1)?.number || "0.0";
@@ -1246,7 +1246,7 @@ export default function Home() {
       ),
     );
     open(next);
-    setNotice(`錯字修正已直接發布，v${version.number} 已公開。`);
+    setNotice(`錯字修正已發布為 v${version.number}。`);
   }
   function submitForApproval() {
     // 內容更新會保留原發布卡給 Employee 閱讀，草稿則以獨立卡片走承認流程。
@@ -1260,14 +1260,14 @@ export default function Home() {
     }
     // 僅在後端成功切換為 pending_department_head 後才重載畫面；
     // 不能先把前端改成待承認，否則部門長會收到資料庫仍是草稿的假案件。
-    setNotice("送交部門長承認處理中…");
+    setNotice("正在送交部門長承認…");
     void resolveChangeRequestId(draft, "admin")
       .then((changeRequestId) => submitChange(apiEmployeeNoByRole.admin, changeRequestId))
       .then(async () => {
         await refreshWorkspace("admin", draft.code);
-        setNotice("已送交部門長承認（PostgreSQL 已更新）。");
+        setNotice("已送交部門長承認。");
       })
-      .catch((error) => setNotice(`送審失敗：${error instanceof Error ? error.message : "請確認 API 是否啟動"}`));
+      .catch(() => setNotice("送審未完成，請稍後再試。"));
   }
   /** API 成功後以資料庫的最新狀態覆蓋前端暫存，避免兩套狀態逐漸不同步。 */
   async function refreshWorkspace(targetRole: Role = role, selectedCode?: string) {
@@ -1309,16 +1309,16 @@ export default function Home() {
     );
     if (approvalBusy) return;
     setApprovalBusy(true);
-    setNotice("部門長承認處理中…");
+    setNotice("正在完成承認…");
     void resolveChangeRequestId(policy, "department_head")
       .then((changeRequestId) => approveChange(apiEmployeeNoByRole.department_head, changeRequestId))
       .then(() => {
         setApprovalSelectedId(null);
-        setNotice("已承認，已送交據點長承認（PostgreSQL 已更新）。");
+        setNotice("已承認，已送交據點長承認。");
         // 承認交易已完成；刷新畫面失敗不可將成功結果誤顯示為承認失敗。
         return refreshWorkspace("department_head", policy.code).catch(() => {});
       })
-      .catch((error) => setNotice(`部門長承認失敗：${error instanceof Error ? error.message : "請確認 API 是否啟動"}`))
+      .catch(() => setNotice("承認未完成，請稍後再試。"))
       .finally(() => setApprovalBusy(false));
   }
   function siteApprove(policy: Policy) {
@@ -1327,16 +1327,16 @@ export default function Home() {
     if (policy.changeRequestId || policy.approval?.stage === "待據點長承認") {
       if (approvalBusy) return;
       setApprovalBusy(true);
-      setNotice("據點長承認處理中…");
+      setNotice("正在完成承認…");
       void resolveChangeRequestId(policy, "site_head")
         .then((changeRequestId) => approveChange(apiEmployeeNoByRole.site_head, changeRequestId))
         .then(() => {
           setApprovalSelectedId(null);
-          setNotice("據點長承認已完成；系統已依發布日期更新 PostgreSQL。 ");
+          setNotice("已完成承認，系統會依發布日期公開。");
           // 已發布的新版本已在資料庫交易內建立，刷新失敗不應覆蓋成功提示。
           return refreshWorkspace("site_head", policy.code).catch(() => {});
         })
-        .catch((error) => setNotice(`據點長承認失敗：${error instanceof Error ? error.message : "請確認 API 是否啟動"}`))
+        .catch(() => setNotice("承認未完成，請稍後再試。"))
         .finally(() => setApprovalBusy(false));
       return;
     }
@@ -1427,15 +1427,15 @@ export default function Home() {
     };
     saveStore(all, nextAudit);
     setReturnComments((comments) => ({ ...comments, [policy.id]: "" }));
-    setNotice("退回修改處理中…");
+    setNotice("正在退回修改…");
     void resolveChangeRequestId(policy, role)
       .then((changeRequestId) => returnChange(apiEmployeeNoByRole[role], changeRequestId, returnReason))
       .then(async () => {
         await refreshWorkspace(role, policy.code);
         setApprovalSelectedId(null);
-        setNotice("已退回管理員重新修改（PostgreSQL 已更新）。");
+        setNotice("已退回，管理員可依意見修改後重新送審。");
       })
-      .catch((error) => setNotice(`退回失敗：${error instanceof Error ? error.message : "請確認 API 是否啟動"}`))
+      .catch(() => setNotice("退回未完成，請稍後再試。"))
       .finally(() => setApprovalBusy(false));
   }
   function disable() {
@@ -1450,16 +1450,16 @@ export default function Home() {
       );
     saveStore(all, nextAudit);
     open(next);
-    setNotice("規程停用處理中…");
+    setNotice("正在停用規程…");
     void disablePolicy(apiEmployeeNoByRole.admin, draft.code)
       .then(async () => {
         await refreshWorkspace("admin", draft.code);
-        setNotice("規程已停用，PostgreSQL 已更新。");
+        setNotice("規程已停用。 ");
       })
-      .catch((error) => {
+      .catch(() => {
         // 後端失敗時立即以資料庫狀態覆蓋樂觀更新，避免畫面誤顯示已停用。
         void refreshWorkspace("admin", draft.code).catch(() => {});
-        setNotice(`規程停用失敗：${error instanceof Error ? error.message : "請確認 API 是否啟動"}`);
+        setNotice("規程尚未停用，請稍後再試。");
       });
   }
   function restore(v: Version) {
@@ -1553,7 +1553,7 @@ export default function Home() {
         ]);
       })
       .catch((error) => {
-        if (!cancelled) setNotice(`讀取修改紀錄失敗：${error instanceof Error ? error.message : "請確認 API 是否啟動"}`);
+        if (!cancelled) setNotice("修改紀錄暫時無法載入，請重新整理後再試。");
       });
     return () => { cancelled = true; };
   }, [view, isAdmin, policies]);
