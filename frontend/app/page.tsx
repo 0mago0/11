@@ -1651,14 +1651,6 @@ export default function Home() {
             </div>
           </div>
           <nav>
-            <button className="active">
-              <span className="nav-label">
-                {ui("✓ 承認待辦", "✓ 承認待ち")}
-                {approvalQueue.length > 0 && (
-                  <i className="pending-dot">{approvalQueue.length}</i>
-                )}
-              </span>
-            </button>
             <button
               onClick={() => {
                 setApprovalSelectedId(null);
@@ -1666,6 +1658,14 @@ export default function Home() {
               }}
             >
               {ui("▦ 規程資料庫", "▦ 規程ライブラリ")}
+            </button>
+            <button className="active">
+              <span className="nav-label">
+                {ui("✓ 承認待辦", "✓ 承認待ち")}
+                {approvalQueue.length > 0 && (
+                  <i className="pending-dot">{approvalQueue.length}</i>
+                )}
+              </span>
             </button>
           </nav>
           <div className="sidebar-foot">
@@ -1868,7 +1868,6 @@ export default function Home() {
             </div>
           </div>
           <nav>
-            <button className="active">◷ 修改紀錄</button>
             <button
               onClick={() => {
                 setAuditPolicyId(null);
@@ -1877,6 +1876,7 @@ export default function Home() {
             >
               ▦ 規程資料庫
             </button>
+            <button className="active">◷ 修改紀錄</button>
           </nav>
           <div className="sidebar-foot">
             <div className="avatar">管</div>
