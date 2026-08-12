@@ -663,6 +663,26 @@ const apiEmployeeNoByRole: Record<Role, string> = {
   admin: "A0001", employee: "A0002", department_head: "A0003", site_head: "A0004",
 };
 
+// 承認畫面統一顯示為日文使用者容易閱讀的日期與時間，支援 API ISO 時間與舊示範格式。
+const formatApprovalDateTime = (value?: string) => {
+  if (!value) return "未設定";
+  const date = new Date(value);
+  if (!Number.isNaN(date.getTime())) {
+    return new Intl.DateTimeFormat("ja-JP", {
+      timeZone: "Asia/Taipei", year: "numeric", month: "long", day: "numeric",
+      hour: "2-digit", minute: "2-digit", hour12: false,
+    }).format(date);
+  }
+  return value.replace(" 下午 ", " ").replace(" 上午 ", " ");
+};
+const formatApprovalDate = (value?: string) => {
+  if (!value) return "未設定";
+  const date = new Date(`${value}T00:00:00+08:00`);
+  return Number.isNaN(date.getTime())
+    ? value
+    : new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Taipei", year: "numeric", month: "long", day: "numeric" }).format(date);
+};
+
 export default function Home() {
   // 頁面狀態集中在此容器：子元件只接收資料與回呼，避免各頁有不同版本的流程判斷。
   const [policies, setPolicies] = useState(initial),
@@ -1732,9 +1752,9 @@ export default function Home() {
                         </span>
                       </div>
                       <div className="approval-meta">
-                        <span>送審：{policy.approval?.submittedAt || "—"}</span>
+                        <span>申請日時：{formatApprovalDateTime(policy.approval?.submittedAt)}</span>
                         <span>
-                          公開予定日：{policy.publishDate || "未設定"}
+                          公開予定日：{formatApprovalDate(policy.publishDate)}
                         </span>
                       </div>
                       <section className="approval-reason">
@@ -1836,8 +1856,8 @@ export default function Home() {
                               policy.draft.zh.title}
                           </strong>
                           <small>
-                            申請：{policy.approval?.submittedAt || "—"}　·　
-                            公開予定日：{policy.publishDate || "未設定"}
+                            申請日時：{formatApprovalDateTime(policy.approval?.submittedAt)}　·　
+                            公開予定日：{formatApprovalDate(policy.publishDate)}
                           </small>
                         </span>
                         <span className="status draft">
