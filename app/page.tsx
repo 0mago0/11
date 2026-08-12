@@ -56,6 +56,19 @@ type Policy = {
   approval?: Approval;
   replacesPolicyId?: number;
 };
+
+const policyCategories = [
+  "全社基本",
+  "人事",
+  "IT管理",
+  "總務",
+  "營業管理",
+  "會計管理",
+  "EHS",
+  "進出口管理",
+  "COW",
+  "ISO9001",
+];
 type Audit = {
   id: string;
   at: string;
@@ -137,6 +150,7 @@ const needsDisabledUpdateStatus = (value: Policy) => {
 };
 const normalizePolicy = (value: Policy): Policy => ({
   ...value,
+  category: policyCategories.includes(value.category) ? value.category : "人事",
   status: needsDisabledUpdateStatus(value) ? "停用待更新" : value.status,
   attachments: value.attachments || [],
   relatedPolicies: value.relatedPolicies || [],
@@ -537,7 +551,7 @@ export default function Home() {
     [auditActionFilter, setAuditActionFilter] = useState<
       Audit["action"] | "全部"
     >("全部"),
-    [category, setCategory] = useState("全部分類"),
+    [category, setCategory] = useState("全部規程"),
     [statusFilter, setStatusFilter] = useState<PolicyFilter>("全部"),
     [sortMode, setSortMode] = useState<"status" | "updated">("status"),
     [notice, setNotice] = useState(""),
@@ -727,10 +741,7 @@ export default function Home() {
     );
     setView("library");
   };
-  const categories = [
-    "全部分類",
-    ...Array.from(new Set(visiblePolicies.map((x) => x.category))),
-  ];
+  const categoryPages = ["全部規程", ...policyCategories];
   const statusOrder = [
     "待部門長承認",
     "待據點長承認",
@@ -750,7 +761,7 @@ export default function Home() {
       [...visiblePolicies]
         .filter(
           (p) =>
-            (category === "全部分類" || p.category === category) &&
+            (category === "全部規程" || p.category === category) &&
             (role === "employee" ||
               statusFilter === "全部" ||
               matchesPolicyStatus(p, statusFilter)) &&
@@ -924,13 +935,22 @@ export default function Home() {
     setStatusFilter(nextStatus);
     const firstPolicy = visiblePolicies.find(
       (policy) =>
-        (category === "全部分類" || policy.category === category) &&
+        (category === "全部規程" || policy.category === category) &&
         (nextStatus === "全部" || matchesPolicyStatus(policy, nextStatus)),
     );
     if (firstPolicy) {
       setSelectedId(firstPolicy.id);
       setDraft(clone(firstPolicy));
     }
+  }
+  function switchCategoryPage(nextCategory: string) {
+    const firstPolicy = visiblePolicies.find(
+      (policy) =>
+        (nextCategory === "全部規程" || policy.category === nextCategory) &&
+        (statusFilter === "全部" || matchesPolicyStatus(policy, statusFilter)),
+    );
+    setCategory(nextCategory);
+    if (firstPolicy) open(firstPolicy);
   }
   function guardEditingNavigation(event: MouseEvent<HTMLElement>) {
     if (!editing) return;
@@ -1224,12 +1244,11 @@ export default function Home() {
     ];
   };
   const approvalQueue = policies.filter((policy) =>
-    isDepartmentHead
-      ? policy.approval?.stage === "待部門長承認"
-      : isSiteHead
-        ? policy.approval?.stage === "待據點長承認"
-        : false,
+    ["待部門長承認", "待據點長承認"].includes(policy.approval?.stage || ""),
   );
+  const canApproveSelected = (policy: Policy) =>
+    (isDepartmentHead && policy.approval?.stage === "待部門長承認") ||
+    (isSiteHead && policy.approval?.stage === "待據點長承認");
   const selectedApproval = approvalQueue.find(
     (policy) => policy.id === approvalSelectedId,
   );
@@ -1259,8 +1278,8 @@ export default function Home() {
           <div className="brand">
             <span className="brand-mark">人</span>
             <div>
-              <strong>人資規程庫</strong>
-              <small>HR POLICY CENTER</small>
+              <strong>企業規程庫</strong>
+              <small>POLICY CENTER</small>
             </div>
           </div>
           <nav>
@@ -1286,9 +1305,9 @@ export default function Home() {
           <header>
             <div>
               <p className="eyebrow">APPROVAL WORKFLOW</p>
-              <h1>{isDepartmentHead ? "部門長承認" : "拠点長承認"}</h1>
+              <h1>承認待ち一覧</h1>
               <p className="sub">
-                原文・変更差分・改訂理由・公開予定日を確認して、承認または差戻しを行います。
+                全分類の申請を確認できます。ご自身の承認段階の案件のみ、承認または差戻しができます。
               </p>
             </div>
             <button
@@ -1378,31 +1397,39 @@ export default function Home() {
                           placeholder="修正が必要な条文、理由、提案を記入してください"
                         />
                       </label>
-                      <div className="approval-actions">
-                        <button
-                          className="ghost danger"
-                          onClick={() =>
-                            returnForRevision(
-                              policy,
-                              returnComments[policy.id] || "",
-                            )
-                          }
-                        >
-                          差戻して修正依頼
-                        </button>
-                        <button
-                          className="primary"
-                          onClick={() =>
-                            isDepartmentHead
-                              ? departmentApprove(policy)
-                              : siteApprove(policy)
-                          }
-                        >
-                          {isDepartmentHead
-                            ? "部門長が承認し拠点長へ送付"
-                            : "拠点長が承認して公開"}
-                        </button>
-                      </div>
+                      {canApproveSelected(policy) ? (
+                        <div className="approval-actions">
+                          <button
+                            className="ghost danger"
+                            onClick={() =>
+                              returnForRevision(
+                                policy,
+                                returnComments[policy.id] || "",
+                              )
+                            }
+                          >
+                            差戻して修正依頼
+                          </button>
+                          <button
+                            className="primary"
+                            onClick={() =>
+                              isDepartmentHead
+                                ? departmentApprove(policy)
+                                : siteApprove(policy)
+                            }
+                          >
+                            {isDepartmentHead
+                              ? "部門長が承認し拠点長へ送付"
+                              : "拠点長が承認して公開"}
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="approval-readonly">
+                          {policy.approval?.stage === "待部門長承認"
+                            ? "部門長の承認待ちです。"
+                            : "拠点長の最終承認待ちです。"}
+                        </p>
+                      )}
                     </article>
                   );
                 })
@@ -1451,8 +1478,8 @@ export default function Home() {
           <div className="brand">
             <span className="brand-mark">人</span>
             <div>
-              <strong>人資規程庫</strong>
-              <small>HR POLICY CENTER</small>
+              <strong>企業規程庫</strong>
+              <small>POLICY CENTER</small>
             </div>
           </div>
           <nav>
@@ -1707,8 +1734,8 @@ export default function Home() {
         <div className="brand">
           <span className="brand-mark">人</span>
           <div>
-            <strong>人資規程庫</strong>
-            <small>HR POLICY CENTER</small>
+            <strong>企業規程庫</strong>
+            <small>POLICY CENTER</small>
           </div>
         </div>
         <nav>
@@ -1784,9 +1811,9 @@ export default function Home() {
         <header>
           <div>
             <p className="eyebrow">
-              {ui("人力資源管理系統", "人事管理システム")}
+              {ui("企業規程管理系統", "企業規程管理システム")}
             </p>
-            <h1>{ui("人事規程資料庫", "人事規程ライブラリ")}</h1>
+            <h1>{ui("企業規程資料庫", "企業規程ライブラリ")}</h1>
             <p className="sub">
               {isAdmin
                 ? "可編輯草稿、發布新版本與管理狀態。"
@@ -1800,7 +1827,7 @@ export default function Home() {
                 const p: Policy = {
                   id: Date.now(),
                   code: "",
-                  category: "任用管理",
+                  category: category === "全部規程" ? "全社基本" : category,
                   effectiveDate: "",
                   publishDate: "",
                   status: "草稿",
@@ -1830,14 +1857,6 @@ export default function Home() {
               )}
             />
           </label>
-          <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-          >
-            {categories.map((x) => (
-              <option key={x}>{x}</option>
-            ))}
-          </select>
           {role !== "employee" && statusFilter === "全部" && (
             <select
               value={sortMode}
@@ -1856,6 +1875,23 @@ export default function Home() {
             {ui(`共 ${list.length} 項`, `${list.length} 件`)}
           </span>
         </div>
+        <nav className="category-pages" aria-label="規程分類專屬頁面">
+          {categoryPages.map((item) => (
+            <button
+              key={item}
+              className={category === item ? "active" : ""}
+              onClick={() => switchCategoryPage(item)}
+            >
+              {item}
+              <span>
+                {item === "全部規程"
+                  ? visiblePolicies.length
+                  : visiblePolicies.filter((policy) => policy.category === item)
+                      .length}
+              </span>
+            </button>
+          ))}
+        </nav>
         {role !== "employee" && (
           <div className="status-bookmarks" aria-label="依狀態篩選規程">
             {visibleStatusOptions.map((status) => (
@@ -2060,23 +2096,8 @@ export default function Home() {
                       />
                     </label>
                     <label>
-                      分類
-                      <select
-                        value={draft.category}
-                        onChange={(e) =>
-                          setDraft({ ...draft, category: e.target.value })
-                        }
-                      >
-                        {[
-                          "任用管理",
-                          "出勤休假",
-                          "績效發展",
-                          "人才培育",
-                          "薪酬福利",
-                        ].map((x) => (
-                          <option key={x}>{x}</option>
-                        ))}
-                      </select>
+                      規程分類
+                      <input value={draft.category} readOnly />
                     </label>
                     <label>
                       生效日期

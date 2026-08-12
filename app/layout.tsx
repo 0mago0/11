@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "人資規程庫｜HR Policy Center",
-  description: "集中管理、查閱與更新企業人事規程。",
+  title: "企業規程資料庫｜Policy Center",
+  description: "集中管理、查閱與更新企業各類規程。",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
