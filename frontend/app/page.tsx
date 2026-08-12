@@ -609,7 +609,14 @@ const policyFromApi = (source: ApiWorkspacePolicy, index: number): Policy => {
     id: index + 1, code: source.policy_code, category: source.category_zh || source.category_ja || "人事",
     effectiveDate: source.effective_date ? String(source.effective_date).slice(0, 10) : "",
     publishDate: active?.scheduledPublishDate ? String(active.scheduledPublishDate).slice(0, 10) : "",
-    status: active?.status === "approved_scheduled" ? "已承認" : statusMap[source.status] || "草稿",
+    // 新規程在首次公開前沒有 version，資料庫會以 disabled 保存「未公開」。
+    // UI 必須區分真正停用的規程與這種尚未發布的草稿。
+    status:
+      active?.status === "approved_scheduled"
+        ? "已承認"
+        : source.status === "disabled" && active && versions.length === 0
+          ? "草稿"
+          : statusMap[source.status] || "草稿",
     changeType: active?.changeKind === "typo" ? "typo" : "content",
     revisionNote: active?.revisionReason || versions.at(-1)?.revisionNote || "",
     approval: { stage: stageMap[active?.status || ""] || "草稿", submittedAt: active?.submittedAt || undefined, approvedAt: active?.approvedAt || undefined },
