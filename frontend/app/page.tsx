@@ -1260,6 +1260,17 @@ export default function Home() {
     const current = refreshed.find((policy) => policy.code === selectedCode) || refreshed[0];
     if (current) open(current);
   }
+  /**
+   * 新增規程後畫面可能仍保有儲存前的物件，當中沒有 changeRequestId。
+   * 在送審、承認、退回前重查一次，可確保動作一定對到 PostgreSQL 的正確案件。
+   */
+  async function resolveChangeRequestId(policy: Policy, targetRole: Role = role) {
+    if (policy.changeRequestId) return policy.changeRequestId;
+    const remote = await loadPolicyWorkspace(apiEmployeeNoByRole[targetRole]);
+    const fresh = remote.map(policyFromApi).find((item) => item.code === policy.code);
+    if (!fresh?.changeRequestId) throw new Error("找不到此規程的送審草稿；請先儲存草稿並送交承認。");
+    return fresh.changeRequestId;
+  }
   function departmentApprove(policy: Policy) {
     // 第一關只改變承認階段，不產生版本；發布只能在據點長關卡後發生。
     if (!isDepartmentHead) return;
@@ -1277,11 +1288,9 @@ export default function Home() {
         next,
       ),
     );
-    if (!policy.changeRequestId) {
-      setNotice("此為本機示範資料，尚未有資料庫送審編號。");
-      return;
-    }
-    void approveChange(apiEmployeeNoByRole.department_head, policy.changeRequestId)
+    setNotice("部門長承認處理中…");
+    void resolveChangeRequestId(policy, "department_head")
+      .then((changeRequestId) => approveChange(apiEmployeeNoByRole.department_head, changeRequestId))
       .then(async () => {
         await refreshWorkspace("department_head", policy.code);
         setApprovalSelectedId(null);
@@ -1292,8 +1301,10 @@ export default function Home() {
   function siteApprove(policy: Policy) {
     // 若預定發布日在未來，保留已承認狀態；否則立即建立不可覆寫的新版本。
     if (!isSiteHead) return;
-    if (policy.changeRequestId) {
-      void approveChange(apiEmployeeNoByRole.site_head, policy.changeRequestId)
+    if (policy.changeRequestId || policy.approval?.stage === "待據點長承認") {
+      setNotice("據點長承認處理中…");
+      void resolveChangeRequestId(policy, "site_head")
+        .then((changeRequestId) => approveChange(apiEmployeeNoByRole.site_head, changeRequestId))
         .then(async () => {
           await refreshWorkspace("site_head", policy.code);
           setApprovalSelectedId(null);
@@ -1456,11 +1467,9 @@ export default function Home() {
     };
     saveStore(all, nextAudit);
     setReturnComments((comments) => ({ ...comments, [policy.id]: "" }));
-    if (!policy.changeRequestId) {
-      setNotice("已退回管理員重新修改（本機示範資料）。");
-      return;
-    }
-    void returnChange(apiEmployeeNoByRole[role], policy.changeRequestId, returnReason)
+    setNotice("退回修改處理中…");
+    void resolveChangeRequestId(policy, role)
+      .then((changeRequestId) => returnChange(apiEmployeeNoByRole[role], changeRequestId, returnReason))
       .then(async () => {
         await refreshWorkspace(role, policy.code);
         setApprovalSelectedId(null);
