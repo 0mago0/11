@@ -1664,7 +1664,7 @@ export default function Home() {
       <ApprovalPage onNavigate={guardEditingNavigation}>
         <aside className="sidebar">
           <div className="brand">
-            <span className="brand-mark">人</span>
+            <img className="brand-mark" src="/policy-mascot.png" alt="企業規程庫吉祥物" />
             <div>
               <strong>企業規程庫</strong>
               <small>POLICY CENTER</small>
@@ -1881,7 +1881,7 @@ export default function Home() {
       <AuditPage onNavigate={guardEditingNavigation}>
         <aside className="sidebar">
           <div className="brand">
-            <span className="brand-mark">人</span>
+            <img className="brand-mark" src="/policy-mascot.png" alt="企業規程庫吉祥物" />
             <div>
               <strong>企業規程庫</strong>
               <small>POLICY CENTER</small>
@@ -2146,7 +2146,7 @@ export default function Home() {
     <PolicyLibraryPage onNavigate={guardEditingNavigation}>
       <aside className="sidebar">
         <div className="brand">
-          <span className="brand-mark">人</span>
+          <img className="brand-mark" src="/policy-mascot.png" alt="企業規程庫吉祥物" />
           <div>
             <strong>企業規程庫</strong>
             <small>POLICY CENTER</small>

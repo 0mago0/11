@@ -1283,15 +1283,14 @@ main {
   margin: 0 9px 46px;
 }
 .brand-mark {
-  background: #b8d575;
-  color: #173c32;
   width: 35px;
   height: 35px;
-  display: grid;
-  place-items: center;
-  border-radius: 10px;
-  font-size: 19px;
-  font-weight: 800;
+  display: block;
+  flex: 0 0 35px;
+  object-fit: cover;
+  border: 2px solid #b8d575;
+  border-radius: 50%;
+  background: #fff7e8;
 }
 .brand strong,
 .brand small,
