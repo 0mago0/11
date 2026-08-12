@@ -85,6 +85,28 @@ export const approveChange = (employeeNo: string, changeRequestId: string, comme
 export const returnChange = (employeeNo: string, changeRequestId: string, comment: string) =>
   request(`/api/change-requests/${encodeURIComponent(changeRequestId)}/return`, employeeNo, { method: "POST", body: JSON.stringify({ comment }) });
 
+export type ApiAuditLog = {
+  audit_id: string;
+  occurred_at: string;
+  actor_name?: string | null;
+  actor_employee_no: string;
+  policy_code: string;
+  action: string;
+  from_version_no?: number | null;
+  to_version_no?: number | null;
+  changed_fields?: string[] | null;
+  before_content?: unknown;
+  after_content?: unknown;
+  comment?: string | null;
+};
+
+/** Admin 修改紀錄頁的正式資料來源。 */
+export const loadPolicyAuditLogs = (employeeNo: string, policyCode: string) =>
+  request<ApiAuditLog[]>(
+    `/api/policies/${encodeURIComponent(policyCode)}/audit-logs`,
+    employeeNo,
+  );
+
 /** Admin 或排程服務可呼叫此端點，發布所有已到期的承認案件。 */
 export const publishScheduledChanges = (employeeNo: string) =>
   request<{ published: Array<{ policyCode: string; versionNo: number }> }>("/api/system/publish-scheduled", employeeNo, { method: "POST" });

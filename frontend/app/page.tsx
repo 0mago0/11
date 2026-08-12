@@ -6,9 +6,9 @@ import { PolicyLibraryPage } from "../components/pages/PolicyLibraryPage";
 import { StructureEditor } from "../components/policy/StructureEditor";
 import { Tables } from "../components/policy/Tables";
 import {
-  approveChange, disablePolicy, loadPolicyWorkspace, publishTypoChange,
+  approveChange, disablePolicy, loadPolicyAuditLogs, loadPolicyWorkspace, publishTypoChange,
   returnChange, saveNewPolicy, savePolicyChange, submitChange, updatePolicyChange,
-  type ApiTranslation, type ApiWorkspacePolicy,
+  type ApiAuditLog, type ApiTranslation, type ApiWorkspacePolicy,
 } from "../lib/policy-api";
 
 type Lang = "zh" | "ja";
@@ -1502,6 +1502,42 @@ export default function Home() {
       .toLowerCase()
       .includes(auditSearch.toLowerCase()),
   );
+  // 稽核資料以 PostgreSQL 為準。載入後只替換該規程的暫存紀錄，其他規程不受影響。
+  useEffect(() => {
+    if (view !== "audit" || !isAdmin || !selectedAuditPolicy) return;
+    const actionName: Record<string, Audit["action"]> = {
+      created: "新增", draft_saved: "修改草稿", submitted: "送審",
+      department_approved: "部門長承認", site_approved: "據點長承認",
+      returned: "退回修改", published: "發布", disabled: "停用", restored: "還原",
+    };
+    const toAudit = (entry: ApiAuditLog): Audit => ({
+      id: entry.audit_id,
+      at: new Date(entry.occurred_at).toLocaleString("zh-TW"),
+      actor: entry.actor_name || entry.actor_employee_no,
+      action: actionName[entry.action] || "修改草稿",
+      policy: selectedAuditPolicy.draft.zh.title || selectedAuditPolicy.draft.ja.title,
+      code: entry.policy_code,
+      before: JSON.stringify(entry.before_content || {}),
+      after: JSON.stringify(entry.after_content || {}),
+      fromVersion: entry.from_version_no ? `v${entry.from_version_no}` : undefined,
+      toVersion: entry.to_version_no ? `v${entry.to_version_no}` : undefined,
+      changes: Array.isArray(entry.changed_fields) ? entry.changed_fields : [],
+      comment: entry.comment || undefined,
+    });
+    let cancelled = false;
+    void loadPolicyAuditLogs(apiEmployeeNoByRole.admin, selectedAuditPolicy.code)
+      .then((entries) => {
+        if (cancelled) return;
+        setAudit((current) => [
+          ...entries.map(toAudit),
+          ...current.filter((entry) => entry.code !== selectedAuditPolicy.code),
+        ]);
+      })
+      .catch((error) => {
+        if (!cancelled) setNotice(`讀取修改紀錄失敗：${error instanceof Error ? error.message : "請確認 API 是否啟動"}`);
+      });
+    return () => { cancelled = true; };
+  }, [view, isAdmin, auditPolicyId, selectedAuditPolicy?.code]);
   if (view === "approval")
     return (
       <ApprovalPage onNavigate={guardEditingNavigation}>
