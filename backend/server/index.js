@@ -233,14 +233,21 @@ app.post("/api/policies/:policyCode/changes", requireRole("admin"), async (req, 
   res.status(201).json(result);
 });
 
-// 草稿可重複儲存；送審後一律鎖定，確保承認者看到的內容不會在審查中途改變。
+// 草稿可重複儲存；送審中一律鎖定，確保承認者看到的內容不會在審查中途改變。
+// 但「已承認待發布」的錯字修正沿用既有承認，可更新草稿內容並維持原發布日。
 app.patch("/api/change-requests/:changeRequestId", requireRole("admin"), async (req, res) => {
   const input = parse(changeDraft, req.body);
   const result = await withTransaction(async (client) => {
     const { rows } = await client.query("SELECT * FROM policy_change_requests WHERE change_request_id = $1 FOR UPDATE", [req.params.changeRequestId]);
     const change = rows[0];
     if (!change) return null;
-    if (!['draft', 'returned_for_revision'].includes(change.status)) { const error = new Error("Only a draft or returned request can be edited."); error.status = 409; throw error; }
+    const canEditApprovedScheduledTypo =
+      change.status === 'approved_scheduled' && input.changeKind === 'typo';
+    if (!['draft', 'returned_for_revision'].includes(change.status) && !canEditApprovedScheduledTypo) {
+      const error = new Error("Only a draft, returned request, or approved scheduled typo change can be edited.");
+      error.status = 409;
+      throw error;
+    }
     await client.query(
       `UPDATE policy_change_requests
           -- 新增規程的 base_version_no 必須永遠是 NULL。退回後前端雖以「內容修改」
