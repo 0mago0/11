@@ -14,7 +14,7 @@ type ApprovalStage =
 type PolicyFilter =
   | "全部"
   | Status
-  | "內容更新中"
+  | "規程內容更新版本"
   | Exclude<ApprovalStage, "草稿">;
 type Approval = {
   stage: ApprovalStage;
@@ -623,7 +623,7 @@ export default function Home() {
           待據點長承認: "拠点長承認待ち",
           退回修改: "差戻し・修正待ち",
           已承認待發布: "承認済み・公開待ち",
-          內容更新中: "内容更新中",
+          規程內容更新版本: "規程内容更新版",
           發布: "公開中",
           停用: "停止中",
         }[status] || status
@@ -681,7 +681,7 @@ export default function Home() {
       : policy.status;
   };
   const matchesPolicyStatus = (policy: Policy, status: PolicyFilter) =>
-    (status === "內容更新中" && Boolean(policy.replacesPolicyId)) ||
+    (status === "規程內容更新版本" && Boolean(policy.replacesPolicyId)) ||
     policyStatusLabel(policy) === status ||
     (Boolean(policy.replacesPolicyId) && policy.approval?.stage === status);
   const statusOptions: PolicyFilter[] = [
@@ -691,7 +691,7 @@ export default function Home() {
     "待據點長承認",
     "退回修改",
     "已承認待發布",
-    "內容更新中",
+    "規程內容更新版本",
     "發布",
     "停用",
   ];
@@ -1808,7 +1808,7 @@ export default function Home() {
                     </span>
                     {p.replacesPolicyId && (
                       <span className="status updating">
-                        {statusName("內容更新中")}
+                        {statusName("規程內容更新版本")}
                       </span>
                     )}
                   </span>
@@ -1847,7 +1847,7 @@ export default function Home() {
                       </span>
                       {selected.replacesPolicyId && (
                         <span className="status updating">
-                          {statusName("內容更新中")}
+                          {statusName("規程內容更新版本")}
                         </span>
                       )}
                     </span>
@@ -1887,7 +1887,7 @@ export default function Home() {
                             if (pendingUpdate) {
                               open(pendingUpdate);
                               setEditing(true);
-                              setNotice("已開啟此規程的內容更新中卡片。");
+                              setNotice("已開啟此規程的規程內容更新版本卡片。");
                               return;
                             }
                             setDraft({
