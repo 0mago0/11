@@ -41,6 +41,10 @@ npm run build
 - `policy_versions`、`policy_version_translations` 與 `policy_audit_logs` 設有不可修改／刪除觸發器，符合舊版本不可覆蓋的要求。
 - `employee_published_policies` 視圖只回傳發布中的最新版本，供 Employee 權限使用。
 
+## Node.js／Express 後端 API
+
+後端原始碼位於 `server/`，使用 Express 與 PostgreSQL `pg` 驅動，API 說明見 [docs/express-api.md](docs/express-api.md)。設定 `.env` 後可用 `npm run api:dev` 啟動；目前前端仍使用本機資料，下一步可改由前端呼叫此 API。
+
 ## 檔案與資料夾說明
 
 | 位置                           | 用途                                                                    |
@@ -57,6 +61,11 @@ npm run build
 | `.openai/hosting.json`         | Sites 發布設定，保存網站專案 ID；目前 D1 和 R2 都尚未啟用。             |
 | `package.json`                 | 套件清單與常用指令，例如開發、建置與測試。                              |
 | `db/postgresql_schema.sql`     | PostgreSQL 正式資料庫設計，含資料表、索引、觸發器、初始分類與公開視圖。 |
+| `server/index.js`              | Express API 進入點，提供規程、送審、承認、退回與修改紀錄路由。             |
+| `server/auth.js`               | 員編身分驗證與角色權限中介層。                                             |
+| `server/db.js`                 | PostgreSQL 連線池與交易輔助函式。                                          |
+| `server/validation.js`         | API 輸入資料與 DHT 規程編號格式驗證。                                     |
+| `docs/express-api.md`          | 後端啟動方式與 API 路由說明。                                              |
 | `db/schema.ts`                 | D1／Drizzle 資料庫結構預留檔；目前網站尚未串接資料庫。                  |
 | `db/index.ts`                  | 資料庫連線預留檔。                                                      |
 | `drizzle.config.ts`            | 未來啟用 D1／Drizzle 資料庫遷移時使用的設定。                           |
