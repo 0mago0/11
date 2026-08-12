@@ -1,4 +1,17 @@
 @import "tailwindcss";
+/* 圓潤可愛、仍適合長篇規程閱讀的中日文字型優先順序。 */
+body,
+button,
+input,
+select,
+textarea,
+.policy-article b,
+.policy-article p,
+.diff-box,
+.policy-text,
+.policy-editor {
+  font-family: "JF Open Huninn", "PingFang TC", "Hiragino Maru Gothic ProN", "Yu Gothic", "Microsoft JhengHei", sans-serif;
+}
 .login-page {
   display: grid;
   min-height: 100vh;
