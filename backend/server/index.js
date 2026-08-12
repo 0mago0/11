@@ -142,19 +142,56 @@ app.get("/api/policies", async (req, res) => {
 
 app.get("/api/policies/:policyCode", async (req, res) => {
   const code = parse(policyCode, req.params.policyCode);
-  const { rows } = await db.query(
-    `SELECT p.*, c.name_zh AS category_zh, c.name_ja AS category_ja,
-            COALESCE(jsonb_agg(DISTINCT jsonb_build_object('versionNo', v.version_no, 'publishedAt', v.published_at, 'revisionNote', v.revision_note)) FILTER (WHERE v.version_no IS NOT NULL), '[]') AS versions,
-            COALESCE(jsonb_agg(DISTINCT jsonb_build_object('language', t.language, 'title', t.title, 'summary', t.summary, 'content', t.content, 'chapters', t.chapters, 'tables', t.tables)) FILTER (WHERE t.language IS NOT NULL), '[]') AS translations
+  // 分開查版本、翻譯與目前草稿，避免 JSON 聚合把歷史版本的翻譯資料混在一起。
+  const { rows: policies } = await db.query(
+    `SELECT p.*, c.name_zh AS category_zh, c.name_ja AS category_ja
        FROM policies p JOIN policy_categories c ON c.category_code = p.category_code
-       LEFT JOIN policy_versions v ON v.policy_code = p.policy_code
-       LEFT JOIN policy_version_translations t ON t.policy_code = p.policy_code AND t.version_no = p.current_version_no
-      WHERE p.policy_code = $1
-      GROUP BY p.policy_code, c.name_zh, c.name_ja`, [code],
+      WHERE p.policy_code = $1`, [code],
   );
-  if (!rows[0]) return res.sendStatus(404);
-  if (req.user.roles.includes("employee") && !isAdmin(req.user) && rows[0].status !== "published") return res.sendStatus(404);
-  res.json(rows[0]);
+  const policy = policies[0];
+  if (!policy) return res.sendStatus(404);
+  if (req.user.roles.includes("employee") && !isAdmin(req.user) && policy.status !== "published") return res.sendStatus(404);
+  const { rows: versionRows } = await db.query(
+    `SELECT version_no, published_at, revision_note FROM policy_versions
+      WHERE policy_code = $1 ORDER BY version_no`, [code],
+  );
+  const { rows: versionTranslations } = await db.query(
+    `SELECT version_no, language, title, summary, content, chapters, tables
+       FROM policy_version_translations WHERE policy_code = $1`, [code],
+  );
+  const { rows: changes } = await db.query(
+    `SELECT change_request_id, status, change_kind, revision_reason, scheduled_publish_date, submitted_at, approved_at
+       FROM policy_change_requests WHERE policy_code = $1
+        AND status NOT IN ('published', 'cancelled')
+      ORDER BY updated_at DESC LIMIT 1`, [code],
+  );
+  const activeChange = changes[0] || null;
+  const { rows: changeTranslations } = activeChange
+    ? await db.query(
+        `SELECT language, title, summary, content, chapters, tables
+           FROM policy_change_translations WHERE change_request_id = $1`,
+        [activeChange.change_request_id],
+      )
+    : { rows: [] };
+  res.json({
+    ...policy,
+    versions: versionRows.map((version) => ({
+      versionNo: version.version_no,
+      publishedAt: version.published_at,
+      revisionNote: version.revision_note,
+      translations: versionTranslations.filter((translation) => translation.version_no === version.version_no),
+    })),
+    activeChange: activeChange && {
+      changeRequestId: activeChange.change_request_id,
+      status: activeChange.status,
+      changeKind: activeChange.change_kind,
+      revisionReason: activeChange.revision_reason,
+      scheduledPublishDate: activeChange.scheduled_publish_date,
+      submittedAt: activeChange.submitted_at,
+      approvedAt: activeChange.approved_at,
+      translations: changeTranslations,
+    },
+  });
 });
 
 app.post("/api/policies", requireRole("admin"), async (req, res) => {
@@ -302,7 +339,7 @@ app.post("/api/change-requests/:changeRequestId/return", requireRole("department
   res.json(result);
 });
 
-app.get("/api/policies/:policyCode/audit-logs", async (req, res) => {
+app.get("/api/policies/:policyCode/audit-logs", requireRole("admin"), async (req, res) => {
   const code = parse(policyCode, req.params.policyCode);
   const { action } = req.query;
   const { rows } = await db.query(

@@ -5,6 +5,7 @@ import { AuditPage } from "../components/pages/AuditPage";
 import { PolicyLibraryPage } from "../components/pages/PolicyLibraryPage";
 import { StructureEditor } from "../components/policy/StructureEditor";
 import { Tables } from "../components/policy/Tables";
+import { loadPolicyWorkspace, type ApiTranslation, type ApiWorkspacePolicy } from "../lib/policy-api";
 
 type Lang = "zh" | "ja";
 type Role = "admin" | "employee" | "department_head" | "site_head";
@@ -60,6 +61,8 @@ type Policy = {
   changeType?: ChangeType;
   approval?: Approval;
   replacesPolicyId?: number;
+  /** Express API 的送審草稿 ID；本機示範資料不會有此欄位。 */
+  changeRequestId?: string;
 };
 
 const policyCategories = [
@@ -574,6 +577,40 @@ const normalizeTables = (value: unknown): string[][][] => {
     );
 };
 
+// 將 PostgreSQL API 的 snake_case 回應轉為現有畫面使用的 Policy 型別。
+// 保留此轉換層，可避免資料庫欄位改名時直接影響 UI 元件。
+const copyFromApi = (translations: ApiTranslation[]): Record<Lang, Copy> => {
+  const find = (language: ApiTranslation["language"]) => translations.find((item) => item.language === language);
+  const toCopy = (item?: ApiTranslation): Copy => ({
+    title: item?.title || "", summary: item?.summary || "", content: item?.content || "",
+    tables: normalizeTables(item?.tables), chapters: Array.isArray(item?.chapters) ? item!.chapters as Chapter[] : chaptersFromContent(item?.content || ""),
+  });
+  return { zh: toCopy(find("zh-TW")), ja: toCopy(find("ja-JP")) };
+};
+const policyFromApi = (source: ApiWorkspacePolicy, index: number): Policy => {
+  const active = source.activeChange;
+  const stageMap: Record<string, ApprovalStage> = {
+    draft: "草稿", pending_department_head: "待部門長承認", pending_site_head: "待據點長承認",
+    returned_for_revision: "退回修改", approved_scheduled: "已承認待發布",
+  };
+  const statusMap: Record<string, Status> = { published: "發布", disabled: "停用", draft: "草稿", approved_scheduled: "已承認" };
+  const versions: Version[] = source.versions.map((version) => ({
+    id: `${source.policy_code}-${version.versionNo}`, number: String(version.versionNo),
+    publishedAt: String(version.publishedAt).slice(0, 10), copy: copyFromApi(version.translations), revisionNote: version.revisionNote || "",
+  }));
+  return {
+    id: index + 1, code: source.policy_code, category: source.category_zh || source.category_ja || "人事",
+    effectiveDate: source.effective_date ? String(source.effective_date).slice(0, 10) : "",
+    publishDate: active?.scheduledPublishDate ? String(active.scheduledPublishDate).slice(0, 10) : "",
+    status: active?.status === "approved_scheduled" ? "已承認" : statusMap[source.status] || "草稿",
+    changeType: active?.changeKind === "typo" ? "typo" : "content",
+    revisionNote: active?.revisionReason || versions.at(-1)?.revisionNote || "",
+    approval: { stage: stageMap[active?.status || ""] || "草稿", submittedAt: active?.submittedAt || undefined, approvedAt: active?.approvedAt || undefined },
+    draft: active ? copyFromApi(active.translations) : (versions.at(-1)?.copy || { zh: emptyCopy(), ja: emptyCopy() }),
+    versions, changeRequestId: active?.changeRequestId,
+  };
+};
+
 export default function Home() {
   // 頁面狀態集中在此容器：子元件只接收資料與回呼，避免各頁有不同版本的流程判斷。
   const [policies, setPolicies] = useState(initial),
@@ -672,6 +709,27 @@ export default function Home() {
       })
       .catch(() => {});
   }, []);
+  useEffect(() => {
+    // 角色預覽對應資料庫中的四個示範員編。正式登入串接後可改為登入 token 內的員編。
+    const employeeNoByRole: Record<Role, string> = {
+      admin: "A0001", employee: "A0002", department_head: "A0003", site_head: "A0004",
+    };
+    let cancelled = false;
+    loadPolicyWorkspace(employeeNoByRole[role])
+      .then((remotePolicies) => {
+        if (cancelled) return;
+        const hydrated = remotePolicies.map(policyFromApi);
+        setPolicies(hydrated);
+        setAudit([]);
+        setSelectedId(hydrated[0]?.id || 0);
+        setDraft(clone(hydrated[0] || initial[0]));
+        setNotice("已從 PostgreSQL 載入規程資料。");
+      })
+      .catch(() => {
+        // API 尚未啟動時仍保留 localStorage 示範資料，方便單獨開發前端。
+      });
+    return () => { cancelled = true; };
+  }, [role]);
   useEffect(() => {
     if (!notice) return;
     const timer = window.setTimeout(() => setNotice(""), 2000);
