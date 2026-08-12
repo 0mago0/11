@@ -100,6 +100,9 @@ const policyCode = (category: string, value: string, fallback = "0000") => {
 };
 const policyCodeSuffix = (value: string) =>
   (value.replace(/\D/g, "").slice(-4) || "0000").padStart(4, "0");
+// 編輯欄位不顯示自動補上的前導零，避免游標每輸入一碼就跳到末尾而無法連續輸入編號。
+const editablePolicyCodeSuffix = (value: string) =>
+  policyCodeSuffix(value).replace(/^0+(?=\d)/, "").replace(/^0+$/, "");
 type Audit = {
   id: string;
   at: string;
@@ -2265,9 +2268,13 @@ export default function Home() {
                           required
                           inputMode="numeric"
                           maxLength={4}
-                          pattern="[0-9]{4}"
+                          pattern="[0-9]{1,4}"
                           aria-label="規程編號後四位數字"
-                          value={policyCodeSuffix(draft.code)}
+                          placeholder="0001"
+                          // 資料庫以規程編號為主鍵；只有尚未建立的規程可以決定後四碼。
+                          readOnly={policies.some((policy) => policy.code === draft.code)}
+                          value={editablePolicyCodeSuffix(draft.code)}
+                          onFocus={(event) => event.currentTarget.select()}
                           onChange={(e) =>
                             setDraft({
                               ...draft,
@@ -2276,6 +2283,9 @@ export default function Home() {
                           }
                         />
                       </div>
+                      {policies.some((policy) => policy.code === draft.code) && (
+                        <small>規程已建立後，編號會作為資料庫主鍵，因此不可變更。</small>
+                      )}
                     </label>
                     <label>
                       規程分類
