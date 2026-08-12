@@ -2104,8 +2104,8 @@ export default function Home() {
                       </h2>
                       <p>{policy.category}</p>
                       <div className="audit-policy-meta">
-                        <span className="status draft">
-                          {policyStatusLabel(policy)}
+                        <span className={`status ${policyStatusTone(policy)}`}>
+                          {statusName(policyStatusLabel(policy))}
                         </span>
                         <span>已發布 {policy.versions.length} 版</span>
                       </div>
