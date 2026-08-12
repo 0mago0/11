@@ -364,6 +364,91 @@ const categoryDemoPolicies: Policy[] = [
     "第1条　各部門は品質目標に従って実行し、定期的に有効性を確認する。\n\n第2条　不適合を発見した場合は是正措置を実施する。",
   ),
 ];
+const approvalSamplePolicy = (
+  id: number,
+  code: string,
+  category: string,
+  stage: ApprovalStage,
+  zhTitle: string,
+  jaTitle: string,
+  originalZh: string,
+  revisedZh: string,
+  originalJa: string,
+  revisedJa: string,
+  revisionNote: string,
+): Policy => ({
+  id,
+  code: policyCode(category, code, String(id)),
+  category,
+  effectiveDate: "2026-10-01",
+  publishDate: "2026-10-01",
+  status: "草稿",
+  changeType: "content",
+  revisionNote,
+  approval: { stage, submittedAt: "2026/08/12 下午 2:30:00" },
+  draft: {
+    zh: copy(zhTitle, "此為承認流程示範案件，請確認修訂內容。", revisedZh),
+    ja: copy(
+      jaTitle,
+      "承認フローのサンプル案件です。改訂内容をご確認ください。",
+      revisedJa,
+    ),
+  },
+  versions: [
+    {
+      id: `approval-${id}`,
+      number: "1.0",
+      publishedAt: "2026-04-01",
+      copy: {
+        zh: copy(zhTitle, "此為原已發布版本。", originalZh),
+        ja: copy(jaTitle, "前回公開版です。", originalJa),
+      },
+      revisionNote: "首次發布",
+    },
+  ],
+});
+const approvalDemoPolicies: Policy[] = [
+  approvalSamplePolicy(
+    201,
+    "ITM1-0002",
+    "IT管理",
+    "待部門長承認",
+    "資訊安全與帳號管理規程",
+    "情報セキュリティ・アカウント管理規程",
+    "第一條　系統帳號應依職務需求申請，禁止共用帳號。\n\n第二條　發現資安事件時應立即通報資訊單位。",
+    "第一條　系統帳號應依職務需求申請，禁止共用帳號。\n\n第二條　發現資安事件時應於一小時內通報資訊單位。\n\n第三條　離職人員帳號應於最後工作日完成停用。",
+    "第1条　システムアカウントは職務上の必要により申請し、共有してはならない。\n\n第2条　セキュリティ事故を発見した場合は直ちに情報部門へ連絡する。",
+    "第1条　システムアカウントは職務上の必要により申請し、共有してはならない。\n\n第2条　セキュリティ事故は1時間以内に情報部門へ連絡する。\n\n第3条　退職者のアカウントは最終勤務日までに停止する。",
+    "資安通報時限與離職帳號停用流程更新。",
+  ),
+  approvalSamplePolicy(
+    202,
+    "EHS1-0002",
+    "EHS",
+    "待部門長承認",
+    "環境安全衛生管理規程",
+    "環境・安全衛生管理規程",
+    "第一條　員工應遵守職場安全規範並使用必要防護具。\n\n第二條　事故或異常狀況應立即通報。",
+    "第一條　員工應遵守職場安全規範並使用必要防護具。\n\n第二條　事故或異常狀況應立即通報。\n\n第三條　高風險作業前應完成安全確認表。",
+    "第1条　従業員は安全規則を守り、必要な保護具を使用する。\n\n第2条　事故または異常を直ちに報告する。",
+    "第1条　従業員は安全規則を守り、必要な保護具を使用する。\n\n第2条　事故または異常を直ちに報告する。\n\n第3条　高リスク作業前に安全確認表を完了する。",
+    "高風險作業的事前安全確認要求新增。",
+  ),
+  approvalSamplePolicy(
+    203,
+    "ACC1-0002",
+    "會計管理",
+    "待據點長承認",
+    "費用報支與付款管理規程",
+    "経費精算・支払管理規程",
+    "第一條　費用報支應檢附合法憑證並依核准權限辦理。\n\n第二條　付款資料應經覆核後執行。",
+    "第一條　費用報支應檢附合法憑證並依核准權限辦理。\n\n第二條　付款資料應經覆核後執行。\n\n第三條　超過十萬元之付款應由財務主管再次確認。",
+    "第1条　経費精算には適法な証憑を添付し、承認権限に従う。\n\n第2条　支払情報は照合後に実行する。",
+    "第1条　経費精算には適法な証憑を添付し、承認権限に従う。\n\n第2条　支払情報は照合後に実行する。\n\n第3条　10万元を超える支払は財務責任者が再確認する。",
+    "高額付款的複核權限調整。",
+  ),
+];
+const demoPolicies = [...categoryDemoPolicies, ...approvalDemoPolicies];
 const initial: Policy[] = [
   {
     id: 1,
@@ -459,7 +544,7 @@ const initial: Policy[] = [
       },
     ],
   },
-  ...categoryDemoPolicies,
+  ...demoPolicies,
 ];
 const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
 const nextV = (v: string) => {
@@ -745,9 +830,7 @@ export default function Home() {
         const existingCodes = new Set(normalized.map((policy) => policy.code));
         const hydrated = [
           ...normalized,
-          ...categoryDemoPolicies.filter(
-            (policy) => !existingCodes.has(policy.code),
-          ),
+          ...demoPolicies.filter((policy) => !existingCodes.has(policy.code)),
         ];
         setPolicies(hydrated);
         setAudit(normalizedAudit);
