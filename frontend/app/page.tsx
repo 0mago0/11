@@ -594,8 +594,16 @@ const copyFromApi = (translations: ApiTranslation[]): Record<Lang, Copy> => {
   });
   return { zh: toCopy(find("zh-TW")), ja: toCopy(find("ja-JP")) };
 };
-const policyFromApi = (source: ApiWorkspacePolicy, index: number): Policy => {
-  const active = source.activeChange;
+const policyFromApi = (
+  source: ApiWorkspacePolicy,
+  index: number,
+  includeActiveChange = true,
+): Policy => {
+  // 內容更新會以同一個規程編號保存在資料庫；原卡片不可被草稿覆蓋。
+  // 因此需要可選擇是否將目前變更申請套入這張畫面卡片。
+  const active = includeActiveChange || source.activeChange?.changeKind !== "content"
+    ? source.activeChange
+    : null;
   const stageMap: Record<string, ApprovalStage> = {
     draft: "草稿", pending_department_head: "待部門長承認", pending_site_head: "待據點長承認",
     returned_for_revision: "退回修改", approved_scheduled: "已承認待發布",
@@ -623,6 +631,25 @@ const policyFromApi = (source: ApiWorkspacePolicy, index: number): Policy => {
     draft: active ? copyFromApi(active.translations) : (versions.at(-1)?.copy || { zh: emptyCopy(), ja: emptyCopy() }),
     versions, changeRequestId: active?.changeRequestId,
   };
+};
+
+/**
+ * 將後端同一規程編號下的「內容修改申請」展開成第二張畫面卡片。
+ * 第一張永遠是原公開規程，第二張才是送審中的規程內容更新版本。
+ */
+const policiesFromApi = (sources: ApiWorkspacePolicy[]): Policy[] => {
+  const originals = sources.map((source, index) => policyFromApi(source, index, false));
+  const updates = sources.flatMap((source, index) => {
+    if (source.activeChange?.changeKind !== "content") return [];
+    const original = originals[index];
+    const update = policyFromApi(source, 1000 + originals.length + index, true);
+    return [{
+      ...update,
+      status: "草稿" as Status,
+      replacesPolicyId: original.id,
+    }];
+  });
+  return [...updates, ...originals];
 };
 
 const categoryApiCodes: Record<string, string> = {
@@ -741,7 +768,7 @@ export default function Home() {
     loadPolicyWorkspace(apiEmployeeNoByRole[role])
       .then((remotePolicies) => {
         if (cancelled) return;
-        const hydrated = remotePolicies.map(policyFromApi);
+        const hydrated = policiesFromApi(remotePolicies);
         setPolicies(hydrated);
         setAudit([]);
         setSelectedId(hydrated[0]?.id || 0);
@@ -1098,7 +1125,7 @@ export default function Home() {
           await savePolicyChange(apiEmployeeNoByRole.admin, savedDraft.code, apiBody);
         }
         const remote = await loadPolicyWorkspace(apiEmployeeNoByRole.admin);
-        const refreshed = remote.map(policyFromApi);
+        const refreshed = policiesFromApi(remote);
         setPolicies(refreshed);
         const current = refreshed.find((policy) => policy.code === savedDraft.code) || refreshed[0];
         if (current) open(current);
@@ -1241,7 +1268,7 @@ export default function Home() {
   /** API 成功後以資料庫的最新狀態覆蓋前端暫存，避免兩套狀態逐漸不同步。 */
   async function refreshWorkspace(targetRole: Role = role, selectedCode?: string) {
     const remote = await loadPolicyWorkspace(apiEmployeeNoByRole[targetRole]);
-    const refreshed = remote.map(policyFromApi);
+    const refreshed = policiesFromApi(remote);
     setPolicies(refreshed);
     const current = refreshed.find((policy) => policy.code === selectedCode) || refreshed[0];
     if (current) open(current);
@@ -1253,7 +1280,9 @@ export default function Home() {
   async function resolveChangeRequestId(policy: Policy, targetRole: Role = role) {
     if (policy.changeRequestId) return policy.changeRequestId;
     const remote = await loadPolicyWorkspace(apiEmployeeNoByRole[targetRole]);
-    const fresh = remote.map(policyFromApi).find((item) => item.code === policy.code);
+    const fresh = policiesFromApi(remote).find(
+      (item) => item.code === policy.code && item.changeRequestId === policy.changeRequestId,
+    ) || policiesFromApi(remote).find((item) => item.code === policy.code);
     if (!fresh?.changeRequestId) throw new Error("找不到此規程的送審草稿；請先儲存草稿並送交承認。");
     return fresh.changeRequestId;
   }
