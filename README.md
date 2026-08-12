@@ -18,7 +18,7 @@ npm run build
 ## 主要功能
 
 - 規程瀏覽：以「全部規程」及十個固定分類專屬頁面瀏覽、搜尋與閱讀規程；每個分類均提供一筆中日雙語的已發布示範規程。新增規程會自動歸屬目前開啟的分類頁。
-- 規程編號：各分類有固定前綴，格式為「前綴-四位數字」，例如 `HRM1-0001`；編輯時僅需輸入後四位數字。
+- 規程編號：各分類有固定前綴，格式為「前綴-四位數字」，例如人事 `DHT2-0001`；編輯時僅需輸入後四位數字。IT 管理與總務共用 `DHT3` 前綴。
 - 承認待辦示範：IT 管理、EHS 與會計管理各提供一筆待承認案件，可用部門長／據點長角色檢視原文、差異與承認流程。
 - 新增與編輯：新增規程或調整既有規程，儲存時自動產生新版本。
 - 版本管理：查看每次儲存的歷史內容，並將舊版還原成一個新的版本。
@@ -36,33 +36,33 @@ npm run build
 
 可直接執行 [db/postgresql_schema.sql](db/postgresql_schema.sql) 建立 PostgreSQL 結構。此設計已涵蓋規程、公開版本、雙語內容、條文／表格 JSON 結構、送審草稿、兩階段承認、附件、關聯規程、通知與不可竄改的修改紀錄。
 
-- `policies.policy_code` 是規程主鍵，格式固定為 `AAA1-0000`；資料庫會比對所屬分類的固定前綴。
+- `policies.policy_code` 是規程主鍵，格式固定為 `DHT1-0000` 至 `DHT99-0000`；資料庫會比對所屬分類的固定前綴。
 - `users.employee_no` 是使用者主鍵，格式固定為 `A0000`。
 - `policy_versions`、`policy_version_translations` 與 `policy_audit_logs` 設有不可修改／刪除觸發器，符合舊版本不可覆蓋的要求。
 - `employee_published_policies` 視圖只回傳發布中的最新版本，供 Employee 權限使用。
 
 ## 檔案與資料夾說明
 
-| 位置                           | 用途                                                                  |
-| ------------------------------ | --------------------------------------------------------------------- |
-| `app/page.tsx`                 | 網站的主要頁面與所有規程管理互動功能。絕大多數產品功能都在此檔案。    |
-| `app/globals.css`              | 全站樣式，包括側邊欄、規程卡片、版本比較視窗、語言切換和表格編輯器。  |
-| `app/layout.tsx`               | 網站的根版面，設定 HTML 語言、網站標題、描述和共用 CSS 載入。         |
-| `app/chatgpt-auth.ts`          | 可選用的 ChatGPT 登入輔助函式；目前規程頁面沒有呼叫它。               |
-| `app/_sites-preview/`          | 建站範本原本提供的預覽骨架元件，目前主頁不使用。                      |
-| `public/`                      | 靜態檔案，例如網站圖示。                                              |
-| `worker/index.ts`              | Cloudflare Worker 的進入點，將請求交給 vinext，並處理圖片最佳化請求。 |
-| `build/sites-vite-plugin.ts`   | Sites 平台使用的 Vite 建置外掛設定。                                  |
-| `vite.config.ts`               | Vite、vinext 與 Cloudflare 本機開發環境設定。                         |
-| `.openai/hosting.json`         | Sites 發布設定，保存網站專案 ID；目前 D1 和 R2 都尚未啟用。           |
-| `package.json`                 | 套件清單與常用指令，例如開發、建置與測試。                            |
+| 位置                           | 用途                                                                    |
+| ------------------------------ | ----------------------------------------------------------------------- |
+| `app/page.tsx`                 | 網站的主要頁面與所有規程管理互動功能。絕大多數產品功能都在此檔案。      |
+| `app/globals.css`              | 全站樣式，包括側邊欄、規程卡片、版本比較視窗、語言切換和表格編輯器。    |
+| `app/layout.tsx`               | 網站的根版面，設定 HTML 語言、網站標題、描述和共用 CSS 載入。           |
+| `app/chatgpt-auth.ts`          | 可選用的 ChatGPT 登入輔助函式；目前規程頁面沒有呼叫它。                 |
+| `app/_sites-preview/`          | 建站範本原本提供的預覽骨架元件，目前主頁不使用。                        |
+| `public/`                      | 靜態檔案，例如網站圖示。                                                |
+| `worker/index.ts`              | Cloudflare Worker 的進入點，將請求交給 vinext，並處理圖片最佳化請求。   |
+| `build/sites-vite-plugin.ts`   | Sites 平台使用的 Vite 建置外掛設定。                                    |
+| `vite.config.ts`               | Vite、vinext 與 Cloudflare 本機開發環境設定。                           |
+| `.openai/hosting.json`         | Sites 發布設定，保存網站專案 ID；目前 D1 和 R2 都尚未啟用。             |
+| `package.json`                 | 套件清單與常用指令，例如開發、建置與測試。                              |
 | `db/postgresql_schema.sql`     | PostgreSQL 正式資料庫設計，含資料表、索引、觸發器、初始分類與公開視圖。 |
-| `db/schema.ts`                 | D1／Drizzle 資料庫結構預留檔；目前網站尚未串接資料庫。                 |
-| `db/index.ts`                  | 資料庫連線預留檔。                                                    |
-| `drizzle.config.ts`            | 未來啟用 D1／Drizzle 資料庫遷移時使用的設定。                         |
-| `drizzle/`                     | Drizzle 遷移紀錄資料夾。                                              |
-| `examples/d1/`                 | D1 資料庫範例，不影響目前網站功能。                                   |
-| `tests/rendered-html.test.mjs` | 範本提供的基本渲染測試。                                              |
+| `db/schema.ts`                 | D1／Drizzle 資料庫結構預留檔；目前網站尚未串接資料庫。                  |
+| `db/index.ts`                  | 資料庫連線預留檔。                                                      |
+| `drizzle.config.ts`            | 未來啟用 D1／Drizzle 資料庫遷移時使用的設定。                           |
+| `drizzle/`                     | Drizzle 遷移紀錄資料夾。                                                |
+| `examples/d1/`                 | D1 資料庫範例，不影響目前網站功能。                                     |
+| `tests/rendered-html.test.mjs` | 範本提供的基本渲染測試。                                                |
 
 ## `app/page.tsx` 詳解
 

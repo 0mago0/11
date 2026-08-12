@@ -70,16 +70,16 @@ const policyCategories = [
   "ISO9001",
 ];
 const categoryCodePrefixes: Record<string, string> = {
-  全社基本: "BAS1",
-  人事: "HRM1",
-  IT管理: "ITM1",
-  總務: "ADM1",
-  營業管理: "SAL1",
-  會計管理: "ACC1",
-  EHS: "EHS1",
-  進出口管理: "IMP1",
-  COW: "COW1",
-  ISO9001: "ISO1",
+  全社基本: "DHT1",
+  人事: "DHT2",
+  IT管理: "DHT3",
+  總務: "DHT3",
+  營業管理: "DHT4",
+  會計管理: "DHT5",
+  EHS: "DHT6",
+  進出口管理: "DHT7",
+  COW: "DHT10",
+  ISO9001: "DHT99",
 };
 const categoryCodePrefix = (category: string) =>
   categoryCodePrefixes[category] || categoryCodePrefixes["全社基本"];
@@ -410,7 +410,7 @@ const approvalSamplePolicy = (
 const approvalDemoPolicies: Policy[] = [
   approvalSamplePolicy(
     201,
-    "ITM1-0002",
+    "DHT3-0002",
     "IT管理",
     "待部門長承認",
     "資訊安全與帳號管理規程",
@@ -423,7 +423,7 @@ const approvalDemoPolicies: Policy[] = [
   ),
   approvalSamplePolicy(
     202,
-    "EHS1-0002",
+    "DHT6-0002",
     "EHS",
     "待部門長承認",
     "環境安全衛生管理規程",
@@ -436,7 +436,7 @@ const approvalDemoPolicies: Policy[] = [
   ),
   approvalSamplePolicy(
     203,
-    "ACC1-0002",
+    "DHT5-0002",
     "會計管理",
     "待據點長承認",
     "費用報支與付款管理規程",
@@ -452,7 +452,7 @@ const demoPolicies = [...categoryDemoPolicies, ...approvalDemoPolicies];
 const initial: Policy[] = [
   {
     id: 1,
-    code: "HRM1-0001",
+    code: "DHT2-0001",
     category: "人事",
     effectiveDate: "2025-01-01",
     status: "發布",
@@ -507,7 +507,7 @@ const initial: Policy[] = [
   },
   {
     id: 2,
-    code: "HRM1-0002",
+    code: "DHT2-0002",
     category: "人事",
     effectiveDate: "2024-07-01",
     status: "發布",

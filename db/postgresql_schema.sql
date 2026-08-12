@@ -1,5 +1,5 @@
 -- 企業規程資料庫：PostgreSQL 初始結構
--- 規程主鍵：AAA1-0000（四個大寫英數字元 + 連字號 + 四位數字）
+-- 規程主鍵：DHT1-0000 至 DHT99-0000（固定分類前綴 + 連字號 + 四位數字）
 -- 使用者主鍵：A0000（英文大寫字母 + 四位數字）
 -- 此檔案供全新 PostgreSQL 資料庫初始化使用。
 
@@ -30,22 +30,22 @@ CREATE TABLE policy_categories (
   category_code varchar(20) PRIMARY KEY,
   name_zh text NOT NULL UNIQUE,
   name_ja text NOT NULL,
-  code_prefix char(4) NOT NULL UNIQUE CHECK (code_prefix ~ '^[A-Z]{3}[0-9]$'),
+  code_prefix varchar(5) NOT NULL CHECK (code_prefix ~ '^DHT[0-9]{1,2}$'),
   sort_order smallint NOT NULL UNIQUE CHECK (sort_order > 0),
   is_active boolean NOT NULL DEFAULT true
 );
 
 INSERT INTO policy_categories (category_code, name_zh, name_ja, code_prefix, sort_order) VALUES
-  ('basic', '全社基本', '全社基本', 'BAS1', 1),
-  ('hr', '人事', '人事', 'HRM1', 2),
-  ('it', 'IT管理', 'IT管理', 'ITM1', 3),
-  ('general_affairs', '總務', '総務', 'ADM1', 4),
-  ('sales', '營業管理', '営業管理', 'SAL1', 5),
-  ('accounting', '會計管理', '会計管理', 'ACC1', 6),
-  ('ehs', 'EHS', 'EHS', 'EHS1', 7),
-  ('import_export', '進出口管理', '輸出入管理', 'IMP1', 8),
-  ('cow', 'COW', 'COW', 'COW1', 9),
-  ('iso9001', 'ISO9001', 'ISO9001', 'ISO1', 10);
+  ('basic', '全社基本', '全社基本', 'DHT1', 1),
+  ('hr', '人事', '人事', 'DHT2', 2),
+  ('it', 'IT管理', 'IT管理', 'DHT3', 3),
+  ('general_affairs', '總務', '総務', 'DHT3', 4),
+  ('sales', '營業管理', '営業管理', 'DHT4', 5),
+  ('accounting', '會計管理', '会計管理', 'DHT5', 6),
+  ('ehs', 'EHS', 'EHS', 'DHT6', 7),
+  ('import_export', '進出口管理', '輸出入管理', 'DHT7', 8),
+  ('cow', 'COW', 'COW', 'DHT10', 9),
+  ('iso9001', 'ISO9001', 'ISO9001', 'DHT99', 10);
 
 CREATE TABLE users (
   employee_no char(5) PRIMARY KEY CHECK (employee_no ~ '^[A-Z][0-9]{4}$'),
@@ -70,7 +70,7 @@ ON CONFLICT (employee_no) DO NOTHING;
 
 -- 規程本體只保存公開狀態與目前公開版；草稿與承認流程保存在 change_requests。
 CREATE TABLE policies (
-  policy_code varchar(9) PRIMARY KEY CHECK (policy_code ~ '^[A-Z]{3}[0-9]-[0-9]{4}$'),
+  policy_code varchar(10) PRIMARY KEY CHECK (policy_code ~ '^DHT[0-9]{1,2}-[0-9]{4}$'),
   category_code varchar(20) NOT NULL REFERENCES policy_categories(category_code),
   status published_policy_status NOT NULL DEFAULT 'disabled',
   effective_date date,
@@ -86,7 +86,7 @@ CREATE TABLE policies (
 
 -- 每次公開新增一筆，不允許 UPDATE 或 DELETE，以符合舊版本不可覆蓋。
 CREATE TABLE policy_versions (
-  policy_code varchar(9) NOT NULL REFERENCES policies(policy_code),
+  policy_code varchar(10) NOT NULL REFERENCES policies(policy_code),
   version_no integer NOT NULL CHECK (version_no > 0),
   effective_date date NOT NULL,
   published_at timestamptz NOT NULL DEFAULT now(),
@@ -104,7 +104,7 @@ ALTER TABLE policies
 
 -- 每個版本的中文／日文內容。content、chapters、tables 以 JSONB 保存可編輯結構。
 CREATE TABLE policy_version_translations (
-  policy_code varchar(9) NOT NULL,
+  policy_code varchar(10) NOT NULL,
   version_no integer NOT NULL,
   language language_code NOT NULL,
   title text NOT NULL,
@@ -122,7 +122,7 @@ CREATE TABLE policy_version_translations (
 -- 一次送審即是一筆變更申請；可由既有公開版本或新規程開始。
 CREATE TABLE policy_change_requests (
   change_request_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  policy_code varchar(9) NOT NULL REFERENCES policies(policy_code),
+  policy_code varchar(10) NOT NULL REFERENCES policies(policy_code),
   base_version_no integer,
   change_kind change_kind NOT NULL,
   status change_request_status NOT NULL DEFAULT 'draft',
@@ -189,7 +189,7 @@ CREATE TABLE change_request_approvals (
 
 CREATE TABLE policy_attachments (
   attachment_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  policy_code varchar(9) NOT NULL REFERENCES policies(policy_code) ON DELETE CASCADE,
+  policy_code varchar(10) NOT NULL REFERENCES policies(policy_code) ON DELETE CASCADE,
   version_no integer,
   file_name text NOT NULL,
   file_url text NOT NULL,
@@ -200,8 +200,8 @@ CREATE TABLE policy_attachments (
 );
 
 CREATE TABLE policy_relations (
-  policy_code varchar(9) NOT NULL REFERENCES policies(policy_code) ON DELETE CASCADE,
-  related_policy_code varchar(9) NOT NULL REFERENCES policies(policy_code) ON DELETE RESTRICT,
+  policy_code varchar(10) NOT NULL REFERENCES policies(policy_code) ON DELETE CASCADE,
+  related_policy_code varchar(10) NOT NULL REFERENCES policies(policy_code) ON DELETE RESTRICT,
   PRIMARY KEY (policy_code, related_policy_code),
   CHECK (policy_code <> related_policy_code)
 );
@@ -211,7 +211,7 @@ CREATE TABLE policy_audit_logs (
   audit_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   occurred_at timestamptz NOT NULL DEFAULT now(),
   actor_employee_no char(5) NOT NULL REFERENCES users(employee_no),
-  policy_code varchar(9) NOT NULL REFERENCES policies(policy_code),
+  policy_code varchar(10) NOT NULL REFERENCES policies(policy_code),
   change_request_id uuid REFERENCES policy_change_requests(change_request_id) ON DELETE SET NULL,
   action audit_action NOT NULL,
   from_version_no integer,
@@ -243,10 +243,10 @@ CREATE INDEX policy_version_zh_search_idx
     to_tsvector('simple', coalesce(title, '') || ' ' || coalesce(summary, '') || ' ' || coalesce(content, ''))
   ) WHERE language = 'zh-TW';
 
--- 分類固定前綴檢查：例如人事分類只能使用 HRM1-0001。
+-- 分類固定前綴檢查：例如人事分類只能使用 DHT2-0001。
 CREATE FUNCTION enforce_policy_code_prefix() RETURNS trigger
 LANGUAGE plpgsql AS $$
-DECLARE expected_prefix char(4);
+DECLARE expected_prefix varchar(5);
 BEGIN
   SELECT code_prefix INTO expected_prefix
   FROM policy_categories WHERE category_code = NEW.category_code;
