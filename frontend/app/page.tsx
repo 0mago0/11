@@ -1105,7 +1105,11 @@ export default function Home() {
         setPolicies(refreshed);
         const current = refreshed.find((policy) => policy.code === savedDraft.code) || refreshed[0];
         if (current) open(current);
-        setNotice("草稿已儲存至 PostgreSQL。");
+        setNotice(
+          keepsScheduledApproval
+            ? `錯字修正已直接更新，維持已承認待發布，將於 ${savedDraft.publishDate || "發布日"} 公開。`
+            : "草稿已儲存至 PostgreSQL。",
+        );
       } catch (error) {
         setNotice(`資料庫儲存失敗：${error instanceof Error ? error.message : "請確認 API 是否啟動"}`);
       }
@@ -2222,7 +2226,10 @@ export default function Home() {
                   </p>
                   <h2>
                     {editing
-                      ? "編輯草稿"
+                      ? draft.approval?.stage === "已承認待發布" &&
+                        draft.changeType === "typo"
+                        ? "直接修改錯字內容"
+                        : "編輯草稿"
                       : displayedCopy[selectedDisplayLang].title}
                   </h2>
                   <div className="detail-meta">
@@ -2262,7 +2269,9 @@ export default function Home() {
                             setEditing(true);
                           }}
                         >
-                          ✎ 純錯字修改
+                          {selected.approval?.stage === "已承認待發布"
+                            ? "✎ 直接修改錯字"
+                            : "✎ 純錯字修改"}
                         </button>
                         <button
                           className="ghost"
@@ -2344,7 +2353,7 @@ export default function Home() {
                             ? "退回修改：不區分修改類型，完成修正後必須重新送交承認。"
                             : draft.changeType === "typo"
                               ? draft.approval?.stage === "已承認待發布"
-                                ? "純錯字修改：沿用既有承認，將於發布日期公開。"
+                                ? "純錯字修改：直接修改內容，沿用既有承認，將於發布日期公開。"
                                 : draft.status === "發布"
                                   ? "純錯字修改：可不儲存草稿，直接發布新版。"
                                   : "純錯字修改：送審後也需依序完成承認。"
@@ -2408,7 +2417,13 @@ export default function Home() {
                         }
                       />
                     </label>
-                    {draft.status !== "停用" &&
+                    {draft.approval?.stage === "已承認待發布" &&
+                    draft.changeType === "typo" ? (
+                      <label>
+                        修正方式
+                        <input value="純錯字修正（沿用既有承認）" readOnly />
+                      </label>
+                    ) : draft.status !== "停用" &&
                     (draft.versions.length > 0 ||
                       draft.approval?.stage === "已承認待發布") &&
                     draft.approval?.stage !== "退回修改" ? (
