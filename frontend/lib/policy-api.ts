@@ -77,4 +77,8 @@ export const approveChange = (employeeNo: string, changeRequestId: string, comme
 export const returnChange = (employeeNo: string, changeRequestId: string, comment: string) =>
   request(`/api/change-requests/${encodeURIComponent(changeRequestId)}/return`, employeeNo, { method: "POST", body: JSON.stringify({ comment }) });
 
+/** Admin 或排程服務可呼叫此端點，發布所有已到期的承認案件。 */
+export const publishScheduledChanges = (employeeNo: string) =>
+  request<{ published: Array<{ policyCode: string; versionNo: number }> }>("/api/system/publish-scheduled", employeeNo, { method: "POST" });
+
 export const apiConfig = { apiUrl };

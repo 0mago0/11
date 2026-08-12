@@ -6,7 +6,8 @@ import { PolicyLibraryPage } from "../components/pages/PolicyLibraryPage";
 import { StructureEditor } from "../components/policy/StructureEditor";
 import { Tables } from "../components/policy/Tables";
 import {
-  loadPolicyWorkspace, saveNewPolicy, savePolicyChange, submitChange, updatePolicyChange,
+  approveChange, loadPolicyWorkspace, publishScheduledChanges, publishTypoChange,
+  returnChange, saveNewPolicy, savePolicyChange, submitChange, updatePolicyChange,
   type ApiTranslation, type ApiWorkspacePolicy,
 } from "../lib/policy-api";
 
@@ -1145,6 +1146,26 @@ export default function Home() {
       setNotice("請至少填寫一種語言的規程名稱。");
       return;
     }
+    // 若尚未儲存，先建立錯字草稿；有草稿 ID 時才可要求後端直接發布。
+    const apiBody = {
+      changeKind: "typo" as const,
+      revisionReason: draft.revisionNote || "純錯字修正",
+      requestedEffectiveDate: draft.effectiveDate || undefined,
+      scheduledPublishDate: draft.publishDate || undefined,
+      translations: apiTranslationsFromCopy(draft.draft),
+    };
+    void (async () => {
+      try {
+        const change = draft.changeRequestId
+          ? { change_request_id: draft.changeRequestId }
+          : await savePolicyChange(apiEmployeeNoByRole.admin, draft.code, apiBody);
+        await publishTypoChange(apiEmployeeNoByRole.admin, change.change_request_id);
+        await refreshWorkspace("admin", draft.code);
+        setNotice("錯字修正已直接發布，PostgreSQL 已建立新版。 ");
+      } catch (error) {
+        setNotice(`錯字修正發布失敗：${error instanceof Error ? error.message : "請確認 API 是否啟動"}`);
+      }
+    })();
     const last = draft.versions.at(-1)?.number || "0.0";
     const version: Version = {
       id: String(Date.now()),
@@ -1221,6 +1242,14 @@ export default function Home() {
       return;
     }
   }
+  /** API 成功後以資料庫的最新狀態覆蓋前端暫存，避免兩套狀態逐漸不同步。 */
+  async function refreshWorkspace(targetRole: Role = role, selectedCode?: string) {
+    const remote = await loadPolicyWorkspace(apiEmployeeNoByRole[targetRole]);
+    const refreshed = remote.map(policyFromApi);
+    setPolicies(refreshed);
+    const current = refreshed.find((policy) => policy.code === selectedCode) || refreshed[0];
+    if (current) open(current);
+  }
   function departmentApprove(policy: Policy) {
     // 第一關只改變承認階段，不產生版本；發布只能在據點長關卡後發生。
     if (!isDepartmentHead) return;
@@ -1238,11 +1267,31 @@ export default function Home() {
         next,
       ),
     );
-    setNotice("已承認，已送交據點長承認。");
+    if (!policy.changeRequestId) {
+      setNotice("此為本機示範資料，尚未有資料庫送審編號。");
+      return;
+    }
+    void approveChange(apiEmployeeNoByRole.department_head, policy.changeRequestId)
+      .then(async () => {
+        await refreshWorkspace("department_head", policy.code);
+        setApprovalSelectedId(null);
+        setNotice("已承認，已送交據點長承認（PostgreSQL 已更新）。");
+      })
+      .catch((error) => setNotice(`部門長承認失敗：${error instanceof Error ? error.message : "請確認 API 是否啟動"}`));
   }
   function siteApprove(policy: Policy) {
     // 若預定發布日在未來，保留已承認狀態；否則立即建立不可覆寫的新版本。
     if (!isSiteHead) return;
+    if (policy.changeRequestId) {
+      void approveChange(apiEmployeeNoByRole.site_head, policy.changeRequestId)
+        .then(async () => {
+          await refreshWorkspace("site_head", policy.code);
+          setApprovalSelectedId(null);
+          setNotice("據點長承認已完成；系統已依發布日期更新 PostgreSQL。 ");
+        })
+        .catch((error) => setNotice(`據點長承認失敗：${error instanceof Error ? error.message : "請確認 API 是否啟動"}`));
+      return;
+    }
     const today = new Date().toISOString().slice(0, 10);
     if (policy.publishDate && policy.publishDate > today) {
       const next = {
@@ -1353,12 +1402,18 @@ export default function Home() {
         audit,
       );
       saveStore(next, nextAudit);
+      // PostgreSQL 的正式排程由後端統一判斷到期日，前端計時器只是觸發入口。
+      if (role === "admin") {
+        void publishScheduledChanges(apiEmployeeNoByRole.admin)
+          .then(() => refreshWorkspace("admin"))
+          .catch(() => {});
+      }
       setNotice("已依發布日期自動公開新版規程。 ");
     };
     releaseDuePolicies();
     const timer = window.setInterval(releaseDuePolicies, 60000);
     return () => window.clearInterval(timer);
-  }, [policies, audit]);
+  }, [policies, audit, role]);
   function returnForRevision(policy: Policy, comment: string) {
     // 退回者與意見會同步進入規程資料與 audit，讓 Admin 可追溯原因。
     if (!isDepartmentHead && !isSiteHead) return;
@@ -1391,7 +1446,17 @@ export default function Home() {
     };
     saveStore(all, nextAudit);
     setReturnComments((comments) => ({ ...comments, [policy.id]: "" }));
-    setNotice("已退回管理員重新修改。");
+    if (!policy.changeRequestId) {
+      setNotice("已退回管理員重新修改（本機示範資料）。");
+      return;
+    }
+    void returnChange(apiEmployeeNoByRole[role], policy.changeRequestId, returnReason)
+      .then(async () => {
+        await refreshWorkspace(role, policy.code);
+        setApprovalSelectedId(null);
+        setNotice("已退回管理員重新修改（PostgreSQL 已更新）。");
+      })
+      .catch((error) => setNotice(`退回失敗：${error instanceof Error ? error.message : "請確認 API 是否啟動"}`));
   }
   function disable() {
     if (!isAdmin) return;
