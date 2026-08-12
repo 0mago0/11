@@ -201,11 +201,148 @@ const contentFromChapters = (chapters: Chapter[]) =>
       chapter.articles.map((article) => `${article.title}　${article.text}`),
     )
     .join("\n\n");
+const samplePolicy = (
+  id: number,
+  code: string,
+  category: string,
+  zhTitle: string,
+  jaTitle: string,
+  zhSummary: string,
+  jaSummary: string,
+  zhContent: string,
+  jaContent: string,
+): Policy => ({
+  id,
+  code,
+  category,
+  effectiveDate: "2025-04-01",
+  publishDate: "2025-04-01",
+  status: "發布",
+  changeType: "content",
+  approval: { stage: "草稿" },
+  draft: {
+    zh: copy(zhTitle, zhSummary, zhContent),
+    ja: copy(jaTitle, jaSummary, jaContent),
+  },
+  versions: [
+    {
+      id: `sample-${id}`,
+      number: "1.0",
+      publishedAt: "2025-04-01",
+      copy: {
+        zh: copy(zhTitle, zhSummary, zhContent),
+        ja: copy(jaTitle, jaSummary, jaContent),
+      },
+      revisionNote: "示範規程首次發布",
+    },
+  ],
+});
+const categoryDemoPolicies: Policy[] = [
+  samplePolicy(
+    101,
+    "COR-001",
+    "全社基本",
+    "文件與規程管理辦法",
+    "文書・規程管理規程",
+    "規範全公司文件的制定、審核、發布與保存方式。",
+    "全社文書の制定、承認、公開および保管方法を定めます。",
+    "第一條　公司規程應依權責完成審核後始得發布。\n\n第二條　各單位應使用最新發布版本辦理作業。",
+    "第1条　会社規程は、権限に基づく承認後に公開する。\n\n第2条　各部門は最新の公開版を使用して業務を行う。",
+  ),
+  samplePolicy(
+    102,
+    "IT-001",
+    "IT管理",
+    "資訊安全與帳號管理規程",
+    "情報セキュリティ・アカウント管理規程",
+    "規範資訊系統帳號申請、權限管理及資安事件通報。",
+    "情報システムのアカウント申請、権限管理および事故報告を定めます。",
+    "第一條　系統帳號應依職務需求申請，禁止共用帳號。\n\n第二條　發現資安事件時應立即通報資訊單位。",
+    "第1条　システムアカウントは職務上の必要により申請し、共有してはならない。\n\n第2条　セキュリティ事故を発見した場合は直ちに情報部門へ連絡する。",
+  ),
+  samplePolicy(
+    103,
+    "GA-001",
+    "總務",
+    "辦公環境與資產管理規程",
+    "オフィス環境・資産管理規程",
+    "規範辦公設備、門禁、訪客及公司資產的管理原則。",
+    "事務所設備、入退室、来訪者および会社資産の管理原則を定めます。",
+    "第一條　公司資產應登錄管理並由使用人妥善保管。\n\n第二條　訪客進入辦公區前應完成登記。",
+    "第1条　会社資産は台帳に登録し、使用者が適切に管理する。\n\n第2条　来訪者はオフィスエリアへの入室前に受付登録を行う。",
+  ),
+  samplePolicy(
+    104,
+    "SAL-001",
+    "營業管理",
+    "客戶報價與訂單管理規程",
+    "見積・受注管理規程",
+    "規範客戶報價、訂單確認及銷售資訊登錄流程。",
+    "顧客見積、受注確認および販売情報登録の手順を定めます。",
+    "第一條　對外報價應使用核准的價格與條件。\n\n第二條　訂單確認後應於系統完成登錄。",
+    "第1条　対外見積は承認済みの価格および条件を使用する。\n\n第2条　受注確定後はシステムへ登録する。",
+  ),
+  samplePolicy(
+    105,
+    "ACC-001",
+    "會計管理",
+    "費用報支與付款管理規程",
+    "経費精算・支払管理規程",
+    "規範費用申請、憑證保存、核准與付款作業。",
+    "経費申請、証憑保管、承認および支払業務を定めます。",
+    "第一條　費用報支應檢附合法憑證並依核准權限辦理。\n\n第二條　付款資料應經覆核後執行。",
+    "第1条　経費精算には適法な証憑を添付し、承認権限に従う。\n\n第2条　支払情報は照合後に実行する。",
+  ),
+  samplePolicy(
+    106,
+    "EHS-001",
+    "EHS",
+    "環境安全衛生管理規程",
+    "環境・安全衛生管理規程",
+    "規範職場安全、健康管理與緊急事故應變要求。",
+    "職場安全、健康管理および緊急時対応の要求事項を定めます。",
+    "第一條　員工應遵守職場安全規範並使用必要防護具。\n\n第二條　事故或異常狀況應立即通報。",
+    "第1条　従業員は安全規則を守り、必要な保護具を使用する。\n\n第2条　事故または異常を直ちに報告する。",
+  ),
+  samplePolicy(
+    107,
+    "IMP-001",
+    "進出口管理",
+    "進出口文件與合規管理規程",
+    "輸出入書類・コンプライアンス管理規程",
+    "規範進出口申報文件、貨品分類及法規遵循。",
+    "輸出入申告書類、品目分類および法令遵守を定めます。",
+    "第一條　進出口申報資料應正確、完整並依規定保存。\n\n第二條　受管制貨品應於出貨前完成確認。",
+    "第1条　輸出入申告資料は正確かつ完全に作成し、規定に従い保管する。\n\n第2条　規制対象品は出荷前に確認を完了する。",
+  ),
+  samplePolicy(
+    108,
+    "COW-001",
+    "COW",
+    "COW 協作作業管理規程",
+    "COW 協働作業管理規程",
+    "規範跨部門協作任務的指派、追蹤與結案方式。",
+    "部門横断の協働タスクにおける割当、進捗管理および完了方法を定めます。",
+    "第一條　跨部門任務應明確指定負責人與完成期限。\n\n第二條　任務進度應定期更新並保留紀錄。",
+    "第1条　部門横断タスクには責任者と期限を明確に設定する。\n\n第2条　進捗は定期的に更新し、記録を残す。",
+  ),
+  samplePolicy(
+    109,
+    "ISO-001",
+    "ISO9001",
+    "ISO 9001 品質管理規程",
+    "ISO 9001 品質マネジメント規程",
+    "規範品質目標、內部稽核、不符合事項與持續改善流程。",
+    "品質目標、内部監査、不適合事項および継続的改善の手順を定めます。",
+    "第一條　各單位應依品質目標執行並定期檢討成效。\n\n第二條　發現不符合事項時應採取矯正措施。",
+    "第1条　各部門は品質目標に従って実行し、定期的に有効性を確認する。\n\n第2条　不適合を発見した場合は是正措置を実施する。",
+  ),
+];
 const initial: Policy[] = [
   {
     id: 1,
     code: "HR-001",
-    category: "任用管理",
+    category: "人事",
     effectiveDate: "2025-01-01",
     status: "發布",
     changeType: "content",
@@ -260,7 +397,7 @@ const initial: Policy[] = [
   {
     id: 2,
     code: "HR-002",
-    category: "出勤休假",
+    category: "人事",
     effectiveDate: "2024-07-01",
     status: "發布",
     changeType: "content",
@@ -296,6 +433,7 @@ const initial: Policy[] = [
       },
     ],
   },
+  ...categoryDemoPolicies,
 ];
 const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
 const nextV = (v: string) => {
@@ -568,10 +706,21 @@ export default function Home() {
         const normalized = splitLegacyUpdatePolicies(
           d.policies.map(normalizePolicy),
         );
-        setPolicies(normalized);
+        const existingCodes = new Set(normalized.map((policy) => policy.code));
+        const hydrated = [
+          ...normalized,
+          ...categoryDemoPolicies.filter(
+            (policy) => !existingCodes.has(policy.code),
+          ),
+        ];
+        setPolicies(hydrated);
         setAudit(d.audit || []);
-        setSelectedId(normalized[0]?.id || 1);
-        setDraft(clone(normalized[0] || initial[0]));
+        setSelectedId(hydrated[0]?.id || 1);
+        setDraft(clone(hydrated[0] || initial[0]));
+        localStorage.setItem(
+          "hr-policy-v8",
+          JSON.stringify({ policies: hydrated, audit: d.audit || [] }),
+        );
       }
       const preview = localStorage.getItem(
         "hr-policy-role-preview",
