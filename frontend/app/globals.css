@@ -859,6 +859,10 @@ body .sidebar-foot::after {
   outline: 2px solid #6fa98a;
   outline-offset: -2px;
 }
+.merge-selected-cell {
+  background: #dff1e5;
+  box-shadow: inset 0 0 0 2px #4d9874;
+}
 .table-merge-hint {
   color: #6a8274;
   font-size: 11px;
