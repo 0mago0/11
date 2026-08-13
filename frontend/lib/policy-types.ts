@@ -22,7 +22,8 @@ export type Approval = {
   returnedBy?: string;
   returnReason?: string;
 };
-export type Article = { id: string; title: string; text: string };
+/** tableRef 是條文關聯的表格序號（從 1 開始）；未設定時不顯示表格註解。 */
+export type Article = { id: string; title: string; text: string; tableRef?: number };
 export type Chapter = { id: string; title: string; articles: Article[] };
 export type Copy = {
   title: string;

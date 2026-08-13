@@ -332,6 +332,36 @@ body .sidebar-foot::after {
 .article-editor textarea {
   min-height: 76px;
 }
+.article-editor-fields {
+  display: grid;
+  gap: 7px;
+}
+.article-table-select {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #587064;
+  font-size: 11px;
+  font-weight: 700;
+}
+.article-table-select select {
+  min-width: 210px;
+  max-width: 100%;
+  padding: 5px 7px;
+  font-size: 12px;
+}
+.article-table-preview,
+.article-table-note {
+  display: block;
+  color: #47735d;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.article-table-preview {
+  padding: 6px 8px;
+  border-left: 3px solid #83b39b;
+  background: #eff7f1;
+}
 .remove-article {
   background: #fcedea;
   color: #a14a41;
@@ -813,6 +843,12 @@ body .sidebar-foot::after {
   font-family: Georgia, "Noto Serif TC", serif;
   font-size: 14px;
   color: #4b5d54;
+}
+.policy-article .article-table-note {
+  margin-top: 8px;
+  padding: 6px 9px;
+  border-radius: 5px;
+  background: #f0f7f2;
 }
 .policy-links {
   display: grid;

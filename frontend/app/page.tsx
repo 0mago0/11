@@ -34,7 +34,7 @@ type Approval = {
   returnedBy?: string;
   returnReason?: string;
 };
-type Article = { id: string; title: string; text: string };
+type Article = { id: string; title: string; text: string; tableRef?: number };
 type Chapter = { id: string; title: string; articles: Article[] };
 type Copy = {
   title: string;
@@ -245,7 +245,12 @@ const ordinal = (number: number) =>
 const contentFromChapters = (chapters: Chapter[]) =>
   chapters
     .map((chapter) =>
-      [chapter.title, ...chapter.articles.map((article) => `${article.title}　${article.text}`)]
+      [
+        chapter.title,
+        ...chapter.articles.map((article) =>
+          `${article.title}　${article.text}${article.tableRef ? `\n註：相關資料請參照表格 ${article.tableRef}` : ""}`,
+        ),
+      ]
         .filter(Boolean)
         .join("\n\n"),
     )
@@ -2713,6 +2718,7 @@ export default function Home() {
                   </label>
                   <StructureEditor
                     chapters={draft.draft[lang].chapters}
+                    tables={draft.draft[lang].tables}
                     onChange={updateChapters}
                   />
                   <Tables
@@ -2783,6 +2789,21 @@ export default function Home() {
                               {article.text.replace(article.title, "").trim() ||
                                 article.text}
                             </p>
+                            {article.tableRef &&
+                              displayedCopy[selectedDisplayLang].tables[
+                                article.tableRef - 1
+                              ] && (
+                                <small className="article-table-note">
+                                  註：相關資料請參照表格 {article.tableRef}
+                                  {displayedCopy[selectedDisplayLang].tables[
+                                    article.tableRef - 1
+                                  ][0]?.filter(Boolean).length
+                                    ? `（${displayedCopy[selectedDisplayLang].tables[
+                                        article.tableRef - 1
+                                      ][0].filter(Boolean).join("、")}）`
+                                    : ""}
+                                </small>
+                              )}
                           </article>
                         ))}
                       </section>
