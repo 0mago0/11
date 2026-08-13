@@ -49,6 +49,51 @@ API 預設網址是 <http://localhost:3001>。前端目前尚未改為呼叫 API
 
 若資料庫已在「改訂紀錄」功能加入前建立，請另外執行 [backend/db/add_revision_record.sql](backend/db/add_revision_record.sql) 一次；它只會新增欄位，不會刪除或覆蓋既有規程資料。
 
+### 由 Excel 與 PDF 批次匯入規程
+
+可使用 [tools/import_policies.py](tools/import_policies.py) 將多筆規程建立為 PostgreSQL 的「草稿」。匯入不會直接發布、不會覆蓋既有規程，也不會略過部門長與據點長承認。
+
+先安裝 Python 3.10 以上與匯入工具所需套件：
+
+```bash
+python -m pip install -r tools/requirements.txt
+python tools/import_policies.py --create-template policy_import.xlsx
+```
+
+打開 `policy_import.xlsx` 後，每一列填寫一筆規程。必要欄位為：
+
+| 欄位 | 用途 | 範例 |
+| --- | --- | --- |
+| `policy_code` | 規程編號，須符合分類前綴 | `DHT2-0001` |
+| `category_code` | 分類代碼 | `hr` |
+| `title_zh` | 中文規程名稱 | `就業規程` |
+| `content_zh`／`pdf_zh` | 中文內文或中文 PDF 路徑，二擇一即可 | `DHT2-0001_zh.pdf` |
+| `title_ja`、`content_ja`／`pdf_ja` | 日文名稱與日文內文或 PDF；有日文版本時填寫 | `就業規則` |
+| `effective_date` | 生效日，格式 `YYYY-MM-DD` | `2026-09-01` |
+| `revision_date`、`revision_content` | Employee 可看的改訂紀錄 | `2026-09-01`、`新制定` |
+| `revision_reason` | 僅 Admin、部門長、據點長可看的改訂理由 | `新規程初版` |
+| `scheduled_publish_date` | 承認後的預定發布日；可留白 | `2026-09-01` |
+| `created_by` | 建立者員編；可留白，預設 `A0001` | `A0001` |
+
+`pdf_zh`、`pdf_ja` 可填 PDF 檔名或相對路徑。以下假設 Excel 與 PDF 都放在 `import-files` 資料夾：
+
+```bash
+# 先預覽並檢查欄位、日期、PDF 是否能讀取；不寫入資料庫
+python tools/import_policies.py --excel import-files/policy_import.xlsx --pdf-dir import-files
+
+# 確認預覽無誤後，實際建立草稿
+python tools/import_policies.py --excel import-files/policy_import.xlsx --pdf-dir import-files --apply
+```
+
+工具會讀取 `DATABASE_URL` 環境變數並固定寫入 `role_web` schema。若在 Windows PowerShell 執行，可先設定：
+
+```powershell
+$env:DATABASE_URL = "postgresql://帳號:密碼@localhost:5432/資料庫名稱"
+python tools/import_policies.py --excel .\import-files\policy_import.xlsx --pdf-dir .\import-files --apply
+```
+
+PDF 必須是可選取文字的 PDF。掃描型 PDF 沒有文字層時，請先用 OCR 轉成可搜尋 PDF；工具會停止該次匯入並指出檔案，避免建立空白內文。
+
 ### 日後串接公司登入 API
 
 登入邏輯集中在 `backend/server/auth.js` 的 `authenticateWithCompanyApi()`。正式串接時：
