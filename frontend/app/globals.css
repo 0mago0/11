@@ -864,6 +864,10 @@ body .sidebar-foot::after {
   font-size: 11px;
   white-space: nowrap;
 }
+.table-tools .active-table-tool {
+  background: #3f826b;
+  color: #fff;
+}
 .table-symbols {
   display: inline-flex;
   align-items: center;

@@ -13,10 +13,11 @@ export function Tables({ tables, editing, onChange }: { tables: unknown; editing
   const changeTables = (next: PolicyTable[]) => { onChange?.(next); setSelected(null); };
   const selectedMerge = selected && safeTables[selected.table]?.merges?.find((merge) => mergeContains(merge, selected.row, selected.col));
   const [mergeStart, setMergeStart] = useState<SelectedCell>(null);
+  const [mergeModeTable, setMergeModeTable] = useState<number | null>(null);
   const chooseCell = (cell: SelectedCell) => {
     setSelected(cell);
-    if (!editing || !cell) return;
-    if (!mergeStart || mergeStart.table !== cell.table) { setMergeStart(cell); return; }
+    if (!editing || !cell || mergeModeTable !== cell.table) return;
+    if (!mergeStart) { setMergeStart(cell); return; }
     if (mergeStart.row === cell.row && mergeStart.col === cell.col) { setMergeStart(null); return; }
     const table = safeTables[cell.table];
     const startRow = Math.min(mergeStart.row, cell.row), endRow = Math.max(mergeStart.row, cell.row);
@@ -25,6 +26,7 @@ export function Tables({ tables, editing, onChange }: { tables: unknown; editing
       changeTables(safeTables.map((item, index) => index === cell.table ? { ...item, merges: [...(item.merges || []), { startRow, startCol, endRow, endCol }] } : item));
     }
     setMergeStart(null);
+    setMergeModeTable(null);
   };
   const removeMerge = () => {
     if (!selected || !selectedMerge) return;
@@ -47,7 +49,7 @@ export function Tables({ tables, editing, onChange }: { tables: unknown; editing
         const content = editing ? <input value={cell} onFocus={() => setSelected({ table: tableIndex, row: rowIndex, col: cellIndex })} onClick={() => chooseCell({ table: tableIndex, row: rowIndex, col: cellIndex })} onChange={(event) => change(tableIndex, rowIndex, cellIndex, event.target.value)} placeholder={rowIndex === 0 ? "欄位名稱" : "輸入文字"} /> : cell;
         return rowIndex === 0 ? <th key={cellIndex} {...cellProps} className={active ? "selected-table-cell" : ""}>{content}</th> : <td key={cellIndex} {...cellProps} className={active ? "selected-table-cell" : ""} onClick={() => editing && chooseCell({ table: tableIndex, row: rowIndex, col: cellIndex })}>{content}</td>;
       })}</tr>)}</tbody></table>
-      {editing && <div className="table-tools"><button type="button" onClick={() => changeTables(safeTables.map((item, index) => index === tableIndex ? { ...item, cells: [...item.cells, Array(item.cells[0]?.length || 2).fill("")] } : item))}>＋ 列</button><button type="button" onClick={() => changeTables(safeTables.map((item, index) => index === tableIndex ? { ...item, cells: item.cells.map((row) => [...row, ""]) } : item))}>＋ 欄</button><span className="table-merge-hint">{mergeStart?.table === tableIndex ? "再點一格完成合併" : "點兩個格子合併"}</span><button type="button" disabled={!selectedMerge} onClick={removeMerge}>取消合併</button><span className="table-symbols"><small>輸入符號</small>{["✓", "×", "○", "◎"].map((symbol) => <button type="button" key={symbol} disabled={!selected || selected.table !== tableIndex} onClick={() => insertSymbol(symbol)}>{symbol}</button>)}</span><button type="button" onClick={() => changeTables(safeTables.filter((_, index) => index !== tableIndex))}>刪除表格</button></div>}
+      {editing && <div className="table-tools"><button type="button" onClick={() => changeTables(safeTables.map((item, index) => index === tableIndex ? { ...item, cells: [...item.cells, Array(item.cells[0]?.length || 2).fill("")] } : item))}>＋ 列</button><button type="button" onClick={() => changeTables(safeTables.map((item, index) => index === tableIndex ? { ...item, cells: item.cells.map((row) => [...row, ""]) } : item))}>＋ 欄</button><button type="button" className={mergeModeTable === tableIndex ? "active-table-tool" : ""} onClick={() => { setMergeModeTable(mergeModeTable === tableIndex ? null : tableIndex); setMergeStart(null); }}>{mergeModeTable === tableIndex ? "取消合併模式" : "合併格"}</button>{mergeModeTable === tableIndex && <span className="table-merge-hint">{mergeStart ? "請點第二個格子" : "請點第一個格子"}</span>}<button type="button" disabled={!selectedMerge} onClick={removeMerge}>取消合併</button><span className="table-symbols"><small>輸入符號</small>{["✓", "×", "○", "◎"].map((symbol) => <button type="button" key={symbol} disabled={!selected || selected.table !== tableIndex} onClick={() => insertSymbol(symbol)}>{symbol}</button>)}</span><button type="button" onClick={() => changeTables(safeTables.filter((_, index) => index !== tableIndex))}>刪除表格</button></div>}
     </div>)}
     {editing && <button type="button" className="ghost" onClick={() => changeTables([...safeTables, { cells: [["欄位 1", "欄位 2"], ["", ""]], merges: [] }])}>＋ 新增表格</button>}
   </div>;
