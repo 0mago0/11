@@ -19,7 +19,7 @@ npm install
 npm run dev
 ```
 
-本機網址通常是 <http://localhost:3000>。終端機若顯示不同網址，請以終端機顯示者為準。
+本機網址通常是 <http://localhost:5173>。終端機若顯示不同網址，請以終端機顯示者為準。
 
 ### 啟動後端 API
 
@@ -44,6 +44,8 @@ API 預設網址是 <http://localhost:3001>。前端目前尚未改為呼叫 API
 | 據點長 | `A0004` | `site123` |
 
 測試密碼可在 `backend/.env` 覆寫，請勿在正式環境使用預設密碼。
+
+若資料庫是在更新前建立的，請在 pgAdmin 的目標資料庫 Query Tool 執行 [backend/db/demo_users.sql](backend/db/demo_users.sql)，補齊上述四個帳號與角色。Vite 前端預設使用 `http://localhost:5173`，所以 `backend/.env` 的 `CORS_ORIGIN` 請設為 `http://localhost:5173`，後端重啟後才會生效。
 
 ### 日後串接公司登入 API
 

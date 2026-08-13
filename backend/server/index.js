@@ -6,11 +6,30 @@ import { changeDraft, policyCode, policyCreate } from "./validation.js";
 
 const app = express();
 const port = Number(process.env.PORT || 3001);
-const corsOrigin = process.env.CORS_ORIGIN || "http://localhost:3000";
+// CORS_ORIGIN 可填多個網域，以逗號分隔。Vite 開發模式預設使用 5173 埠，
+// 因此非正式環境也允許 3000 / 5173 / 4173，避免瀏覽器擋掉登入請求。
+const configuredCorsOrigins = (process.env.CORS_ORIGIN || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+const developmentCorsOrigins = [
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "http://localhost:4173",
+];
+const allowedCorsOrigins = new Set([
+  ...configuredCorsOrigins,
+  ...(process.env.NODE_ENV === "production" ? [] : developmentCorsOrigins),
+]);
 
 app.use(express.json({ limit: "2mb" }));
 app.use((req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", corsOrigin);
+  const origin = req.header("Origin");
+  if (!origin || allowedCorsOrigins.has(origin)) {
+    // 沒有 Origin 的健康檢查／伺服器呼叫不需要 CORS header；有 Origin 時只回傳白名單內網址。
+    if (origin) res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Vary", "Origin");
+  }
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Employee-No");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS");
   if (req.method === "OPTIONS") return res.sendStatus(204);

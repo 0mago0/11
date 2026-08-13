@@ -74,6 +74,24 @@ CREATE TABLE user_roles (
 INSERT INTO users (employee_no, display_name) VALUES ('A0000', 'System')
 ON CONFLICT (employee_no) DO NOTHING;
 
+-- 開發／驗收用帳號。密碼由 backend/.env 的 DEMO_*_PASSWORD 管理，
+-- 本資料庫僅保存員編、顯示名稱與角色，不保存測試密碼。
+INSERT INTO users (employee_no, display_name) VALUES
+  ('A0001', 'Admin'),
+  ('A0002', 'Employee'),
+  ('A0003', '部門長'),
+  ('A0004', '據點長')
+ON CONFLICT (employee_no) DO UPDATE SET
+  display_name = EXCLUDED.display_name,
+  is_active = true;
+
+INSERT INTO user_roles (employee_no, role) VALUES
+  ('A0001', 'admin'),
+  ('A0002', 'employee'),
+  ('A0003', 'department_head'),
+  ('A0004', 'site_head')
+ON CONFLICT (employee_no, role) DO NOTHING;
+
 -- 規程本體只保存公開狀態與目前公開版；草稿與承認流程保存在 change_requests。
 CREATE TABLE policies (
   policy_code varchar(10) PRIMARY KEY CHECK (policy_code ~ '^DHT[0-9]{1,2}-[0-9]{4}$'),
