@@ -17,8 +17,8 @@ module.exports = {
     {
       name: "policy-web",
       cwd: __dirname,
-      script: "node_modules/vinext/dist/cli.js",
-      args: "start --port 3000 --hostname 127.0.0.1",
+      script: "node_modules/vite/bin/vite.js",
+      args: "preview --port 3000 --host 127.0.0.1",
       interpreter: "node",
       env: { NODE_ENV: "production" },
       autorestart: true,

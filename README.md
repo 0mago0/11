@@ -8,7 +8,7 @@
 
 ### 必要環境
 
-- Node.js 22 以上
+- Node.js 22.3.0 以上
 - npm
 - PostgreSQL 16 以上（只有啟動後端 API 時需要）
 
@@ -76,7 +76,7 @@ API 預設網址是 <http://localhost:3001>。前端目前尚未改為呼叫 API
 ### 1. 安裝 Node.js、PM2 與專案套件
 
 ```bash
-# 需先安裝 Node.js 22 以上與 Git；Ubuntu 可用 nvm 或 NodeSource 安裝。
+# 需先安裝 Node.js 22.3.0 以上與 Git；Ubuntu 可用 nvm 或 NodeSource 安裝。
 node -v
 
 sudo npm install -g pm2
@@ -132,8 +132,8 @@ module.exports = {
     {
       name: "policy-web",
       cwd: __dirname,
-      script: "node_modules/vinext/dist/cli.js",
-      args: "start --port 3000 --hostname 127.0.0.1",
+      script: "node_modules/vite/bin/vite.js",
+      args: "preview --port 3000 --host 127.0.0.1",
       interpreter: "node",
       env: { NODE_ENV: "production" },
       autorestart: true,
@@ -144,7 +144,7 @@ module.exports = {
 };
 ```
 
-前端的 `vinext start` 會讀取 `npm run build` 產生的輸出，因此每次更新前端程式碼都要先重新建置。API 不需要監看模式，PM2 會在程式意外結束時自動重啟。
+前端的 `vite preview` 會讀取 `npm run build` 產生的靜態檔案，因此每次更新前端程式碼都要先重新建置。API 不需要監看模式，PM2 會在程式意外結束時自動重啟。
 
 ### 4. 以 PM2 啟動、檢查與開機自啟
 
@@ -169,7 +169,7 @@ pm2 startup
 | --- | --- |
 | `pm2 status` | 查看服務是否為 `online`。 |
 | `pm2 logs policy-api` | 查看後端、資料庫連線與排程紀錄。 |
-| `pm2 logs policy-web` | 查看前端 SSR 服務紀錄。 |
+| `pm2 logs policy-web` | 查看前端靜態網站服務紀錄。 |
 | `pm2 restart policy-api` | 修改後端或 `.env` 後重啟 API。 |
 | `pm2 restart policy-web` | 重新建置前端後重啟網站。 |
 | `pm2 reload ecosystem.config.cjs --update-env` | 以設定檔平滑重載並重新讀取環境變數。 |
@@ -294,12 +294,10 @@ GRANT USAGE, SELECT ON SEQUENCES TO policy_app;
 
 ```text
 role_web/
-├── frontend/                         # React / vinext 前端
+├── frontend/                         # React / Vite SPA 前端（不使用 SSR）
 │   ├── app/
 │   │   ├── page.tsx                  # 首頁容器：資料狀態與工作流程
-│   │   ├── globals.css               # 全站與元件樣式
-│   │   ├── layout.tsx                # HTML metadata 與頁面外框
-│   │   └── api/me/route.ts           # 前端登入角色示範 API
+│   │   └── globals.css               # 全站與元件樣式
 │   ├── components/
 │   │   ├── pages/                    # 資料庫、待辦、修改紀錄頁外框
 │   │   └── policy/                   # 可重用的表格、條文章節編輯元件
@@ -308,8 +306,9 @@ role_web/
 │   ├── lib/
 │   │   ├── policy-types.ts           # 前端資料型別定義
 │   │   └── policy-utils.ts           # 編號、內容、表格與版本工具函式
-│   ├── vite.config.ts                # vinext 前端開發及 Node.js 建置設定
-│   └── public/policy-mascot.png      # 左上角企業規程庫吉祥物圖標
+│   ├── index.html                    # Vite 的網頁入口與瀏覽器標題
+│   ├── main.tsx                      # React 瀏覽器掛載入口
+│   └── vite.config.ts                # Vite SPA 開發及建置設定
 ├── backend/                          # Node.js / Express / PostgreSQL 後端
 │   ├── server/
 │   │   ├── index.js                  # API 路由與承認流程
