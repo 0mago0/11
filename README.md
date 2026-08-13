@@ -45,7 +45,7 @@ API 預設網址是 <http://localhost:3001>。前端目前尚未改為呼叫 API
 
 測試密碼可在 `backend/.env` 覆寫，請勿在正式環境使用預設密碼。
 
-若資料庫是在更新前建立的，請在 pgAdmin 的目標資料庫 Query Tool 執行 [backend/db/demo_users.sql](backend/db/demo_users.sql)，補齊上述四個帳號與角色。Vite 前端預設使用 `http://localhost:5173`，所以 `backend/.env` 的 `CORS_ORIGIN` 請設為 `http://localhost:5173`，後端重啟後才會生效。
+若資料庫是在更新前建立的，請在 pgAdmin 的目標資料庫 Query Tool 執行 [backend/db/demo_users.sql](backend/db/demo_users.sql)，補齊上述四個帳號與角色。Vite 前端預設使用 `http://localhost:5173`；也可使用 `http://127.0.0.1:5173`。開發環境的後端已允許這兩個網址。若自行設定 `NODE_ENV=production`，請將實際前端網址填入 `backend/.env` 的 `CORS_ORIGIN`，以逗號分隔。
 
 若資料庫已在「改訂紀錄」功能加入前建立，請另外執行 [backend/db/add_revision_record.sql](backend/db/add_revision_record.sql) 一次；它只會新增欄位，不會刪除或覆蓋既有規程資料。
 

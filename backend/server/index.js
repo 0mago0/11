@@ -16,6 +16,11 @@ const developmentCorsOrigins = [
   "http://localhost:3000",
   "http://localhost:5173",
   "http://localhost:4173",
+  // 使用者常直接開啟 Vite 顯示的 127.0.0.1 網址；它和 localhost 是不同 Origin，
+  // 未列入時瀏覽器會擋住 API，畫面便會錯誤地維持本機假資料。
+  "http://127.0.0.1:3000",
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:4173",
 ];
 const allowedCorsOrigins = new Set([
   ...configuredCorsOrigins,
