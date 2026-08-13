@@ -29,7 +29,7 @@ export type ApiWorkspacePolicy = {
   status: string;
   effective_date: string | null;
   scheduled_publish_date?: string | null;
-  versions: Array<{ versionNo: number; publishedAt: string; revisionNote?: string; revisionDate?: string | null; revisionContent?: string; translations: ApiTranslation[] }>;
+  versions: Array<{ versionNo: number; publishedAt: string; revisionNote?: string; revisionDate?: string | null; revisionContent?: string; revisionRecords?: Array<{ date: string; content: string }>; translations: ApiTranslation[] }>;
   activeChange: null | {
     changeRequestId: string;
     status: string;
@@ -37,6 +37,7 @@ export type ApiWorkspacePolicy = {
     revisionReason: string;
     revisionDate?: string | null;
     revisionContent?: string;
+    revisionRecords?: Array<{ date: string; content: string }>;
     scheduledPublishDate?: string | null;
     submittedAt?: string | null;
     approvedAt?: string | null;
@@ -77,15 +78,15 @@ export async function loadPolicyWorkspace(employeeNo: string): Promise<ApiWorksp
 }
 
 export const saveNewPolicy = (employeeNo: string, body: {
-  policyCode: string; categoryCode: string; effectiveDate?: string; revisionReason: string; revisionDate?: string; revisionContent?: string; translations: ApiTranslation[];
+  policyCode: string; categoryCode: string; effectiveDate?: string; revisionReason: string; revisionDate?: string; revisionContent?: string; revisionRecords?: Array<{ date: string; content: string }>; translations: ApiTranslation[];
 }) => request<{ change_request_id: string }>("/api/policies", employeeNo, { method: "POST", body: JSON.stringify(body) });
 
 export const savePolicyChange = (employeeNo: string, policyCode: string, body: {
-  changeKind: "typo" | "content"; revisionReason: string; revisionDate?: string; revisionContent?: string; requestedEffectiveDate?: string; scheduledPublishDate?: string; translations: ApiTranslation[];
+  changeKind: "typo" | "content"; revisionReason: string; revisionDate?: string; revisionContent?: string; revisionRecords?: Array<{ date: string; content: string }>; requestedEffectiveDate?: string; scheduledPublishDate?: string; translations: ApiTranslation[];
 }) => request<{ change_request_id: string }>(`/api/policies/${encodeURIComponent(policyCode)}/changes`, employeeNo, { method: "POST", body: JSON.stringify(body) });
 
 export const updatePolicyChange = (employeeNo: string, changeRequestId: string, body: {
-  changeKind: "typo" | "content"; revisionReason: string; revisionDate?: string; revisionContent?: string; requestedEffectiveDate?: string; scheduledPublishDate?: string; translations: ApiTranslation[];
+  changeKind: "typo" | "content"; revisionReason: string; revisionDate?: string; revisionContent?: string; revisionRecords?: Array<{ date: string; content: string }>; requestedEffectiveDate?: string; scheduledPublishDate?: string; translations: ApiTranslation[];
 }) => request(`/api/change-requests/${encodeURIComponent(changeRequestId)}`, employeeNo, { method: "PATCH", body: JSON.stringify(body) });
 
 export const submitChange = (employeeNo: string, changeRequestId: string) =>

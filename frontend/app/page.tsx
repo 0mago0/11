@@ -38,6 +38,7 @@ type Article = { id: string; title: string; text: string; tableRef?: number };
 type Chapter = { id: string; title: string; articles: Article[] };
 type TableMerge = { startRow: number; startCol: number; endRow: number; endCol: number };
 type PolicyTable = { cells: string[][]; merges?: TableMerge[] };
+type RevisionRecord = { date: string; content: string };
 type Copy = {
   title: string;
   summary: string;
@@ -53,6 +54,7 @@ type Version = {
   revisionNote?: string;
   revisionDate?: string;
   revisionContent?: string;
+  revisionRecords?: RevisionRecord[];
 };
 type Policy = {
   id: number;
@@ -68,6 +70,7 @@ type Policy = {
   revisionNote?: string;
   revisionDate?: string;
   revisionContent?: string;
+  revisionRecords?: RevisionRecord[];
   changeType?: ChangeType;
   approval?: Approval;
   replacesPolicyId?: number;
@@ -140,6 +143,15 @@ const emptyCopy = (): Copy => ({
   tables: [],
   chapters: [],
 });
+const normalizeRevisionRecords = (records: unknown, date = "", content = ""): RevisionRecord[] => {
+  const normalized = Array.isArray(records)
+    ? records
+        .filter((record): record is { date?: unknown; content?: unknown } => !!record && typeof record === "object")
+        .map((record) => ({ date: String(record.date || "").slice(0, 10), content: String(record.content || "") }))
+        .filter((record) => record.date || record.content)
+    : [];
+  return normalized.length ? normalized : date || content ? [{ date: String(date).slice(0, 10), content }] : [];
+};
 const chaptersFromContent = (content: string): Chapter[] => {
   const articles = content
     .split("\n")
@@ -203,6 +215,7 @@ const normalizePolicy = (value: Policy): Policy => {
     revisionNote: value.revisionNote || "",
     revisionDate: value.revisionDate || "",
     revisionContent: value.revisionContent || "",
+    revisionRecords: normalizeRevisionRecords(value.revisionRecords, value.revisionDate, value.revisionContent),
     publishDate: value.publishDate || "",
     changeType: value.changeType || "content",
     approval: value.approval || { stage: "草稿" },
@@ -629,7 +642,7 @@ const policyFromApi = (
   const statusMap: Record<string, Status> = { published: "發布", disabled: "停用", draft: "草稿", approved_scheduled: "已承認" };
   const versions: Version[] = source.versions.map((version) => ({
     id: `${source.policy_code}-${version.versionNo}`, number: String(version.versionNo),
-    publishedAt: String(version.publishedAt).slice(0, 10), copy: copyFromApi(version.translations), revisionNote: version.revisionNote || "", revisionDate: version.revisionDate || "", revisionContent: version.revisionContent || "",
+    publishedAt: String(version.publishedAt).slice(0, 10), copy: copyFromApi(version.translations), revisionNote: version.revisionNote || "", revisionDate: version.revisionDate || "", revisionContent: version.revisionContent || "", revisionRecords: normalizeRevisionRecords(version.revisionRecords, version.revisionDate || "", version.revisionContent || ""),
   }));
   return {
     id: index + 1, code: source.policy_code, category: source.category_zh || source.category_ja || "人事",
@@ -647,6 +660,7 @@ const policyFromApi = (
     revisionNote: active?.revisionReason || versions.at(-1)?.revisionNote || "",
     revisionDate: active?.revisionDate || versions.at(-1)?.revisionDate || "",
     revisionContent: active?.revisionContent || versions.at(-1)?.revisionContent || "",
+    revisionRecords: normalizeRevisionRecords(active?.revisionRecords || versions.at(-1)?.revisionRecords, active?.revisionDate || versions.at(-1)?.revisionDate || "", active?.revisionContent || versions.at(-1)?.revisionContent || ""),
     approval: { stage: stageMap[active?.status || ""] || "草稿", submittedAt: active?.submittedAt || undefined, approvedAt: active?.approvedAt || undefined },
     draft: active ? copyFromApi(active.translations) : (versions.at(-1)?.copy || { zh: emptyCopy(), ja: emptyCopy() }),
     versions, changeRequestId: active?.changeRequestId,
@@ -1136,6 +1150,14 @@ export default function Home() {
         },
       },
     }));
+  const setRevisionRecords = (records: RevisionRecord[]) =>
+    setDraft((policy) => ({
+      ...policy,
+      revisionRecords: records,
+      // 保留單筆欄位作為舊版資料與既有流程的相容值。
+      revisionDate: records[0]?.date || "",
+      revisionContent: records[0]?.content || "",
+    }));
   function saveDraft(e?: FormEvent) {
     // 已送審的規程鎖定內容，直到承認完成或被退回，避免審核版本在途中改變。
     e?.preventDefault();
@@ -1188,6 +1210,7 @@ export default function Home() {
       revisionReason: savedDraft.revisionNote || "",
       revisionDate: savedDraft.revisionDate || undefined,
       revisionContent: savedDraft.revisionContent || "",
+      revisionRecords: savedDraft.revisionRecords || [],
       requestedEffectiveDate: savedDraft.effectiveDate || undefined,
       scheduledPublishDate: savedDraft.publishDate || undefined,
       translations: apiTranslationsFromCopy(savedDraft.draft),
@@ -1197,7 +1220,7 @@ export default function Home() {
         if (!exists) {
           await saveNewPolicy(currentEmployeeNo, {
             policyCode: savedDraft.code, categoryCode: categoryApiCodes[savedDraft.category] || "hr",
-            effectiveDate: savedDraft.effectiveDate || undefined, revisionReason: savedDraft.revisionNote || "", revisionDate: savedDraft.revisionDate || undefined, revisionContent: savedDraft.revisionContent || "",
+            effectiveDate: savedDraft.effectiveDate || undefined, revisionReason: savedDraft.revisionNote || "", revisionDate: savedDraft.revisionDate || undefined, revisionContent: savedDraft.revisionContent || "", revisionRecords: savedDraft.revisionRecords || [],
             translations: apiBody.translations,
           });
         } else if (savedDraft.changeRequestId) {
@@ -1289,6 +1312,7 @@ export default function Home() {
       revisionReason: draft.revisionNote || "純錯字修正",
       revisionDate: draft.revisionDate || undefined,
       revisionContent: draft.revisionContent || "",
+      revisionRecords: draft.revisionRecords || [],
       requestedEffectiveDate: draft.effectiveDate || undefined,
       scheduledPublishDate: draft.publishDate || undefined,
       translations: apiTranslationsFromCopy(draft.draft),
@@ -1314,6 +1338,7 @@ export default function Home() {
       revisionNote: draft.revisionNote || "純錯字修正",
       revisionDate: draft.revisionDate || new Date().toISOString().slice(0, 10),
       revisionContent: draft.revisionContent || "",
+      revisionRecords: draft.revisionRecords || [],
     };
     const next = {
       ...draft,
@@ -1461,6 +1486,7 @@ export default function Home() {
       revisionNote: policy.revisionNote || "未填寫修訂說明",
       revisionDate: policy.revisionDate || new Date().toISOString().slice(0, 10),
       revisionContent: policy.revisionContent || "",
+      revisionRecords: policy.revisionRecords || [],
     };
     const next = {
       ...policy,
@@ -1789,8 +1815,7 @@ export default function Home() {
                       <section className="revision-record approval-revision-record">
                         <b>改訂紀錄</b>
                         <dl>
-                          <div><dt>改訂日</dt><dd>{policy.revisionDate || "未記錄"}</dd></div>
-                          <div><dt>改訂內容</dt><dd>{policy.revisionContent || "改訂内容は未入力です。"}</dd></div>
+                          {normalizeRevisionRecords(policy.revisionRecords, policy.revisionDate, policy.revisionContent).map((record, index) => <div key={`${record.date}-${index}`}><dt>{record.date || "未記錄"}</dt><dd>{record.content || "改訂内容は未入力です。"}</dd></div>)}
                         </dl>
                       </section>
                       <details className="approval-original">
@@ -2732,17 +2757,9 @@ export default function Home() {
                     onChange={(x) => update("tables", x)}
                   />
                   <section className="revision-record editor-revision-record">
-                    <b>改訂紀錄</b>
-                    <div className="revision-record-fields">
-                      <label>
-                        改訂日
-                        <input type="date" value={draft.revisionDate || ""} onChange={(e) => setDraft({ ...draft, revisionDate: e.target.value })} />
-                      </label>
-                      <label>
-                        改訂內容
-                        <textarea rows={2} value={draft.revisionContent || ""} placeholder="例如：第 2 條新增主管核准流程" onChange={(e) => setDraft({ ...draft, revisionContent: e.target.value })} />
-                      </label>
-                    </div>
+                    <div className="revision-record-head"><b>改訂紀錄</b><button type="button" className="ghost" onClick={() => setRevisionRecords([...(draft.revisionRecords || []), { date: "", content: "" }])}>＋ 新增一條</button></div>
+                    {(draft.revisionRecords || []).map((record, index) => <div className="revision-record-fields" key={index}><label>改訂日<input type="date" value={record.date} onChange={(e) => setRevisionRecords((draft.revisionRecords || []).map((item, position) => position === index ? { ...item, date: e.target.value } : item))} /></label><label>改訂內容<textarea rows={2} value={record.content} placeholder="例如：第 2 條新增主管核准流程" onChange={(e) => setRevisionRecords((draft.revisionRecords || []).map((item, position) => position === index ? { ...item, content: e.target.value } : item))} /></label><button type="button" className="remove-revision-record" onClick={() => setRevisionRecords((draft.revisionRecords || []).filter((_, position) => position !== index))}>刪除</button></div>)}
+                    {!(draft.revisionRecords || []).length && <div className="empty">尚未新增改訂紀錄。</div>}
                   </section>
                   <div className="form-actions">
                     <button
@@ -2818,8 +2835,8 @@ export default function Home() {
                   <section className="revision-record">
                     <b>改訂紀錄</b>
                     <dl>
-                      <div><dt>改訂日</dt><dd>{versions.at(-1)?.revisionDate || selected.revisionDate || "尚未記錄"}</dd></div>
-                      <div><dt>改訂內容</dt><dd>{versions.at(-1)?.revisionContent || selected.revisionContent || "尚未填寫改訂內容。"}</dd></div>
+                      {normalizeRevisionRecords(versions.at(-1)?.revisionRecords || selected.revisionRecords, versions.at(-1)?.revisionDate || selected.revisionDate || "", versions.at(-1)?.revisionContent || selected.revisionContent || "").map((record, index) => <div key={`${record.date}-${index}`}><dt>{record.date || "尚未記錄"}</dt><dd>{record.content || "尚未填寫改訂內容。"}</dd></div>)}
+                      {!normalizeRevisionRecords(versions.at(-1)?.revisionRecords || selected.revisionRecords, versions.at(-1)?.revisionDate || selected.revisionDate || "", versions.at(-1)?.revisionContent || selected.revisionContent || "").length && <div><dt>改訂紀錄</dt><dd>尚未填寫改訂內容。</dd></div>}
                     </dl>
                   </section>
                   <section className="policy-links">

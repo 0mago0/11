@@ -10,6 +10,10 @@ export const translation = z.object({
   chapters: z.array(z.unknown()).default([]),
   tables: z.array(z.unknown()).default([]),
 });
+const revisionRecord = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).default(""),
+  content: z.string().default(""),
+});
 export const policyCreate = z.object({
   policyCode,
   categoryCode: z.string().min(1),
@@ -17,6 +21,7 @@ export const policyCreate = z.object({
   revisionReason: z.string().default(""),
   revisionDate: z.coerce.date().optional(),
   revisionContent: z.string().default(""),
+  revisionRecords: z.array(revisionRecord).default([]),
   translations: z.array(translation).min(1),
 });
 export const changeDraft = z.object({
@@ -24,6 +29,7 @@ export const changeDraft = z.object({
   revisionReason: z.string().default(""),
   revisionDate: z.coerce.date().optional(),
   revisionContent: z.string().default(""),
+  revisionRecords: z.array(revisionRecord).default([]),
   requestedEffectiveDate: z.coerce.date().optional(),
   scheduledPublishDate: z.coerce.date().optional(),
   translations: z.array(translation).min(1),

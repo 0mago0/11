@@ -124,6 +124,7 @@ CREATE TABLE policy_versions (
   revision_note text,
   revision_date date,
   revision_content text NOT NULL DEFAULT '',
+  revision_records jsonb NOT NULL DEFAULT '[]'::jsonb,
   source_change_request_id uuid,
   PRIMARY KEY (policy_code, version_no)
 );
@@ -161,6 +162,7 @@ CREATE TABLE policy_change_requests (
   revision_reason text NOT NULL DEFAULT '',
   revision_date date,
   revision_content text NOT NULL DEFAULT '',
+  revision_records jsonb NOT NULL DEFAULT '[]'::jsonb,
   requested_effective_date date,
   scheduled_publish_date date,
   requires_approval boolean NOT NULL DEFAULT true,
@@ -185,6 +187,8 @@ ALTER TABLE policy_versions ADD COLUMN IF NOT EXISTS revision_date date;
 ALTER TABLE policy_versions ADD COLUMN IF NOT EXISTS revision_content text NOT NULL DEFAULT '';
 ALTER TABLE policy_change_requests ADD COLUMN IF NOT EXISTS revision_date date;
 ALTER TABLE policy_change_requests ADD COLUMN IF NOT EXISTS revision_content text NOT NULL DEFAULT '';
+ALTER TABLE policy_versions ADD COLUMN IF NOT EXISTS revision_records jsonb NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE policy_change_requests ADD COLUMN IF NOT EXISTS revision_records jsonb NOT NULL DEFAULT '[]'::jsonb;
 
 CREATE UNIQUE INDEX one_open_change_request_per_policy
   ON policy_change_requests(policy_code)

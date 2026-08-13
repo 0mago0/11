@@ -383,6 +383,32 @@ body .sidebar-foot::after {
   color: #385f50;
   font-size: 13px;
 }
+.revision-record-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 9px;
+}
+.revision-record-head .ghost {
+  padding: 5px 8px;
+  font-size: 11px;
+}
+.revision-record-fields {
+  position: relative;
+  grid-template-columns: 150px minmax(0, 1fr) auto;
+  align-items: end;
+  margin-top: 8px;
+}
+.remove-revision-record {
+  border: 0;
+  border-radius: 6px;
+  padding: 7px 8px;
+  background: #fcedea;
+  color: #a14a41;
+  font-size: 11px;
+  font-weight: 700;
+}
 .revision-record dl {
   display: grid;
   gap: 9px;
@@ -391,7 +417,7 @@ body .sidebar-foot::after {
 .revision-record dl div { display: grid; grid-template-columns: 72px 1fr; gap: 8px; }
 .revision-record dt { color: #718177; font-size: 12px; }
 .revision-record dd { margin: 0; color: #40564a; font-size: 13px; white-space: pre-wrap; }
-.revision-record-fields { display: grid; grid-template-columns: 170px 1fr; gap: 12px; margin-top: 10px; }
+.revision-record-fields { display: grid; grid-template-columns: 150px minmax(0, 1fr) auto; gap: 12px; margin-top: 10px; }
 .revision-record-fields label { display: grid; gap: 5px; color: #53675d; font-size: 12px; }
 .revision-record-fields input, .revision-record-fields textarea { width: 100%; }
 @media (max-width: 600px) { .revision-record-fields { grid-template-columns: 1fr; } }

@@ -9,3 +9,9 @@ ALTER TABLE policy_versions
 ALTER TABLE policy_change_requests
   ADD COLUMN IF NOT EXISTS revision_date date,
   ADD COLUMN IF NOT EXISTS revision_content text NOT NULL DEFAULT '';
+
+ALTER TABLE policy_versions
+  ADD COLUMN IF NOT EXISTS revision_records jsonb NOT NULL DEFAULT '[]'::jsonb;
+
+ALTER TABLE policy_change_requests
+  ADD COLUMN IF NOT EXISTS revision_records jsonb NOT NULL DEFAULT '[]'::jsonb;

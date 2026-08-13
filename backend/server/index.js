@@ -61,6 +61,13 @@ const audit = async (client, { actor, policyCode: code, changeRequestId = null, 
     [actor, code, changeRequestId, action, fromVersionNo, toVersionNo, JSON.stringify(changedFields), beforeContent && JSON.stringify(beforeContent), afterContent && JSON.stringify(afterContent), comment],
   );
 };
+// 舊資料的單筆改訂日／內容也會轉成清單第一筆，確保升級後不遺失既有改訂紀錄。
+const revisionRecordsFor = (change) =>
+  change.revisionRecords?.length || change.revision_records?.length
+    ? (change.revisionRecords || change.revision_records)
+    : change.revision_date || change.revisionDate || change.revision_content || change.revisionContent
+      ? [{ date: change.revision_date || change.revisionDate || "", content: change.revision_content || change.revisionContent || "" }]
+      : [];
 
 // 規程版本與修改申請都採相同的中日文翻譯資料結構，因此共用寫入邏輯。
 const insertTranslations = async (client, table, ownerColumn, ownerId, translations) => {
@@ -93,9 +100,9 @@ const publishChangeRequest = async (client, change, actorEmployeeNo) => {
     throw error;
   }
   await client.query(
-    `INSERT INTO policy_versions (policy_code, version_no, effective_date, published_by, revision_note, revision_date, revision_content, source_change_request_id)
-     VALUES ($1, $2, COALESCE($3, CURRENT_DATE), $4, $5, COALESCE($6, CURRENT_DATE), $7, $8)`,
-    [change.policy_code, versionNo, change.requested_effective_date, actorEmployeeNo, change.revision_reason, change.revision_date, change.revision_content, change.change_request_id],
+    `INSERT INTO policy_versions (policy_code, version_no, effective_date, published_by, revision_note, revision_date, revision_content, revision_records, source_change_request_id)
+     VALUES ($1, $2, COALESCE($3, CURRENT_DATE), $4, $5, COALESCE($6, CURRENT_DATE), $7, $8::jsonb, $9)`,
+    [change.policy_code, versionNo, change.requested_effective_date, actorEmployeeNo, change.revision_reason, change.revision_date, change.revision_content, JSON.stringify(revisionRecordsFor(change)), change.change_request_id],
   );
   for (const item of translations) {
     await client.query(
@@ -243,7 +250,7 @@ app.get("/api/policies/:policyCode", async (req, res) => {
   if (!policy) return res.sendStatus(404);
   if (req.user.roles.includes("employee") && !isAdmin(req.user) && policy.status !== "published") return res.sendStatus(404);
   const { rows: versionRows } = await db.query(
-    `SELECT version_no, published_at, revision_note, revision_date, revision_content FROM policy_versions
+    `SELECT version_no, published_at, revision_note, revision_date, revision_content, revision_records FROM policy_versions
       WHERE policy_code = $1 ORDER BY version_no`, [code],
   );
   const { rows: versionTranslations } = await db.query(
@@ -251,7 +258,7 @@ app.get("/api/policies/:policyCode", async (req, res) => {
        FROM policy_version_translations WHERE policy_code = $1`, [code],
   );
   const { rows: changes } = await db.query(
-    `SELECT change_request_id, status, change_kind, revision_reason, revision_date, revision_content, scheduled_publish_date, submitted_at, approved_at
+    `SELECT change_request_id, status, change_kind, revision_reason, revision_date, revision_content, revision_records, scheduled_publish_date, submitted_at, approved_at
        FROM policy_change_requests WHERE policy_code = $1
         AND status NOT IN ('published', 'cancelled')
       ORDER BY updated_at DESC LIMIT 1`, [code],
@@ -272,6 +279,7 @@ app.get("/api/policies/:policyCode", async (req, res) => {
       revisionNote: version.revision_note,
       revisionDate: version.revision_date,
       revisionContent: version.revision_content,
+      revisionRecords: revisionRecordsFor(version),
       translations: versionTranslations.filter((translation) => translation.version_no === version.version_no),
     })),
     activeChange: activeChange && {
@@ -281,6 +289,7 @@ app.get("/api/policies/:policyCode", async (req, res) => {
       revisionReason: activeChange.revision_reason,
       revisionDate: activeChange.revision_date,
       revisionContent: activeChange.revision_content,
+      revisionRecords: revisionRecordsFor(activeChange),
       scheduledPublishDate: activeChange.scheduled_publish_date,
       submittedAt: activeChange.submitted_at,
       approvedAt: activeChange.approved_at,
@@ -298,9 +307,9 @@ app.post("/api/policies", requireRole("admin"), async (req, res) => {
       [input.policyCode, input.categoryCode, input.effectiveDate || null, req.user.employee_no],
     );
     const { rows } = await client.query(
-      `INSERT INTO policy_change_requests (policy_code, change_kind, revision_reason, revision_date, revision_content, requested_effective_date, requires_approval, created_by)
-       VALUES ($1, 'new_policy', $2, $3, $4, $5, true, $6) RETURNING change_request_id`,
-      [input.policyCode, input.revisionReason, input.revisionDate || null, input.revisionContent, input.effectiveDate || null, req.user.employee_no],
+      `INSERT INTO policy_change_requests (policy_code, change_kind, revision_reason, revision_date, revision_content, revision_records, requested_effective_date, requires_approval, created_by)
+       VALUES ($1, 'new_policy', $2, $3, $4, $5::jsonb, $6, true, $7) RETURNING change_request_id`,
+      [input.policyCode, input.revisionReason, input.revisionDate || null, input.revisionContent, JSON.stringify(revisionRecordsFor(input)), input.effectiveDate || null, req.user.employee_no],
     );
     await insertTranslations(client, "policy_change_translations", "change_request_id", rows[0].change_request_id, input.translations);
     await audit(client, { actor: req.user.employee_no, policyCode: input.policyCode, changeRequestId: rows[0].change_request_id, action: "created", changedFields: ["policy", "translations", "revision_date", "revision_content", "revision_reason"], comment: input.revisionReason || null });
@@ -317,9 +326,9 @@ app.post("/api/policies/:policyCode/changes", requireRole("admin"), async (req, 
     if (!policies[0]) { const error = new Error("Policy not found."); error.status = 404; throw error; }
     const requiresApproval = input.changeKind !== "typo";
     const { rows } = await client.query(
-      `INSERT INTO policy_change_requests (policy_code, base_version_no, change_kind, revision_reason, revision_date, revision_content, requested_effective_date, scheduled_publish_date, requires_approval, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING change_request_id, status`,
-      [code, policies[0].current_version_no, input.changeKind, input.revisionReason, input.revisionDate || null, input.revisionContent, input.requestedEffectiveDate || null, input.scheduledPublishDate || null, requiresApproval, req.user.employee_no],
+      `INSERT INTO policy_change_requests (policy_code, base_version_no, change_kind, revision_reason, revision_date, revision_content, revision_records, requested_effective_date, scheduled_publish_date, requires_approval, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11) RETURNING change_request_id, status`,
+      [code, policies[0].current_version_no, input.changeKind, input.revisionReason, input.revisionDate || null, input.revisionContent, JSON.stringify(revisionRecordsFor(input)), input.requestedEffectiveDate || null, input.scheduledPublishDate || null, requiresApproval, req.user.employee_no],
     );
     await insertTranslations(client, "policy_change_translations", "change_request_id", rows[0].change_request_id, input.translations);
     await audit(client, { actor: req.user.employee_no, policyCode: code, changeRequestId: rows[0].change_request_id, action: "draft_saved", fromVersionNo: policies[0].current_version_no, changedFields: ["translations", "revision_date", "revision_content", "revision_reason"], comment: input.revisionReason || null });
@@ -381,12 +390,12 @@ app.patch("/api/change-requests/:changeRequestId", requireRole("admin"), async (
           -- 新增規程的 base_version_no 必須永遠是 NULL。退回後前端雖以「內容修改」
           -- 編輯，但不能把它改成 content，否則會違反資料庫的版本基準檢查。
           SET change_kind = CASE WHEN change_kind = 'new_policy' THEN 'new_policy' ELSE $2::change_kind END,
-              revision_reason = $3, revision_date = $4, revision_content = $5,
-              requested_effective_date = $6, scheduled_publish_date = $7,
-              requires_approval = CASE WHEN change_kind = 'new_policy' THEN true ELSE $8 END,
+              revision_reason = $3, revision_date = $4, revision_content = $5, revision_records = $6::jsonb,
+              requested_effective_date = $7, scheduled_publish_date = $8,
+              requires_approval = CASE WHEN change_kind = 'new_policy' THEN true ELSE $9 END,
               updated_at = now()
         WHERE change_request_id = $1`,
-      [change.change_request_id, input.changeKind, input.revisionReason, input.revisionDate || null, input.revisionContent, input.requestedEffectiveDate || null, input.scheduledPublishDate || null, input.changeKind !== 'typo'],
+      [change.change_request_id, input.changeKind, input.revisionReason, input.revisionDate || null, input.revisionContent, JSON.stringify(revisionRecordsFor(input)), input.requestedEffectiveDate || null, input.scheduledPublishDate || null, input.changeKind !== 'typo'],
     );
     await client.query("DELETE FROM policy_change_translations WHERE change_request_id = $1", [change.change_request_id]);
     await insertTranslations(client, "policy_change_translations", "change_request_id", change.change_request_id, input.translations);
