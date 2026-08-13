@@ -710,6 +710,7 @@ export default function Home() {
     [draft, setDraft] = useState<Policy>(clone(initial[0])),
     [search, setSearch] = useState(""),
     [auditSearch, setAuditSearch] = useState(""),
+    [auditCategory, setAuditCategory] = useState("全部事項"),
     [auditActionFilter, setAuditActionFilter] = useState<
       Audit["action"] | "全部"
     >("全部"),
@@ -1580,10 +1581,18 @@ export default function Home() {
     "全部",
     ...Array.from(new Set(selectedAuditEntries.map((entry) => entry.action))),
   ];
+  // 修改紀錄依「事項」（各規程資料庫分類）分開檢視；搜尋仍會在目前事項內比對名稱與編號。
   const auditPolicyCards = policies.filter((policy) =>
+    (auditCategory === "全部事項" || policy.category === auditCategory) &&
     `${policy.code} ${policy.draft.zh.title} ${policy.draft.ja.title}`
       .toLowerCase()
       .includes(auditSearch.toLowerCase()),
+  );
+  const auditCategoryCounts = Object.fromEntries(
+    policyCategories.map((item) => [
+      item,
+      policies.filter((policy) => policy.category === item).length,
+    ]),
   );
   // 稽核資料以 PostgreSQL 為準。進入修改紀錄總覽時就批次讀取，
   // 因此每張規程卡片的「幾筆異動」不需要點進去才會更新。
@@ -2099,17 +2108,34 @@ export default function Home() {
             </>
           ) : (
             <>
+              <nav className="audit-category-tabs" aria-label="依事項查看修改紀錄">
+                <button
+                  className={auditCategory === "全部事項" ? "active" : ""}
+                  onClick={() => setAuditCategory("全部事項")}
+                >
+                  全部事項 <span>{policies.length}</span>
+                </button>
+                {policyCategories.map((item) => (
+                  <button
+                    key={item}
+                    className={auditCategory === item ? "active" : ""}
+                    onClick={() => setAuditCategory(item)}
+                  >
+                    {item} <span>{auditCategoryCounts[item]}</span>
+                  </button>
+                ))}
+              </nav>
               <div className="toolbar audit-search-toolbar">
                 <label className="search">
                   ⌕{" "}
                   <input
                     value={auditSearch}
                     onChange={(event) => setAuditSearch(event.target.value)}
-                    placeholder="搜尋規程名稱或代碼"
+                    placeholder={`搜尋${auditCategory === "全部事項" ? "規程" : auditCategory}名稱或代碼`}
                   />
                 </label>
                 <span className="result-count">
-                  共 {auditPolicyCards.length} 項
+                  {auditCategory} · 共 {auditPolicyCards.length} 項
                 </span>
               </div>
               <div className="audit-policy-grid">
@@ -2149,6 +2175,9 @@ export default function Home() {
                     </button>
                   );
                 })}
+                {!auditPolicyCards.length && (
+                  <div className="empty">此事項目前沒有符合條件的規程。</div>
+                )}
               </div>
             </>
           )}
