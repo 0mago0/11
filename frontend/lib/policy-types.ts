@@ -25,11 +25,13 @@ export type Approval = {
 /** tableRef 是條文關聯的表格序號（從 1 開始）；未設定時不顯示表格註解。 */
 export type Article = { id: string; title: string; text: string; tableRef?: number };
 export type Chapter = { id: string; title: string; articles: Article[] };
+export type TableMerge = { startRow: number; startCol: number; endRow: number; endCol: number };
+export type PolicyTable = { cells: string[][]; merges?: TableMerge[] };
 export type Copy = {
   title: string;
   summary: string;
   content: string;
-  tables: string[][][];
+  tables: PolicyTable[];
   chapters: Chapter[];
 };
 export type Version = {

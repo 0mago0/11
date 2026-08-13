@@ -1,13 +1,54 @@
+import { useState } from "react";
+import type { PolicyTable, TableMerge } from "../../lib/policy-types";
 import { normalizeTables } from "../../lib/policy-utils";
 
-export function Tables({ tables, editing, onChange }: { tables: unknown; editing?: boolean; onChange?: (value: string[][][]) => void }) {
+type SelectedCell = { table: number; row: number; col: number } | null;
+const mergeContains = (merge: TableMerge, row: number, col: number) =>
+  row >= merge.startRow && row <= merge.endRow && col >= merge.startCol && col <= merge.endCol;
+
+export function Tables({ tables, editing, onChange }: { tables: unknown; editing?: boolean; onChange?: (value: PolicyTable[]) => void }) {
   const safeTables = normalizeTables(tables);
-  const change = (tableIndex: number, rowIndex: number, cellIndex: number, value: string) => onChange?.(safeTables.map((table, currentTable) => currentTable === tableIndex ? table.map((row, currentRow) => currentRow === rowIndex ? row.map((cell, currentCell) => currentCell === cellIndex ? value : cell) : row) : table));
+  const [selected, setSelected] = useState<SelectedCell>(null);
+  const change = (tableIndex: number, rowIndex: number, cellIndex: number, value: string) => onChange?.(safeTables.map((table, currentTable) => currentTable === tableIndex ? { ...table, cells: table.cells.map((row, currentRow) => currentRow === rowIndex ? row.map((cell, currentCell) => currentCell === cellIndex ? value : cell) : row) } : table));
+  const changeTables = (next: PolicyTable[]) => { onChange?.(next); setSelected(null); };
+  const selectedMerge = selected && safeTables[selected.table]?.merges?.find((merge) => mergeContains(merge, selected.row, selected.col));
+  const [mergeStart, setMergeStart] = useState<SelectedCell>(null);
+  const chooseCell = (cell: SelectedCell) => {
+    setSelected(cell);
+    if (!editing || !cell) return;
+    if (!mergeStart || mergeStart.table !== cell.table) { setMergeStart(cell); return; }
+    if (mergeStart.row === cell.row && mergeStart.col === cell.col) { setMergeStart(null); return; }
+    const table = safeTables[cell.table];
+    const startRow = Math.min(mergeStart.row, cell.row), endRow = Math.max(mergeStart.row, cell.row);
+    const startCol = Math.min(mergeStart.col, cell.col), endCol = Math.max(mergeStart.col, cell.col);
+    if (!table.merges?.some((merge) => mergeContains(merge, startRow, startCol) || mergeContains(merge, endRow, endCol))) {
+      changeTables(safeTables.map((item, index) => index === cell.table ? { ...item, merges: [...(item.merges || []), { startRow, startCol, endRow, endCol }] } : item));
+    }
+    setMergeStart(null);
+  };
+  const removeMerge = () => {
+    if (!selected || !selectedMerge) return;
+    changeTables(safeTables.map((table, index) => index === selected.table ? { ...table, merges: (table.merges || []).filter((merge) => merge !== selectedMerge) } : table));
+  };
+  const insertSymbol = (symbol: string) => {
+    if (!selected) return;
+    const table = safeTables[selected.table];
+    const merge = table.merges?.find((item) => mergeContains(item, selected.row, selected.col));
+    const row = merge?.startRow ?? selected.row, col = merge?.startCol ?? selected.col;
+    change(selected.table, row, col, `${table.cells[row]?.[col] || ""}${symbol}`);
+  };
   return <div className="policy-tables">
     {safeTables.map((table, tableIndex) => <div className="policy-table" key={tableIndex}>
-      <span className="table-caption">表格 {tableIndex + 1}</span><table><tbody>{table.map((row, rowIndex) => <tr key={rowIndex}>{row.map((cell, cellIndex) => editing ? <td key={cellIndex}><input value={cell} onChange={(event) => change(tableIndex, rowIndex, cellIndex, event.target.value)} placeholder={rowIndex === 0 ? "欄位名稱" : "輸入文字"} /></td> : rowIndex === 0 ? <th key={cellIndex}>{cell}</th> : <td key={cellIndex}>{cell}</td>)}</tr>)}</tbody></table>
-      {editing && <div className="table-tools"><button type="button" onClick={() => onChange?.(safeTables.map((item, index) => index === tableIndex ? [...item, Array(item[0]?.length || 3).fill("")] : item))}>＋ 列</button><button type="button" onClick={() => onChange?.(safeTables.map((item, index) => index === tableIndex ? item.map((row) => [...row, ""]) : item))}>＋ 欄</button><button type="button" onClick={() => onChange?.(safeTables.filter((_, index) => index !== tableIndex))}>刪除表格</button></div>}
+      <span className="table-caption">表格 {tableIndex + 1}</span><table><tbody>{table.cells.map((row, rowIndex) => <tr key={rowIndex}>{row.map((cell, cellIndex) => {
+        const merge = table.merges?.find((item) => mergeContains(item, rowIndex, cellIndex));
+        if (merge && (merge.startRow !== rowIndex || merge.startCol !== cellIndex)) return null;
+        const active = selected?.table === tableIndex && mergeContains(merge || { startRow: rowIndex, startCol: cellIndex, endRow: rowIndex, endCol: cellIndex }, selected.row, selected.col);
+        const cellProps = merge ? { rowSpan: merge.endRow - merge.startRow + 1, colSpan: merge.endCol - merge.startCol + 1 } : {};
+        const content = editing ? <input value={cell} onFocus={() => setSelected({ table: tableIndex, row: rowIndex, col: cellIndex })} onClick={() => chooseCell({ table: tableIndex, row: rowIndex, col: cellIndex })} onChange={(event) => change(tableIndex, rowIndex, cellIndex, event.target.value)} placeholder={rowIndex === 0 ? "欄位名稱" : "輸入文字"} /> : cell;
+        return rowIndex === 0 ? <th key={cellIndex} {...cellProps} className={active ? "selected-table-cell" : ""}>{content}</th> : <td key={cellIndex} {...cellProps} className={active ? "selected-table-cell" : ""} onClick={() => editing && chooseCell({ table: tableIndex, row: rowIndex, col: cellIndex })}>{content}</td>;
+      })}</tr>)}</tbody></table>
+      {editing && <div className="table-tools"><button type="button" onClick={() => changeTables(safeTables.map((item, index) => index === tableIndex ? { ...item, cells: [...item.cells, Array(item.cells[0]?.length || 2).fill("")] } : item))}>＋ 列</button><button type="button" onClick={() => changeTables(safeTables.map((item, index) => index === tableIndex ? { ...item, cells: item.cells.map((row) => [...row, ""]) } : item))}>＋ 欄</button><span className="table-merge-hint">{mergeStart?.table === tableIndex ? "再點一格完成合併" : "點兩個格子合併"}</span><button type="button" disabled={!selectedMerge} onClick={removeMerge}>取消合併</button><span className="table-symbols"><small>輸入符號</small>{["✓", "×", "○", "◎"].map((symbol) => <button type="button" key={symbol} disabled={!selected || selected.table !== tableIndex} onClick={() => insertSymbol(symbol)}>{symbol}</button>)}</span><button type="button" onClick={() => changeTables(safeTables.filter((_, index) => index !== tableIndex))}>刪除表格</button></div>}
     </div>)}
-    {editing && <button type="button" className="ghost" onClick={() => onChange?.([...safeTables, [["欄位 1", "欄位 2"], ["", ""]]])}>＋ 新增表格</button>}
+    {editing && <button type="button" className="ghost" onClick={() => changeTables([...safeTables, { cells: [["欄位 1", "欄位 2"], ["", ""]], merges: [] }])}>＋ 新增表格</button>}
   </div>;
 }

@@ -1,4 +1,4 @@
-import type { Chapter, Copy, Policy } from "./policy-types";
+import type { Chapter, Copy, Policy, PolicyTable, TableMerge } from "./policy-types";
 
 export const policyCategories = [
   "全社基本", "人事", "IT管理", "總務", "營業管理", "會計管理", "EHS", "進出口管理", "COW", "ISO9001",
@@ -14,10 +14,15 @@ export const policyCode = (category: string, value: string, fallback = "0000") =
 };
 export const policyCodeSuffix = (value: string) => (value.replace(/\D/g, "").slice(-4) || "0000").padStart(4, "0");
 export const emptyCopy = (): Copy => ({ title: "", summary: "", content: "", tables: [], chapters: [] });
-export const normalizeTables = (value: unknown): string[][][] => {
+export const normalizeTables = (value: unknown): PolicyTable[] => {
   if (!Array.isArray(value) || value.length === 0) return [];
-  if (Array.isArray(value[0]) && typeof value[0][0] === "string") return [(value as string[][]).map((row) => Array.isArray(row) ? row.map(String) : [])];
-  return value.filter(Array.isArray).map((table) => (table as unknown[]).filter(Array.isArray).map((row) => (row as unknown[]).map(String)));
+  if (Array.isArray(value[0]) && typeof value[0][0] === "string") return [{ cells: (value as string[][]).map((row) => Array.isArray(row) ? row.map(String) : []) }];
+  return value.map((table) => {
+    if (Array.isArray(table)) return { cells: table.filter(Array.isArray).map((row) => (row as unknown[]).map(String)) };
+    const item = table as { cells?: unknown; merges?: unknown };
+    if (!item || !Array.isArray(item.cells)) return null;
+    return { cells: item.cells.filter(Array.isArray).map((row) => (row as unknown[]).map(String)), merges: Array.isArray(item.merges) ? item.merges.filter((merge): merge is TableMerge => !!merge && typeof merge === "object" && ["startRow", "startCol", "endRow", "endCol"].every((key) => Number.isInteger((merge as Record<string, unknown>)[key]))) : [] };
+  }).filter((table): table is PolicyTable => table !== null);
 };
 export const chaptersFromContent = (content: string): Chapter[] => {
   const articles = content.split("\n").filter(Boolean).map((text, index) => {
@@ -27,7 +32,7 @@ export const chaptersFromContent = (content: string): Chapter[] => {
   return articles.length ? [{ id: "chapter-1", title: "第一章　總則", articles }] : [];
 };
 export const contentFromChapters = (chapters: Chapter[]) => chapters.map((chapter) => [chapter.title, ...chapter.articles.map((article) => `${article.title}　${article.text}`)].filter(Boolean).join("\n\n")).join("\n\n");
-export const copy = (title: string, summary: string, content: string, tables: string[][][] = []): Copy => ({ title, summary, content, tables, chapters: chaptersFromContent(content) });
+export const copy = (title: string, summary: string, content: string, tables: PolicyTable[] = []): Copy => ({ title, summary, content, tables, chapters: chaptersFromContent(content) });
 export const normalizeCopy = (value: Partial<Copy>): Copy => ({ title: value.title || "", summary: value.summary || "", content: value.content || "", tables: normalizeTables(value.tables), chapters: value.chapters?.length ? value.chapters : chaptersFromContent(value.content || "") });
 export const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
 export const nextV = (value: string) => { const [major, minor] = value.split(".").map(Number); return `${major}.${minor + 1}`; };

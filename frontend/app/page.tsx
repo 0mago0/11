@@ -36,11 +36,13 @@ type Approval = {
 };
 type Article = { id: string; title: string; text: string; tableRef?: number };
 type Chapter = { id: string; title: string; articles: Article[] };
+type TableMerge = { startRow: number; startCol: number; endRow: number; endCol: number };
+type PolicyTable = { cells: string[][]; merges?: TableMerge[] };
 type Copy = {
   title: string;
   summary: string;
   content: string;
-  tables: string[][][];
+  tables: PolicyTable[];
   chapters: Chapter[];
 };
 type Version = {
@@ -160,7 +162,7 @@ const copy = (
   title: string,
   summary: string,
   content: string,
-  tables: string[][][] = [],
+  tables: PolicyTable[] = [],
 ): Copy => ({
   title,
   summary,
@@ -580,21 +582,24 @@ const nextV = (v: string) => {
   return `${a}.${b + 1}`;
 };
 const now = () => new Date().toLocaleString("zh-TW");
-const normalizeTables = (value: unknown): string[][][] => {
+const normalizeTables = (value: unknown): PolicyTable[] => {
   if (!Array.isArray(value) || value.length === 0) return [];
   if (Array.isArray(value[0]) && typeof value[0][0] === "string")
     return [
-      (value as string[][]).map((row) =>
-        Array.isArray(row) ? row.map((cell) => String(cell)) : [],
-      ),
+      { cells: (value as string[][]).map((row) => Array.isArray(row) ? row.map((cell) => String(cell)) : []) },
     ];
   return value
-    .filter(Array.isArray)
-    .map((table) =>
-      (table as unknown[])
-        .filter(Array.isArray)
-        .map((row) => (row as unknown[]).map((cell) => String(cell))),
-    );
+    .map((table) => {
+      if (Array.isArray(table)) return { cells: table.filter(Array.isArray).map((row) => (row as unknown[]).map((cell) => String(cell))) };
+      if (!table || typeof table !== "object") return null;
+      const item = table as { cells?: unknown; merges?: unknown };
+      if (!Array.isArray(item.cells)) return null;
+      return {
+        cells: item.cells.filter(Array.isArray).map((row) => (row as unknown[]).map((cell) => String(cell))),
+        merges: Array.isArray(item.merges) ? item.merges.filter((merge): merge is TableMerge => !!merge && typeof merge === "object" && ["startRow", "startCol", "endRow", "endCol"].every((key) => Number.isInteger((merge as Record<string, unknown>)[key]))) : [],
+      };
+    })
+    .filter((table): table is PolicyTable => table !== null);
 };
 
 // 將 PostgreSQL API 的 snake_case 回應轉為現有畫面使用的 Policy 型別。
@@ -2797,10 +2802,10 @@ export default function Home() {
                                   註：相關資料請參照表格 {article.tableRef}
                                   {displayedCopy[selectedDisplayLang].tables[
                                     article.tableRef - 1
-                                  ][0]?.filter(Boolean).length
+                              ].cells[0]?.filter(Boolean).length
                                     ? `（${displayedCopy[selectedDisplayLang].tables[
                                         article.tableRef - 1
-                                      ][0].filter(Boolean).join("、")}）`
+                                      ].cells[0].filter(Boolean).join("、")}）`
                                     : ""}
                                 </small>
                               )}
