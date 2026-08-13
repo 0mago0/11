@@ -238,8 +238,10 @@ const ordinal = (number: number) =>
   String(number);
 const contentFromChapters = (chapters: Chapter[]) =>
   chapters
-    .flatMap((chapter) =>
-      chapter.articles.map((article) => `${article.title}　${article.text}`),
+    .map((chapter) =>
+      [chapter.title, ...chapter.articles.map((article) => `${article.title}　${article.text}`)]
+        .filter(Boolean)
+        .join("\n\n"),
     )
     .join("\n\n");
 const samplePolicy = (
@@ -705,7 +707,7 @@ export default function Home() {
     >("全部"),
     [category, setCategory] = useState("全部規程"),
     [statusFilter, setStatusFilter] = useState<PolicyFilter>("全部"),
-    [sortMode, setSortMode] = useState<"status" | "updated">("status"),
+    [sortMode, setSortMode] = useState<"status" | "updated" | "code">("status"),
     [notice, setNotice] = useState(""),
     [audit, setAudit] = useState<Audit[]>([]),
     [returnComments, setReturnComments] = useState<Record<number, string>>({}),
@@ -1007,7 +1009,9 @@ export default function Home() {
               .includes(search.toLowerCase()),
         )
         .sort((left, right) =>
-          sortMode === "updated"
+          sortMode === "code"
+            ? left.code.localeCompare(right.code, undefined, { numeric: true })
+            : sortMode === "updated"
             ? lastUpdateIndex(left) - lastUpdateIndex(right)
             : statusOrder.indexOf(policyStatusLabel(left)) -
               statusOrder.indexOf(policyStatusLabel(right)),
@@ -2253,11 +2257,11 @@ export default function Home() {
               )}
             />
           </label>
-          {role !== "employee" && statusFilter === "全部" && (
+          {statusFilter === "全部" && (
             <select
               value={sortMode}
               onChange={(event) =>
-                setSortMode(event.target.value as "status" | "updated")
+                setSortMode(event.target.value as "status" | "updated" | "code")
               }
               aria-label="規程排序方式"
             >
@@ -2265,6 +2269,7 @@ export default function Home() {
               <option value="updated">
                 {ui("依最新修改時間", "最終更新順")}
               </option>
+              <option value="code">{ui("依規程編號", "規程コード順")}</option>
             </select>
           )}
           <span className="result-count">

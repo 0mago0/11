@@ -26,7 +26,7 @@ export const chaptersFromContent = (content: string): Chapter[] => {
   });
   return articles.length ? [{ id: "chapter-1", title: "第一章　總則", articles }] : [];
 };
-export const contentFromChapters = (chapters: Chapter[]) => chapters.flatMap((chapter) => chapter.articles.map((article) => `${article.title}　${article.text}`)).join("\n\n");
+export const contentFromChapters = (chapters: Chapter[]) => chapters.map((chapter) => [chapter.title, ...chapter.articles.map((article) => `${article.title}　${article.text}`)].filter(Boolean).join("\n\n")).join("\n\n");
 export const copy = (title: string, summary: string, content: string, tables: string[][][] = []): Copy => ({ title, summary, content, tables, chapters: chaptersFromContent(content) });
 export const normalizeCopy = (value: Partial<Copy>): Copy => ({ title: value.title || "", summary: value.summary || "", content: value.content || "", tables: normalizeTables(value.tables), chapters: value.chapters?.length ? value.chapters : chaptersFromContent(value.content || "") });
 export const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));

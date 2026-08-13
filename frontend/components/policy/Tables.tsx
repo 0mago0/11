@@ -8,6 +8,6 @@ export function Tables({ tables, editing, onChange }: { tables: unknown; editing
       <span className="table-caption">表格 {tableIndex + 1}</span><table><tbody>{table.map((row, rowIndex) => <tr key={rowIndex}>{row.map((cell, cellIndex) => editing ? <td key={cellIndex}><input value={cell} onChange={(event) => change(tableIndex, rowIndex, cellIndex, event.target.value)} placeholder={rowIndex === 0 ? "欄位名稱" : "輸入文字"} /></td> : rowIndex === 0 ? <th key={cellIndex}>{cell}</th> : <td key={cellIndex}>{cell}</td>)}</tr>)}</tbody></table>
       {editing && <div className="table-tools"><button type="button" onClick={() => onChange?.(safeTables.map((item, index) => index === tableIndex ? [...item, Array(item[0]?.length || 3).fill("")] : item))}>＋ 列</button><button type="button" onClick={() => onChange?.(safeTables.map((item, index) => index === tableIndex ? item.map((row) => [...row, ""]) : item))}>＋ 欄</button><button type="button" onClick={() => onChange?.(safeTables.filter((_, index) => index !== tableIndex))}>刪除表格</button></div>}
     </div>)}
-    {editing && <button type="button" className="ghost" onClick={() => onChange?.([...safeTables, [["欄位 1", "欄位 2", "欄位 3"], ["", "", ""]]])}>＋ 新增表格</button>}
+    {editing && <button type="button" className="ghost" onClick={() => onChange?.([...safeTables, [["欄位 1", "欄位 2"], ["", ""]]])}>＋ 新增表格</button>}
   </div>;
 }

@@ -289,6 +289,24 @@ body .sidebar-foot::after {
   color: #3b6758;
   font-size: 13px;
 }
+.chapter-title label {
+  display: grid;
+  gap: 4px;
+  flex: 1;
+  color: #53675d;
+  font-size: 11px;
+}
+.chapter-title input {
+  width: 100%;
+  max-width: 460px;
+  border: 1px solid #cfe0d5;
+  border-radius: 6px;
+  padding: 7px 9px;
+  color: #385f50;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
 .chapter-title button,
 .remove-article {
   border: 0;
