@@ -49,6 +49,8 @@ type Version = {
   publishedAt: string;
   copy: Record<Lang, Copy>;
   revisionNote?: string;
+  revisionDate?: string;
+  revisionContent?: string;
 };
 type Policy = {
   id: number;
@@ -62,6 +64,8 @@ type Policy = {
   attachments?: string[];
   relatedPolicies?: string[];
   revisionNote?: string;
+  revisionDate?: string;
+  revisionContent?: string;
   changeType?: ChangeType;
   approval?: Approval;
   replacesPolicyId?: number;
@@ -195,6 +199,8 @@ const normalizePolicy = (value: Policy): Policy => {
     attachments: value.attachments || [],
     relatedPolicies: value.relatedPolicies || [],
     revisionNote: value.revisionNote || "",
+    revisionDate: value.revisionDate || "",
+    revisionContent: value.revisionContent || "",
     publishDate: value.publishDate || "",
     changeType: value.changeType || "content",
     approval: value.approval || { stage: "草稿" },
@@ -613,7 +619,7 @@ const policyFromApi = (
   const statusMap: Record<string, Status> = { published: "發布", disabled: "停用", draft: "草稿", approved_scheduled: "已承認" };
   const versions: Version[] = source.versions.map((version) => ({
     id: `${source.policy_code}-${version.versionNo}`, number: String(version.versionNo),
-    publishedAt: String(version.publishedAt).slice(0, 10), copy: copyFromApi(version.translations), revisionNote: version.revisionNote || "",
+    publishedAt: String(version.publishedAt).slice(0, 10), copy: copyFromApi(version.translations), revisionNote: version.revisionNote || "", revisionDate: version.revisionDate || "", revisionContent: version.revisionContent || "",
   }));
   return {
     id: index + 1, code: source.policy_code, category: source.category_zh || source.category_ja || "人事",
@@ -629,6 +635,8 @@ const policyFromApi = (
           : statusMap[source.status] || "草稿",
     changeType: active?.changeKind === "typo" ? "typo" : "content",
     revisionNote: active?.revisionReason || versions.at(-1)?.revisionNote || "",
+    revisionDate: active?.revisionDate || versions.at(-1)?.revisionDate || "",
+    revisionContent: active?.revisionContent || versions.at(-1)?.revisionContent || "",
     approval: { stage: stageMap[active?.status || ""] || "草稿", submittedAt: active?.submittedAt || undefined, approvedAt: active?.approvedAt || undefined },
     draft: active ? copyFromApi(active.translations) : (versions.at(-1)?.copy || { zh: emptyCopy(), ja: emptyCopy() }),
     versions, changeRequestId: active?.changeRequestId,
@@ -1167,6 +1175,8 @@ export default function Home() {
     const apiBody = {
       changeKind: savedDraft.changeType === "typo" ? ("typo" as const) : ("content" as const),
       revisionReason: savedDraft.revisionNote || "",
+      revisionDate: savedDraft.revisionDate || undefined,
+      revisionContent: savedDraft.revisionContent || "",
       requestedEffectiveDate: savedDraft.effectiveDate || undefined,
       scheduledPublishDate: savedDraft.publishDate || undefined,
       translations: apiTranslationsFromCopy(savedDraft.draft),
@@ -1176,7 +1186,7 @@ export default function Home() {
         if (!exists) {
           await saveNewPolicy(currentEmployeeNo, {
             policyCode: savedDraft.code, categoryCode: categoryApiCodes[savedDraft.category] || "hr",
-            effectiveDate: savedDraft.effectiveDate || undefined, revisionReason: savedDraft.revisionNote || "",
+            effectiveDate: savedDraft.effectiveDate || undefined, revisionReason: savedDraft.revisionNote || "", revisionDate: savedDraft.revisionDate || undefined, revisionContent: savedDraft.revisionContent || "",
             translations: apiBody.translations,
           });
         } else if (savedDraft.changeRequestId) {
@@ -1266,6 +1276,8 @@ export default function Home() {
     const apiBody = {
       changeKind: "typo" as const,
       revisionReason: draft.revisionNote || "純錯字修正",
+      revisionDate: draft.revisionDate || undefined,
+      revisionContent: draft.revisionContent || "",
       requestedEffectiveDate: draft.effectiveDate || undefined,
       scheduledPublishDate: draft.publishDate || undefined,
       translations: apiTranslationsFromCopy(draft.draft),
@@ -1289,6 +1301,8 @@ export default function Home() {
       publishedAt: new Date().toISOString().slice(0, 10),
       copy: clone(draft.draft),
       revisionNote: draft.revisionNote || "純錯字修正",
+      revisionDate: draft.revisionDate || new Date().toISOString().slice(0, 10),
+      revisionContent: draft.revisionContent || "",
     };
     const next = {
       ...draft,
@@ -1434,6 +1448,8 @@ export default function Home() {
       publishedAt: new Date().toISOString().slice(0, 10),
       copy: clone(policy.draft),
       revisionNote: policy.revisionNote || "未填寫修訂說明",
+      revisionDate: policy.revisionDate || new Date().toISOString().slice(0, 10),
+      revisionContent: policy.revisionContent || "",
     };
     const next = {
       ...policy,
@@ -1750,6 +1766,13 @@ export default function Home() {
                       <section className="approval-reason">
                         <b>改訂理由</b>
                         <p>{policy.revisionNote || "改訂理由は未入力です。"}</p>
+                      </section>
+                      <section className="revision-record approval-revision-record">
+                        <b>改訂紀錄</b>
+                        <dl>
+                          <div><dt>改訂日</dt><dd>{policy.revisionDate || "未記錄"}</dd></div>
+                          <div><dt>改訂內容</dt><dd>{policy.revisionContent || "改訂内容は未入力です。"}</dd></div>
+                        </dl>
                       </section>
                       <details className="approval-original">
                         <summary>原文を確認（前回公開版）</summary>
@@ -2668,6 +2691,19 @@ export default function Home() {
                     tables={draft.draft[lang].tables}
                     onChange={(x) => update("tables", x)}
                   />
+                  <section className="revision-record editor-revision-record">
+                    <b>改訂紀錄</b>
+                    <div className="revision-record-fields">
+                      <label>
+                        改訂日
+                        <input type="date" value={draft.revisionDate || ""} onChange={(e) => setDraft({ ...draft, revisionDate: e.target.value })} />
+                      </label>
+                      <label>
+                        改訂內容
+                        <textarea rows={2} value={draft.revisionContent || ""} placeholder="例如：第 2 條新增主管核准流程" onChange={(e) => setDraft({ ...draft, revisionContent: e.target.value })} />
+                      </label>
+                    </div>
+                  </section>
                   <div className="form-actions">
                     <button
                       type="button"
@@ -2724,6 +2760,13 @@ export default function Home() {
                     ))}
                   </div>
                   <Tables tables={displayedCopy[selectedDisplayLang].tables} />
+                  <section className="revision-record">
+                    <b>改訂紀錄</b>
+                    <dl>
+                      <div><dt>改訂日</dt><dd>{versions.at(-1)?.revisionDate || selected.revisionDate || "尚未記錄"}</dd></div>
+                      <div><dt>改訂內容</dt><dd>{versions.at(-1)?.revisionContent || selected.revisionContent || "尚未填寫改訂內容。"}</dd></div>
+                    </dl>
+                  </section>
                   <section className="policy-links">
                     <div>
                       <b>附件／表單</b>
@@ -2742,14 +2785,14 @@ export default function Home() {
                       </p>
                     </div>
                   </section>
-                  <section className="revision-note">
-                    <b>最新修訂說明</b>
+                  {role !== "employee" && <section className="revision-note">
+                    <b>改訂理由</b>
                     <p>
                       {versions.at(-1)?.revisionNote ||
                         selected.revisionNote ||
                         "尚未填寫修訂說明。"}
                     </p>
-                  </section>
+                  </section>}
                   {isAdmin && hasSavedDraft(selected) && (
                     <section className="pending-draft">
                       <div className="pending-draft-head">

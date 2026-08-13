@@ -336,6 +336,30 @@ body .sidebar-foot::after {
   background: #fcedea;
   color: #a14a41;
 }
+.revision-record {
+  margin-top: 16px;
+  border: 1px solid #dce8e0;
+  border-radius: 9px;
+  padding: 13px 14px;
+  background: #fbfdfb;
+}
+.revision-record > b {
+  display: block;
+  color: #385f50;
+  font-size: 13px;
+}
+.revision-record dl {
+  display: grid;
+  gap: 9px;
+  margin: 10px 0 0;
+}
+.revision-record dl div { display: grid; grid-template-columns: 72px 1fr; gap: 8px; }
+.revision-record dt { color: #718177; font-size: 12px; }
+.revision-record dd { margin: 0; color: #40564a; font-size: 13px; white-space: pre-wrap; }
+.revision-record-fields { display: grid; grid-template-columns: 170px 1fr; gap: 12px; margin-top: 10px; }
+.revision-record-fields label { display: grid; gap: 5px; color: #53675d; font-size: 12px; }
+.revision-record-fields input, .revision-record-fields textarea { width: 100%; }
+@media (max-width: 600px) { .revision-record-fields { grid-template-columns: 1fr; } }
 @media (max-width: 600px) {
   .approval-flow {
     flex-wrap: wrap;

@@ -122,6 +122,8 @@ CREATE TABLE policy_versions (
   published_at timestamptz NOT NULL DEFAULT now(),
   published_by char(5) NOT NULL REFERENCES users(employee_no),
   revision_note text,
+  revision_date date,
+  revision_content text NOT NULL DEFAULT '',
   source_change_request_id uuid,
   PRIMARY KEY (policy_code, version_no)
 );
@@ -157,6 +159,8 @@ CREATE TABLE policy_change_requests (
   change_kind change_kind NOT NULL,
   status change_request_status NOT NULL DEFAULT 'draft',
   revision_reason text NOT NULL DEFAULT '',
+  revision_date date,
+  revision_content text NOT NULL DEFAULT '',
   requested_effective_date date,
   scheduled_publish_date date,
   requires_approval boolean NOT NULL DEFAULT true,
@@ -175,6 +179,12 @@ CREATE TABLE policy_change_requests (
   CHECK (scheduled_publish_date IS NULL OR requested_effective_date IS NULL
          OR scheduled_publish_date >= requested_effective_date)
 );
+
+-- 既有資料庫升級：新增對 Employee 公開的改訂紀錄欄位。
+ALTER TABLE policy_versions ADD COLUMN IF NOT EXISTS revision_date date;
+ALTER TABLE policy_versions ADD COLUMN IF NOT EXISTS revision_content text NOT NULL DEFAULT '';
+ALTER TABLE policy_change_requests ADD COLUMN IF NOT EXISTS revision_date date;
+ALTER TABLE policy_change_requests ADD COLUMN IF NOT EXISTS revision_content text NOT NULL DEFAULT '';
 
 CREATE UNIQUE INDEX one_open_change_request_per_policy
   ON policy_change_requests(policy_code)

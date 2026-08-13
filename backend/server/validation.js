@@ -15,11 +15,15 @@ export const policyCreate = z.object({
   categoryCode: z.string().min(1),
   effectiveDate: z.coerce.date().optional(),
   revisionReason: z.string().default(""),
+  revisionDate: z.coerce.date().optional(),
+  revisionContent: z.string().default(""),
   translations: z.array(translation).min(1),
 });
 export const changeDraft = z.object({
   changeKind: z.enum(["new_policy", "typo", "content"]),
   revisionReason: z.string().default(""),
+  revisionDate: z.coerce.date().optional(),
+  revisionContent: z.string().default(""),
   requestedEffectiveDate: z.coerce.date().optional(),
   scheduledPublishDate: z.coerce.date().optional(),
   translations: z.array(translation).min(1),
