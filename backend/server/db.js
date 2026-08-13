@@ -9,6 +9,9 @@ if (!process.env.DATABASE_URL) {
 
 export const db = new Pool({
   connectionString: process.env.DATABASE_URL,
+  // 所有未加 schema 前綴的 SQL 都固定查詢 role_web；public 僅作為 PostgreSQL
+  // 擴充套件（例如 citext）與系統函式的後備 search path。
+  options: process.env.PGOPTIONS || "-c search_path=role_web,public",
   ssl: process.env.DATABASE_SSL === "true" ? { rejectUnauthorized: false } : undefined,
 });
 

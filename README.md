@@ -25,7 +25,7 @@ npm run dev
 
 ```bash
 cp backend/.env.example backend/.env
-# 編輯 backend/.env，填入正確的 DATABASE_URL
+# 編輯 backend/.env，填入正確的 DATABASE_URL（系統資料一律使用 role_web schema）
 psql "$DATABASE_URL" -f backend/db/postgresql_schema.sql
 npm run api:dev
 ```
@@ -63,10 +63,198 @@ API 預設網址是 <http://localhost:3001>。前端目前尚未改為呼叫 API
 | `npm run build` | 建置前端正式版本。 |
 | `npm run api:dev` | 以監看模式啟動 Express API。 |
 | `npm run api:start` | 啟動 Express API。 |
-| `npm run db:generate` | 依 Drizzle schema 產生資料庫遷移檔。 |
 | `npm run lint` | 檢查前後端程式碼風格。 |
 
 後端必須持續運行，預定發布排程才會執行。排程以 `Asia/Taipei` 日期判定，發布者會在修改紀錄中標示為 `System`。
+
+## 用 PM2 部署到 Linux 伺服器
+
+以下範例假設網站放在 `/var/www/role_web`、前端使用 `3000` 埠、Express API 使用 `3001` 埠，並由 Nginx 對外提供 HTTPS。PM2 會讓兩個服務在 SSH 中斷、程式異常或伺服器重新開機後仍能持續運作。
+
+> 請在 Linux 伺服器執行下列指令；不要在 pgAdmin 的 SQL Query Tool 中執行。部署前請先確認 PostgreSQL 已建立資料庫並已執行 `backend/db/postgresql_schema.sql`。
+
+### 1. 安裝 Node.js、PM2 與專案套件
+
+```bash
+# 需先安裝 Node.js 22 以上與 Git；Ubuntu 可用 nvm 或 NodeSource 安裝。
+node -v
+
+sudo npm install -g pm2
+git clone <你的 Git 儲存庫網址> /var/www/role_web
+cd /var/www/role_web
+npm ci
+```
+
+若不是透過 Git 部署，請將整個專案上傳到 `/var/www/role_web`，同樣在該目錄執行 `npm ci`。`node_modules`、`.env` 和資料庫密碼都不應上傳到 Git。
+
+### 2. 設定正式環境變數
+
+建立 `backend/.env`：
+
+```env
+DATABASE_URL=postgresql://policy_app:請改成強密碼@127.0.0.1:5432/policy_center
+PGOPTIONS=-c search_path=role_web,public
+PORT=3001
+CORS_ORIGIN=https://policy.example.com
+AUTH_PROVIDER=company_api
+```
+
+建立 `frontend/.env.production`：
+
+```env
+VITE_POLICY_API_URL=https://policy.example.com/api
+```
+
+`CORS_ORIGIN` 必須是使用者實際開啟前端的網址，不能保留 `localhost`。若先以測試帳號驗收，可暫時將 `AUTH_PROVIDER=demo`，並在 `backend/.env` 自行設定四個 `DEMO_*_PASSWORD` 密碼。
+
+### 3. 建置前端並建立 PM2 設定檔
+
+```bash
+cd /var/www/role_web
+npm run build
+```
+
+專案根目錄已附上 `ecosystem.config.cjs`。它的 `cwd: __dirname` 會自動使用設定檔所在的專案根目錄，因此不用因部署路徑不同而修改；內容如下：
+
+```js
+module.exports = {
+  apps: [
+    {
+      name: "policy-api",
+      cwd: __dirname,
+      script: "backend/server/index.js",
+      interpreter: "node",
+      env: { NODE_ENV: "production" },
+      autorestart: true,
+      max_restarts: 10,
+      time: true,
+    },
+    {
+      name: "policy-web",
+      cwd: __dirname,
+      script: "node_modules/vinext/dist/cli.js",
+      args: "start --port 3000 --hostname 127.0.0.1",
+      interpreter: "node",
+      env: { NODE_ENV: "production" },
+      autorestart: true,
+      max_restarts: 10,
+      time: true,
+    },
+  ],
+};
+```
+
+前端的 `vinext start` 會讀取 `npm run build` 產生的輸出，因此每次更新前端程式碼都要先重新建置。API 不需要監看模式，PM2 會在程式意外結束時自動重啟。
+
+### 4. 以 PM2 啟動、檢查與開機自啟
+
+```bash
+cd /var/www/role_web
+pm2 start ecosystem.config.cjs
+pm2 status
+pm2 logs policy-api
+pm2 logs policy-web
+
+# 測試 API 是否正常
+curl http://127.0.0.1:3001/health
+
+# 儲存目前服務，並依 PM2 顯示的指令設定開機自啟
+pm2 save
+pm2 startup
+```
+
+`pm2 startup` 會輸出一行需要用 `sudo` 執行的指令；請完整複製並執行，之後再執行一次 `pm2 save`。常用維護指令如下：
+
+| 指令 | 用途 |
+| --- | --- |
+| `pm2 status` | 查看服務是否為 `online`。 |
+| `pm2 logs policy-api` | 查看後端、資料庫連線與排程紀錄。 |
+| `pm2 logs policy-web` | 查看前端 SSR 服務紀錄。 |
+| `pm2 restart policy-api` | 修改後端或 `.env` 後重啟 API。 |
+| `pm2 restart policy-web` | 重新建置前端後重啟網站。 |
+| `pm2 reload ecosystem.config.cjs --update-env` | 以設定檔平滑重載並重新讀取環境變數。 |
+
+### 5. 用 Nginx 對外提供網站與 API
+
+不建議直接對外開放 3000、3001 埠。Nginx 讓前端與 API 共用同一個 HTTPS 網域，前端使用 `/api` 呼叫 Express，因而不需要跨網域設定。
+
+建立 `/etc/nginx/sites-available/policy-center`：
+
+```nginx
+server {
+    listen 80;
+    server_name policy.example.com;
+
+    # 上線後請用 Certbot 將此站改為 HTTPS。
+    location /api/ {
+        proxy_pass http://127.0.0.1:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+啟用並檢查 Nginx：
+
+```bash
+sudo ln -s /etc/nginx/sites-available/policy-center /etc/nginx/sites-enabled/policy-center
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+取得 HTTPS 憑證（網域 DNS 已指向此伺服器後）：
+
+```bash
+sudo certbot --nginx -d policy.example.com
+```
+
+### 6. 日後更新流程
+
+```bash
+cd /var/www/role_web
+git pull
+npm ci
+npm run build
+pm2 restart policy-api --update-env
+pm2 restart policy-web --update-env
+pm2 save
+```
+
+更新 PostgreSQL schema 前，先備份資料庫並在測試環境驗證。若 schema 有新增 migration，請先執行 migration，再重新啟動 API；不要在正式資料庫直接任意重跑會刪除資料的 SQL。
+
+### PostgreSQL schema：`role_web`
+
+本系統的 PostgreSQL 資料一律放在 `role_web` schema，不使用 `public` 存放規程、使用者、版本、承認或修改紀錄資料。`backend/db/postgresql_schema.sql` 開頭會自動建立 `role_web` 並切換至該 schema；Express API 也會透過 `PGOPTIONS` 固定使用 `role_web,public` 搜尋路徑。
+
+以 pgAdmin 初始化時，請在目標資料庫的 Query Tool 執行整份 `backend/db/postgresql_schema.sql`。執行後可在 pgAdmin 展開：`Schemas` → `role_web` → `Tables`，確認 `policies`、`policy_versions`、`policy_change_requests` 等資料表都位於 `role_web` 下。
+
+若資料庫管理者與 API 連線帳號不同，請以 schema 擁有者執行下列授權；將 `policy_app` 改成實際 API 帳號：
+
+```sql
+GRANT USAGE ON SCHEMA role_web TO policy_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA role_web TO policy_app;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA role_web TO policy_app;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA role_web
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO policy_app;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA role_web
+GRANT USAGE, SELECT ON SEQUENCES TO policy_app;
+```
+
+如果先前曾在 `public` 建立本系統資料表，請不要直接重跑初始化 SQL，以免和既有物件衝突。先備份資料庫，再將既有資料表與相依物件移轉至 `role_web`，或在新的資料庫執行此初始化檔後匯入資料。
 
 ## 功能與權限
 
@@ -115,12 +303,13 @@ role_web/
 │   ├── components/
 │   │   ├── pages/                    # 資料庫、待辦、修改紀錄頁外框
 │   │   └── policy/                   # 可重用的表格、條文章節編輯元件
+│   ├── public/
+│   │   └── policy-mascot.png         # 左上角企業規程庫吉祥物圖標
 │   ├── lib/
 │   │   ├── policy-types.ts           # 前端資料型別定義
 │   │   └── policy-utils.ts           # 編號、內容、表格與版本工具函式
-│   ├── worker/index.ts               # Cloudflare Worker 進入點
-│   ├── vite.config.ts                # Vite / Cloudflare 開發及建置設定
-│   └── .openai/hosting.json          # 網站發布設定
+│   ├── vite.config.ts                # vinext 前端開發及 Node.js 建置設定
+│   └── public/policy-mascot.png      # 左上角企業規程庫吉祥物圖標
 ├── backend/                          # Node.js / Express / PostgreSQL 後端
 │   ├── server/
 │   │   ├── index.js                  # API 路由與承認流程
@@ -128,13 +317,19 @@ role_web/
 │   │   ├── db.js                     # PostgreSQL 連線池與交易工具
 │   │   └── validation.js             # Zod 請求資料驗證規則
 │   ├── db/
-│   │   ├── postgresql_schema.sql     # 正式 PostgreSQL schema、觸發器及 view
-│   │   ├── schema.ts                 # Drizzle schema
-│   │   └── index.ts                  # Drizzle 資料庫設定
+│   │   └── postgresql_schema.sql     # 正式 PostgreSQL schema、觸發器及 view
 │   ├── docs/express-api.md           # API 請求／回應範例
 │   └── .env.example                  # 後端環境變數範本
+├── ecosystem.config.cjs              # PM2 正式環境服務設定範例
 └── package.json                      # 共用指令與套件
 ```
+
+## 介面圖標與字體
+
+- 左上角的「企業規程庫」標誌使用 `frontend/public/policy-mascot.png`。它是綠色系、手持核可文件的吉祥物，會在規程資料庫、承認待辦與修改紀錄三個頁面共用顯示。
+- 圖標透過 `frontend/app/page.tsx` 中的 `<img className="brand-mark" src="/policy-mascot.png" />` 載入；靜態檔案位於 `public/`，因此瀏覽器路徑固定為 `/policy-mascot.png`。
+- `frontend/app/globals.css` 的 `.brand-mark` 控制圖標尺寸（35 × 35px）、圓形外框與裁切方式。若要替換圖標，保留相同檔名即可；若改用其他檔名，需同步修改三處左上角品牌區塊的 `src`。
+- 全站採用較圓潤的字體優先順序：`JF Open Huninn`、`PingFang TC`、`Hiragino Maru Gothic ProN`、`Yu Gothic` 與 `Microsoft JhengHei`。裝置沒有前述字體時會自動使用後備字體。
 
 ## 前端檔案與函式說明
 
@@ -157,6 +352,8 @@ role_web/
 | `returnForRevision()` | 退回案件並記錄退回者及意見。 |
 | `restore()` | 將歷史版本複製回草稿，從不覆蓋舊版。 |
 | `guardEditingNavigation()` | 編輯未儲存時攔截換頁、切換分類或規程，詢問是否先儲存。 |
+
+左上角的品牌標誌在規程資料庫、承認待辦與修改紀錄三個畫面各有一個共用的 `<img className="brand-mark" />`。三者皆指向 `/policy-mascot.png`，避免換頁後圖標不一致。
 
 ### `frontend/components/`
 
@@ -213,7 +410,7 @@ X-Employee-No: A0000
 - 正式環境請以 Express API + PostgreSQL 為唯一資料來源，並移除前端的示範資料寫入。
 - `policy_versions`、翻譯與稽核紀錄在 PostgreSQL 中設有不可修改／刪除保護，確保舊版本不會被覆蓋。
 - `.env` 不應提交到 Git；請只提交 `.env.example`。
-- 部署前請執行 `npm run build`。舊的 `npm test` 仍是初始化範本的 loading-skeleton 測試，與目前完成的介面不相符，不應作為功能驗收依據。
+- 部署前請執行 `npm run build`，並以 `npm run lint` 和實際登入／送審流程驗收。
 
 ## 建議維護順序
 

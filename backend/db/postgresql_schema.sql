@@ -2,9 +2,15 @@
 -- 規程主鍵：DHT1-0000 至 DHT99-0000（固定分類前綴 + 連字號 + 四位數字）
 -- 使用者主鍵：A0000（英文大寫字母 + 四位數字）
 -- 此檔案供全新 PostgreSQL 資料庫初始化使用。
+-- 本系統所有資料表、列舉型別、函式與觸發器均建立於 role_web schema；
+-- public 僅保留 PostgreSQL 擴充套件（pgcrypto、citext）所需的共用物件。
+
+CREATE SCHEMA IF NOT EXISTS role_web;
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE EXTENSION IF NOT EXISTS citext;
+
+SET search_path TO role_web, public;
 
 CREATE TYPE user_role AS ENUM ('admin', 'employee', 'department_head', 'site_head');
 CREATE TYPE language_code AS ENUM ('zh-TW', 'ja-JP');

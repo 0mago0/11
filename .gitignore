@@ -40,8 +40,8 @@ next-env.d.ts
 /dist/
 /frontend/dist/
 /frontend/.wrangler/
+/.wrangler/
 /frontend/tsconfig.tsbuildinfo
 tsconfig.tsbuildinfo
-/.wrangler/
 /outputs/
 /work/

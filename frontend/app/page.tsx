@@ -757,20 +757,6 @@ export default function Home() {
         return;
       }
     } catch {}
-    fetch("/api/me")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((x) => {
-        if (x) {
-          setRole(x.role);
-          setLang(
-            x.role === "department_head" || x.role === "site_head"
-              ? "ja"
-              : "zh",
-          );
-          setName(x.name);
-        }
-      })
-      .catch(() => {});
   }, []);
   useEffect(() => {
     // 角色預覽對應資料庫中的四個示範員編。正式登入串接後可改為登入 token 內的員編。
@@ -955,7 +941,7 @@ export default function Home() {
     ]),
   ) as Record<PolicyFilter, number>;
   const changePreviewRole = (next: Role) => {
-    // 僅供展示角色權限；正式登入時改由 /api/me 的使用者資料取代。
+    // 僅供展示角色權限；正式使用時應由 Express 登入 API 的使用者資料取代。
     localStorage.setItem("hr-policy-role-preview", next);
     setRole(next);
     setLang(next === "department_head" || next === "site_head" ? "ja" : "zh");
