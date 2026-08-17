@@ -44,6 +44,8 @@ FILE_NAME_LANGUAGES = {
 # 一般段落與條文會完整保留。無法從 PDF 文字層可靠辨識的表格列仍可能被當作文字，
 # 這時請在匯入後的草稿內刪除該列。
 TABLE_LIKE_PDF_LINE = re.compile(r"\t|\|| {3,}")
+# PDF 封面常有版次／核准資訊表；規程內文自第一章或第一條起算。
+POLICY_BODY_START = re.compile(r"^\s*第\s*(?:[一二三四五六七八九十百千\d]+)\s*(?:章|條|条)")
 
 
 def clean(value: Any) -> str:
@@ -88,7 +90,7 @@ def revision_records_from_row(row: dict[str, str]) -> list[dict[str, str]]:
 
 
 def extract_pdf_text(pdf_path: Path) -> str:
-    """擷取文字型 PDF 的一般文字，不讀取圖片並略過可辨識的表格列。"""
+    """僅擷取第一章／第一條以後的文字，不讀取封面表格或圖片。"""
     try:
         reader = PdfReader(str(pdf_path))
         pages = []
@@ -97,7 +99,16 @@ def extract_pdf_text(pdf_path: Path) -> str:
             lines = (page.extract_text() or "").splitlines()
             text_lines = [line.rstrip() for line in lines if not TABLE_LIKE_PDF_LINE.search(line)]
             pages.append("\n".join(text_lines).strip())
-        text = "\n\n".join(page for page in pages if page).strip()
+        all_lines = "\n\n".join(page for page in pages if page).splitlines()
+        start_index = next(
+            (index for index, line in enumerate(all_lines) if POLICY_BODY_START.search(line)),
+            None,
+        )
+        if start_index is None:
+            raise ValueError(
+                f"PDF 找不到「第一章」或「第一條」作為內文起點：{pdf_path.name}"
+            )
+        text = "\n".join(all_lines[start_index:]).strip()
     except Exception as error:  # pypdf 的錯誤類型因 PDF 格式而異。
         raise ValueError(f"無法讀取 PDF：{pdf_path}（{error}）") from error
     if not text:
