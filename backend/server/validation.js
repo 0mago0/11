@@ -9,6 +9,7 @@ export const translation = z.object({
   content: z.string().default(""),
   chapters: z.array(z.unknown()).default([]),
   tables: z.array(z.unknown()).default([]),
+  images: z.array(z.object({ name: z.string().max(200), dataUrl: z.string().regex(/^data:image\/(png|jpeg|gif|webp);base64,/), alt: z.string().max(300).default("") })).max(5).default([]),
 });
 const revisionRecord = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).default(""),

@@ -145,6 +145,7 @@ CREATE TABLE policy_version_translations (
   content text NOT NULL DEFAULT '',
   chapters jsonb NOT NULL DEFAULT '[]'::jsonb,
   tables jsonb NOT NULL DEFAULT '[]'::jsonb,
+  images jsonb NOT NULL DEFAULT '[]'::jsonb,
   PRIMARY KEY (policy_code, version_no, language),
   FOREIGN KEY (policy_code, version_no)
     REFERENCES policy_versions(policy_code, version_no) ON DELETE RESTRICT,
@@ -189,6 +190,7 @@ ALTER TABLE policy_change_requests ADD COLUMN IF NOT EXISTS revision_date date;
 ALTER TABLE policy_change_requests ADD COLUMN IF NOT EXISTS revision_content text NOT NULL DEFAULT '';
 ALTER TABLE policy_versions ADD COLUMN IF NOT EXISTS revision_records jsonb NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE policy_change_requests ADD COLUMN IF NOT EXISTS revision_records jsonb NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE policy_version_translations ADD COLUMN IF NOT EXISTS images jsonb NOT NULL DEFAULT '[]'::jsonb;
 
 CREATE UNIQUE INDEX one_open_change_request_per_policy
   ON policy_change_requests(policy_code)
@@ -203,6 +205,7 @@ CREATE TABLE policy_change_translations (
   content text NOT NULL DEFAULT '',
   chapters jsonb NOT NULL DEFAULT '[]'::jsonb,
   tables jsonb NOT NULL DEFAULT '[]'::jsonb,
+  images jsonb NOT NULL DEFAULT '[]'::jsonb,
   PRIMARY KEY (change_request_id, language),
   CHECK (jsonb_typeof(chapters) = 'array'),
   CHECK (jsonb_typeof(tables) = 'array')

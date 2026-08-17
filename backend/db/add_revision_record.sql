@@ -15,3 +15,9 @@ ALTER TABLE policy_versions
 
 ALTER TABLE policy_change_requests
   ADD COLUMN IF NOT EXISTS revision_records jsonb NOT NULL DEFAULT '[]'::jsonb;
+
+ALTER TABLE policy_version_translations
+  ADD COLUMN IF NOT EXISTS images jsonb NOT NULL DEFAULT '[]'::jsonb;
+
+ALTER TABLE policy_change_translations
+  ADD COLUMN IF NOT EXISTS images jsonb NOT NULL DEFAULT '[]'::jsonb;

@@ -20,6 +20,7 @@ export type ApiTranslation = {
   content: string;
   chapters: unknown[];
   tables: unknown[];
+  images?: Array<{ name: string; dataUrl: string; alt?: string }>;
 };
 
 export type ApiWorkspacePolicy = {

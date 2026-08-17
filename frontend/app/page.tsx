@@ -39,11 +39,13 @@ type Chapter = { id: string; title: string; articles: Article[] };
 type TableMerge = { startRow: number; startCol: number; endRow: number; endCol: number };
 type PolicyTable = { cells: string[][]; merges?: TableMerge[] };
 type RevisionRecord = { date: string; content: string };
+type PolicyImage = { name: string; dataUrl: string; alt?: string };
 type Copy = {
   title: string;
   summary: string;
   content: string;
   tables: PolicyTable[];
+  images: PolicyImage[];
   chapters: Chapter[];
 };
 type Version = {
@@ -141,6 +143,7 @@ const emptyCopy = (): Copy => ({
   summary: "",
   content: "",
   tables: [],
+  images: [],
   chapters: [],
 });
 const normalizeRevisionRecords = (records: unknown, date = "", content = ""): RevisionRecord[] => {
@@ -180,6 +183,7 @@ const copy = (
   summary,
   content,
   tables,
+  images: [],
   chapters: chaptersFromContent(content),
 });
 const normalizeCopy = (value: Partial<Copy>): Copy => ({
@@ -187,6 +191,7 @@ const normalizeCopy = (value: Partial<Copy>): Copy => ({
   summary: value.summary || "",
   content: value.content || "",
   tables: normalizeTables(value.tables),
+  images: Array.isArray(value.images) ? value.images.filter((image): image is PolicyImage => !!image && typeof image === "object" && typeof (image as PolicyImage).dataUrl === "string") : [],
   chapters: value.chapters?.length
     ? value.chapters
     : chaptersFromContent(value.content || ""),
@@ -621,7 +626,7 @@ const copyFromApi = (translations: ApiTranslation[]): Record<Lang, Copy> => {
   const find = (language: ApiTranslation["language"]) => translations.find((item) => item.language === language);
   const toCopy = (item?: ApiTranslation): Copy => ({
     title: item?.title || "", summary: item?.summary || "", content: item?.content || "",
-    tables: normalizeTables(item?.tables), chapters: Array.isArray(item?.chapters) ? item!.chapters as Chapter[] : chaptersFromContent(item?.content || ""),
+    tables: normalizeTables(item?.tables), images: Array.isArray(item?.images) ? item.images as PolicyImage[] : [], chapters: Array.isArray(item?.chapters) ? item!.chapters as Chapter[] : chaptersFromContent(item?.content || ""),
   });
   return { zh: toCopy(find("zh-TW")), ja: toCopy(find("ja-JP")) };
 };
@@ -1158,6 +1163,17 @@ export default function Home() {
       revisionDate: records[0]?.date || "",
       revisionContent: records[0]?.content || "",
     }));
+  const addPolicyImages = (files: FileList | null) => {
+    if (!files?.length) return;
+    const imageFiles = Array.from(files).filter((file) => file.type.startsWith("image/") && file.size <= 500 * 1024).slice(0, Math.max(0, 5 - draft.draft[lang].images.length));
+    if (imageFiles.length !== files.length) setNotice("圖片須為圖片格式且每張不超過 700 KB；不符合的檔案未加入。");
+    void Promise.all(imageFiles.map((file) => new Promise<PolicyImage>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve({ name: file.name, dataUrl: String(reader.result), alt: file.name.replace(/\.[^.]+$/, "") });
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    }))).then((images) => update("images", [...draft.draft[lang].images, ...images]));
+  };
   function saveDraft(e?: FormEvent) {
     // 已送審的規程鎖定內容，直到承認完成或被退回，避免審核版本在途中改變。
     e?.preventDefault();
@@ -2556,7 +2572,9 @@ export default function Home() {
                 )}
               </div>
               {editing ? (
-                <form onSubmit={saveDraft}>
+                <form onSubmit={saveDraft} onKeyDown={(event) => {
+                  if (event.key === "Enter" && event.target instanceof HTMLInputElement) event.preventDefault();
+                }}>
                   {draft.status !== "停用" &&
                     (draft.versions.length > 0 ||
                       draft.approval?.stage === "已承認待發布") && (
@@ -2751,6 +2769,11 @@ export default function Home() {
                     tables={draft.draft[lang].tables}
                     onChange={updateChapters}
                   />
+                  <section className="policy-image-editor">
+                    <div><b>規程圖片</b><small>可加入示意圖、流程圖或照片；每種語言最多 5 張、每張最多 500 KB。</small></div>
+                    <label className="image-upload-button">＋ 加入圖片<input type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple onChange={(event) => { addPolicyImages(event.target.files); event.currentTarget.value = ""; }} /></label>
+                    {!!draft.draft[lang].images.length && <div className="policy-image-grid editing-images">{draft.draft[lang].images.map((image, index) => <figure key={`${image.name}-${index}`}><img src={image.dataUrl} alt={image.alt || image.name} /><figcaption><input value={image.alt || ""} placeholder="圖片說明" onChange={(event) => update("images", draft.draft[lang].images.map((item, position) => position === index ? { ...item, alt: event.target.value } : item))} /><button type="button" onClick={() => update("images", draft.draft[lang].images.filter((_, position) => position !== index))}>刪除</button></figcaption></figure>)}</div>}
+                  </section>
                   <Tables
                     editing
                     tables={draft.draft[lang].tables}
@@ -2832,6 +2855,7 @@ export default function Home() {
                     ))}
                   </div>
                   <Tables tables={displayedCopy[selectedDisplayLang].tables} />
+                  {!!displayedCopy[selectedDisplayLang].images.length && <section className="policy-images"><b>相關圖片</b><div className="policy-image-grid">{displayedCopy[selectedDisplayLang].images.map((image, index) => <figure key={`${image.name}-${index}`}><img src={image.dataUrl} alt={image.alt || image.name} />{image.alt && <figcaption>{image.alt}</figcaption>}</figure>)}</div></section>}
                   <section className="revision-record">
                     <b>改訂紀錄</b>
                     <dl>

@@ -27,7 +27,7 @@ const allowedCorsOrigins = new Set([
   ...(process.env.NODE_ENV === "production" ? [] : developmentCorsOrigins),
 ]);
 
-app.use(express.json({ limit: "2mb" }));
+app.use(express.json({ limit: "8mb" }));
 app.use((req, res, next) => {
   const origin = req.header("Origin");
   if (!origin || allowedCorsOrigins.has(origin)) {
@@ -73,9 +73,9 @@ const revisionRecordsFor = (change) =>
 const insertTranslations = async (client, table, ownerColumn, ownerId, translations) => {
   for (const item of translations) {
     await client.query(
-      `INSERT INTO ${table} (${ownerColumn}, language, title, summary, content, chapters, tables)
-       VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb)`,
-      [ownerId, item.language, item.title, item.summary, item.content, JSON.stringify(item.chapters), JSON.stringify(item.tables)],
+      `INSERT INTO ${table} (${ownerColumn}, language, title, summary, content, chapters, tables, images)
+       VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb)`,
+      [ownerId, item.language, item.title, item.summary, item.content, JSON.stringify(item.chapters), JSON.stringify(item.tables), JSON.stringify(item.images || [])],
     );
   }
 };
@@ -90,7 +90,7 @@ const publishChangeRequest = async (client, change, actorEmployeeNo) => {
   if (!policy) throw new Error("Policy not found.");
   const versionNo = (policy.current_version_no || 0) + 1;
   const { rows: translations } = await client.query(
-    `SELECT language, title, summary, content, chapters, tables
+    `SELECT language, title, summary, content, chapters, tables, images
        FROM policy_change_translations WHERE change_request_id = $1`,
     [change.change_request_id],
   );
@@ -106,9 +106,9 @@ const publishChangeRequest = async (client, change, actorEmployeeNo) => {
   );
   for (const item of translations) {
     await client.query(
-      `INSERT INTO policy_version_translations (policy_code, version_no, language, title, summary, content, chapters, tables)
-       VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb)`,
-      [change.policy_code, versionNo, item.language, item.title, item.summary, item.content, JSON.stringify(item.chapters), JSON.stringify(item.tables)],
+      `INSERT INTO policy_version_translations (policy_code, version_no, language, title, summary, content, chapters, tables, images)
+       VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::jsonb)`,
+      [change.policy_code, versionNo, item.language, item.title, item.summary, item.content, JSON.stringify(item.chapters), JSON.stringify(item.tables), JSON.stringify(item.images || [])],
     );
   }
   await client.query(
@@ -254,7 +254,7 @@ app.get("/api/policies/:policyCode", async (req, res) => {
       WHERE policy_code = $1 ORDER BY version_no`, [code],
   );
   const { rows: versionTranslations } = await db.query(
-    `SELECT version_no, language, title, summary, content, chapters, tables
+    `SELECT version_no, language, title, summary, content, chapters, tables, images
        FROM policy_version_translations WHERE policy_code = $1`, [code],
   );
   const { rows: changes } = await db.query(
@@ -266,7 +266,7 @@ app.get("/api/policies/:policyCode", async (req, res) => {
   const activeChange = changes[0] || null;
   const { rows: changeTranslations } = activeChange
     ? await db.query(
-        `SELECT language, title, summary, content, chapters, tables
+        `SELECT language, title, summary, content, chapters, tables, images
            FROM policy_change_translations WHERE change_request_id = $1`,
         [activeChange.change_request_id],
       )
