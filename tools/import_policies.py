@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""將 Excel 規程清單與 PDF 內文匯入 Policy Center PostgreSQL 草稿。
+"""將 Excel 規程清單與 PDF 純文字匯入 Policy Center PostgreSQL 草稿。
 
 使用範例：
   python tools/import_policies.py --create-template policy_import.xlsx
@@ -8,6 +8,7 @@
 
 預設為預覽模式；只有加上 --apply 才會寫入資料庫。所有匯入項目都建立為
 「草稿」，不會直接發布、不會取代現有規程，也不會繞過承認流程。
+PDF 的圖片與表格結構均不匯入；僅保留一般段落／條文文字。
 """
 
 from __future__ import annotations
@@ -34,6 +35,10 @@ TEMPLATE_COLUMNS = [
 ]
 LANGUAGES = (("zh", "zh-TW"), ("ja", "ja-JP"))
 CODE_PATTERN = re.compile(r"^DHT\d{1,2}-\d{4}$")
+# PDF 文字擷取後，表格通常會保留 Tab、直線或連續欄位空白；此類列不匯入。
+# 一般段落與條文會完整保留。無法從 PDF 文字層可靠辨識的表格列仍可能被當作文字，
+# 這時請在匯入後的草稿內刪除該列。
+TABLE_LIKE_PDF_LINE = re.compile(r"\t|\|| {3,}")
 
 
 def clean(value: Any) -> str:
@@ -55,10 +60,16 @@ def nullable_date(value: str) -> date | None:
 
 
 def extract_pdf_text(pdf_path: Path) -> str:
-    """擷取文字型 PDF 的所有頁面；掃描 PDF 沒有文字層時會回報清楚錯誤。"""
+    """擷取文字型 PDF 的一般文字，不讀取圖片並略過可辨識的表格列。"""
     try:
         reader = PdfReader(str(pdf_path))
-        text = "\n\n".join((page.extract_text() or "").strip() for page in reader.pages).strip()
+        pages = []
+        for page in reader.pages:
+            # pypdf 預設只取文字層；不讀取 page.images，因此圖片不會被帶入規程。
+            lines = (page.extract_text() or "").splitlines()
+            text_lines = [line.rstrip() for line in lines if not TABLE_LIKE_PDF_LINE.search(line)]
+            pages.append("\n".join(text_lines).strip())
+        text = "\n\n".join(page for page in pages if page).strip()
     except Exception as error:  # pypdf 的錯誤類型因 PDF 格式而異。
         raise ValueError(f"無法讀取 PDF：{pdf_path}（{error}）") from error
     if not text:
@@ -113,7 +124,9 @@ def make_translations(row: dict[str, str], pdf_dir: Path | None, excel_dir: Path
                 "summary": "",
                 "content": content,
                 "chapters": [],
+                # 匯入工具刻意不建立網頁表格，也不匯入 PDF／Excel 圖片。
                 "tables": [],
+                "images": [],
             })
         elif content or pdf:
             raise ValueError(f"{language} 有內文或 PDF，但未填 title_{short_name}。")
@@ -176,9 +189,9 @@ def insert_policy(connection: psycopg.Connection, row: dict[str, str], translati
             for item in translations:
                 cursor.execute(
                     """INSERT INTO policy_change_translations
-                       (change_request_id, language, title, summary, content, chapters, tables)
-                       VALUES (%s, %s, %s, %s, %s, %s::jsonb, %s::jsonb)""",
-                    (change_request_id, item["language"], item["title"], item["summary"], item["content"], json.dumps(item["chapters"]), json.dumps(item["tables"])),
+                       (change_request_id, language, title, summary, content, chapters, tables, images)
+                       VALUES (%s, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s::jsonb)""",
+                    (change_request_id, item["language"], item["title"], item["summary"], item["content"], json.dumps(item["chapters"]), json.dumps(item["tables"]), json.dumps(item["images"])),
                 )
             cursor.execute(
                 """INSERT INTO policy_audit_logs

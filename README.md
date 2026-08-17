@@ -53,6 +53,8 @@ API 預設網址是 <http://localhost:3001>。前端目前尚未改為呼叫 API
 
 可使用 [tools/import_policies.py](tools/import_policies.py) 將多筆規程建立為 PostgreSQL 的「草稿」。匯入不會直接發布、不會覆蓋既有規程，也不會略過部門長與據點長承認。
 
+匯入工具只讀取 Excel 欄位與 PDF 的一般文字／條文；**不會匯入圖片，也不會建立網頁表格**。PDF 中可辨識的表格列（Tab、`|` 或連續欄位空白）會略過。PDF 文字層若無法區分表格和一般文字，該列仍可能以純文字帶入，請在草稿編輯頁刪除即可。
+
 先安裝 Python 3.10 以上與匯入工具所需套件：
 
 ```bash
@@ -84,6 +86,14 @@ python tools/import_policies.py --excel import-files/policy_import.xlsx --pdf-di
 # 確認預覽無誤後，實際建立草稿
 python tools/import_policies.py --excel import-files/policy_import.xlsx --pdf-dir import-files --apply
 ```
+
+完整操作順序：
+
+1. 將 PDF 放到 `import-files`，例如 `DHT2-0001_zh.pdf`、`DHT2-0001_ja.pdf`。
+2. 用 `--create-template` 產生 Excel 範本，填寫規程編號、分類、名稱與 PDF 檔名；不需要填寫表格或圖片欄位。
+3. 先執行未加 `--apply` 的預覽指令，確認每筆規程、PDF 路徑、日期都正確。
+4. 加上 `--apply` 建立資料庫草稿。
+5. 以 Admin 登入網頁，確認純文字內容、補上需要的網頁表格或圖片，再送交承認。
 
 工具會讀取 `DATABASE_URL` 環境變數並固定寫入 `role_web` schema。若在 Windows PowerShell 執行，可先設定：
 
