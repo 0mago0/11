@@ -1255,7 +1255,7 @@ export default function Home() {
             : "草稿已儲存。",
         );
       } catch (error) {
-        setNotice("草稿尚未儲存，請稍後再試。");
+        setNotice(`草稿尚未儲存：${error instanceof Error ? error.message : "請稍後再試。"}`);
       }
     })();
     setNotice(
