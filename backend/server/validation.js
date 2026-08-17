@@ -12,7 +12,8 @@ export const translation = z.object({
   images: z.array(z.object({ name: z.string().max(200), dataUrl: z.string().regex(/^data:image\/(png|jpeg|gif|webp);base64,/), alt: z.string().max(300).default("") })).max(5).default([]),
 });
 const revisionRecord = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).default(""),
+  // 編輯中可先新增空白改訂列，儲存草稿時不應因此阻擋錯字修正或內容修改。
+  date: z.union([z.literal(""), z.string().regex(/^\d{4}-\d{2}-\d{2}$/)]).default(""),
   content: z.string().default(""),
 });
 export const policyCreate = z.object({

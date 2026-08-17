@@ -1342,7 +1342,7 @@ export default function Home() {
         await refreshWorkspace("admin", draft.code);
         setNotice("錯字修正已發布。");
       } catch (error) {
-        setNotice("錯字修正尚未發布，請稍後再試。");
+        setNotice(`錯字修正尚未發布：${error instanceof Error ? error.message : "請稍後再試。"}`);
       }
     })();
     const last = draft.versions.at(-1)?.number || "0.0";
