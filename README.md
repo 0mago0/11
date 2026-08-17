@@ -68,7 +68,7 @@ python tools/import_policies.py --create-template policy_import.xlsx
 | --- | --- | --- |
 | `policy_code` | 規程編號，須符合分類前綴 | `DHT2-0001` |
 | `category_code` | 分類代碼 | `hr` |
-| `title_zh` | 中文規程名稱 | `就業規程` |
+| `title_zh` | 純 Excel 內文時的中文規程名稱；使用 PDF 時可留白，會由檔名讀取 | `就業規程` |
 | `content_zh`／`pdf_zh` | 中文內文或中文 PDF 路徑，二擇一即可 | `DHT2-0001_zh.pdf` |
 | `title_ja`、`content_ja`／`pdf_ja` | 日文名稱與日文內文或 PDF；有日文版本時填寫 | `就業規則` |
 | `effective_date` | 生效日，格式 `YYYY-MM-DD` | `2026-09-01` |
@@ -78,7 +78,7 @@ python tools/import_policies.py --create-template policy_import.xlsx
 | `scheduled_publish_date` | 承認後的預定發布日；可留白 | `2026-09-01` |
 | `created_by` | 建立者員編；可留白，預設 `A0001` | `A0001` |
 
-`pdf_zh`、`pdf_ja` 可填 PDF 檔名或相對路徑。以下假設 Excel 與 PDF 都放在 `import-files` 資料夾：
+`pdf_zh`、`pdf_ja` 可填 PDF 檔名或相對路徑。使用 PDF 時，檔名必須是 `規程編號_規程名稱_語言.pdf`，例如 `DHT2-0001＿就業規程＿中文.pdf`、`DHT2-0001＿就業規則＿日文.pdf`；可使用半形 `_` 或全形 `＿`。工具會由檔名自動取得規程名稱，並核對 Excel 的規程編號與語言。以下假設 Excel 與 PDF 都放在 `import-files` 資料夾：
 
 ```bash
 # 先預覽並檢查欄位、日期、PDF 是否能讀取；不寫入資料庫
@@ -90,8 +90,8 @@ python tools/import_policies.py --excel import-files/policy_import.xlsx --pdf-di
 
 完整操作順序：
 
-1. 將 PDF 放到 `import-files`，例如 `DHT2-0001_zh.pdf`、`DHT2-0001_ja.pdf`。
-2. 用 `--create-template` 產生 Excel 範本，填寫規程編號、分類、名稱與 PDF 檔名；不需要填寫表格或圖片欄位。
+1. 將 PDF 放到 `import-files`，例如 `DHT2-0001＿就業規程＿中文.pdf`、`DHT2-0001＿就業規則＿日文.pdf`。
+2. 用 `--create-template` 產生 Excel 範本，填寫規程編號、分類與 PDF 檔名；使用 PDF 時不需要填寫規程名稱，也不需要填寫表格或圖片欄位。
 3. 先執行未加 `--apply` 的預覽指令，確認每筆規程、PDF 路徑、日期都正確。
 4. 加上 `--apply` 建立資料庫草稿。
 5. 以 Admin 登入網頁，確認純文字內容、補上需要的網頁表格或圖片，再送交承認。

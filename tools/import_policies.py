@@ -27,7 +27,7 @@ import psycopg
 from pypdf import PdfReader
 
 
-REQUIRED_COLUMNS = ["policy_code", "category_code", "title_zh"]
+REQUIRED_COLUMNS = ["policy_code", "category_code"]
 TEMPLATE_COLUMNS = [
     "policy_code", "category_code", "title_zh", "content_zh", "pdf_zh",
     "title_ja", "content_ja", "pdf_ja", "effective_date", "revision_date",
@@ -35,6 +35,11 @@ TEMPLATE_COLUMNS = [
 ]
 LANGUAGES = (("zh", "zh-TW"), ("ja", "ja-JP"))
 CODE_PATTERN = re.compile(r"^DHT\d{1,2}-\d{4}$")
+PDF_FILE_NAME_PATTERN = re.compile(r"^(DHT\d{1,2}-\d{4})[＿_](.+)[＿_](.+)$", re.IGNORECASE)
+FILE_NAME_LANGUAGES = {
+    "zh": "zh-TW", "zh-tw": "zh-TW", "中文": "zh-TW", "繁中": "zh-TW", "繁體中文": "zh-TW",
+    "ja": "ja-JP", "ja-jp": "ja-JP", "日文": "ja-JP", "日本語": "ja-JP",
+}
 # PDF 文字擷取後，表格通常會保留 Tab、直線或連續欄位空白；此類列不匯入。
 # 一般段落與條文會完整保留。無法從 PDF 文字層可靠辨識的表格列仍可能被當作文字，
 # 這時請在匯入後的草稿內刪除該列。
@@ -115,6 +120,23 @@ def resolve_pdf(value: str, pdf_dir: Path | None, excel_dir: Path) -> Path | Non
     raise ValueError(f"找不到 PDF：「{value}」。")
 
 
+def title_from_pdf_file_name(pdf_path: Path, expected_code: str, expected_language: str) -> str:
+    """從「DHT2-0001_規程名稱_中文.pdf」取得標題，並避免選到錯誤檔案。"""
+    match = PDF_FILE_NAME_PATTERN.fullmatch(pdf_path.stem)
+    if not match:
+        raise ValueError(
+            f"PDF 檔名必須是「規程編號_規程名稱_語言.pdf」：{pdf_path.name}"
+        )
+    file_code, title, language_name = match.groups()
+    file_language = FILE_NAME_LANGUAGES.get(language_name.strip().lower())
+    if file_code.upper() != expected_code.upper():
+        raise ValueError(f"PDF 檔名編號「{file_code}」與 Excel 的「{expected_code}」不一致。")
+    if file_language != expected_language:
+        required_name = "中文" if expected_language == "zh-TW" else "日文"
+        raise ValueError(f"PDF 檔名語言「{language_name}」不正確；此欄應使用「{required_name}」。")
+    return title.strip()
+
+
 def read_rows(excel_path: Path) -> list[dict[str, str]]:
     workbook = openpyxl.load_workbook(excel_path, data_only=True)
     sheet = workbook.active
@@ -139,6 +161,8 @@ def make_translations(row: dict[str, str], pdf_dir: Path | None, excel_dir: Path
         content = row.get(f"content_{short_name}", "")
         pdf = resolve_pdf(row.get(f"pdf_{short_name}", ""), pdf_dir, excel_dir)
         if pdf:
+            # 有 PDF 時一律以檔名規程名稱為準，不需再手動填 title_zh／title_ja。
+            title = title_from_pdf_file_name(pdf, row["policy_code"], language)
             content = extract_pdf_text(pdf)
         if title:
             translations.append({
@@ -165,7 +189,7 @@ def validate_row(row: dict[str, str], translations: list[dict[str, Any]]) -> Non
     if not row.get("category_code"):
         raise ValueError("category_code 不可空白。")
     if not any(item["language"] == "zh-TW" for item in translations):
-        raise ValueError("至少需要中文標題 title_zh。")
+        raise ValueError("至少需要中文內容；有 PDF 時名稱會從檔名讀取，純 Excel 內文則需填 title_zh。")
     nullable_date(row.get("effective_date", ""))
     nullable_date(row.get("revision_date", ""))
     revision_records_from_row(row)
@@ -233,8 +257,8 @@ def create_template(path: Path) -> None:
     sheet.title = "規程匯入"
     sheet.append(TEMPLATE_COLUMNS)
     sheet.append([
-        "DHT2-0001", "hr", "就業規程", "", "DHT2-0001_zh.pdf",
-        "就業規則", "", "DHT2-0001_ja.pdf", "2026-09-01", "2026-09-01",
+        "DHT2-0001", "hr", "", "", "DHT2-0001＿就業規程＿中文.pdf",
+        "", "", "DHT2-0001＿就業規則＿日文.pdf", "2026-09-01", "2026-09-01",
         "新制定", "2026-09-01｜新制定\n2026-10-01｜第 2 條文字修正", "新規程初版", "", "A0001",
     ])
     sheet.freeze_panes = "A2"
