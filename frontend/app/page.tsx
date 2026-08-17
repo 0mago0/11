@@ -177,12 +177,15 @@ const copy = (
   title: string,
   summary: string,
   content: string,
-  tables: PolicyTable[] = [],
+  // 示範資料仍保留舊版二維表格陣列；正式資料則使用可合併儲存格的新格式。
+  tables: PolicyTable[] | string[][] = [],
 ): Copy => ({
   title,
   summary,
   content,
-  tables,
+  tables: Array.isArray(tables[0])
+    ? [{ cells: (tables as string[][]).map((row) => row.map(String)) }]
+    : tables as PolicyTable[],
   images: [],
   chapters: chaptersFromContent(content),
 });
@@ -695,9 +698,11 @@ const categoryApiCodes: Record<string, string> = {
   全社基本: "basic", 人事: "hr", IT管理: "it", 總務: "general_affairs", 營業管理: "sales",
   會計管理: "accounting", EHS: "ehs", 進出口管理: "import_export", COW: "cow", ISO9001: "iso9001",
 };
-const apiTranslationsFromCopy = (draft: Record<Lang, Copy>): ApiTranslation[] => [
-  { language: "zh-TW", ...draft.zh }, { language: "ja-JP", ...draft.ja },
-].filter((item) => Boolean(item.title));
+const apiTranslationsFromCopy = (draft: Record<Lang, Copy>): ApiTranslation[] =>
+  ([
+    { language: "zh-TW" as const, ...draft.zh },
+    { language: "ja-JP" as const, ...draft.ja },
+  ] satisfies ApiTranslation[]).filter((item) => Boolean(item.title));
 const apiEmployeeNoByRole: Record<Role, string> = {
   admin: "A0001", employee: "A0002", department_head: "A0003", site_head: "A0004",
 };
