@@ -31,7 +31,7 @@ REQUIRED_COLUMNS = ["policy_code", "category_code", "title_zh"]
 TEMPLATE_COLUMNS = [
     "policy_code", "category_code", "title_zh", "content_zh", "pdf_zh",
     "title_ja", "content_ja", "pdf_ja", "effective_date", "revision_date",
-    "revision_content", "revision_reason", "scheduled_publish_date", "created_by",
+    "revision_content", "revision_records", "revision_reason", "scheduled_publish_date", "created_by",
 ]
 LANGUAGES = (("zh", "zh-TW"), ("ja", "ja-JP"))
 CODE_PATTERN = re.compile(r"^DHT\d{1,2}-\d{4}$")
@@ -57,6 +57,29 @@ def nullable_date(value: str) -> date | None:
         return date.fromisoformat(value)
     except ValueError as error:
         raise ValueError(f"日期格式必須為 YYYY-MM-DD，目前是「{value}」。") from error
+
+
+def revision_records_from_row(row: dict[str, str]) -> list[dict[str, str]]:
+    """讀取多筆改訂紀錄；每行使用「YYYY-MM-DD｜改訂內容」格式。"""
+    records: list[dict[str, str]] = []
+    raw_records = row.get("revision_records", "")
+    if raw_records:
+        for line_number, line in enumerate(raw_records.splitlines(), start=1):
+            line = line.strip()
+            if not line:
+                continue
+            if "｜" not in line:
+                raise ValueError(f"revision_records 第 {line_number} 行必須為「YYYY-MM-DD｜改訂內容」。")
+            revision_date, content = (part.strip() for part in line.split("｜", 1))
+            nullable_date(revision_date)
+            if not content:
+                raise ValueError(f"revision_records 第 {line_number} 行缺少改訂內容。")
+            records.append({"date": revision_date, "content": content})
+    elif row.get("revision_date") or row.get("revision_content"):
+        revision_date = row.get("revision_date", "")
+        nullable_date(revision_date)
+        records.append({"date": revision_date, "content": row.get("revision_content", "")})
+    return records
 
 
 def extract_pdf_text(pdf_path: Path) -> str:
@@ -145,6 +168,7 @@ def validate_row(row: dict[str, str], translations: list[dict[str, Any]]) -> Non
         raise ValueError("至少需要中文標題 title_zh。")
     nullable_date(row.get("effective_date", ""))
     nullable_date(row.get("revision_date", ""))
+    revision_records_from_row(row)
     nullable_date(row.get("scheduled_publish_date", ""))
 
 
@@ -152,6 +176,7 @@ def insert_policy(connection: psycopg.Connection, row: dict[str, str], translati
     """以單一交易建立 policy、草稿 request 與所有中日文內容。"""
     code = row["policy_code"]
     employee_no = row.get("created_by") or default_user
+    revision_records = revision_records_from_row(row)
     with connection.transaction():
         with connection.cursor() as cursor:
             cursor.execute("SELECT 1 FROM users WHERE employee_no = %s", (employee_no,))
@@ -171,15 +196,16 @@ def insert_policy(connection: psycopg.Connection, row: dict[str, str], translati
             )
             cursor.execute(
                 """INSERT INTO policy_change_requests
-                   (policy_code, change_kind, status, revision_reason, revision_date, revision_content,
+                   (policy_code, change_kind, status, revision_reason, revision_date, revision_content, revision_records,
                     requested_effective_date, scheduled_publish_date, requires_approval, created_by)
-                   VALUES (%s, 'new_policy', 'draft', %s, %s, %s, %s, %s, true, %s)
+                   VALUES (%s, 'new_policy', 'draft', %s, %s, %s, %s::jsonb, %s, %s, true, %s)
                    RETURNING change_request_id""",
                 (
                     code,
                     row.get("revision_reason", ""),
-                    nullable_date(row.get("revision_date", "")),
-                    row.get("revision_content", ""),
+                    nullable_date(revision_records[0]["date"]) if revision_records and revision_records[0]["date"] else None,
+                    revision_records[0]["content"] if revision_records else "",
+                    json.dumps(revision_records),
                     nullable_date(row.get("effective_date", "")),
                     nullable_date(row.get("scheduled_publish_date", "")),
                     employee_no,
@@ -197,7 +223,7 @@ def insert_policy(connection: psycopg.Connection, row: dict[str, str], translati
                 """INSERT INTO policy_audit_logs
                    (actor_employee_no, policy_code, change_request_id, action, changed_fields, after_content, comment)
                    VALUES (%s, %s, %s, 'created', %s::jsonb, %s::jsonb, %s)""",
-                (employee_no, code, change_request_id, json.dumps(["imported_excel", "translations"]), json.dumps(translations), row.get("revision_reason") or None),
+                (employee_no, code, change_request_id, json.dumps(["imported_excel", "translations", "revision_records"]), json.dumps({"translations": translations, "revisionRecords": revision_records}), row.get("revision_reason") or None),
             )
 
 
@@ -209,7 +235,7 @@ def create_template(path: Path) -> None:
     sheet.append([
         "DHT2-0001", "hr", "就業規程", "", "DHT2-0001_zh.pdf",
         "就業規則", "", "DHT2-0001_ja.pdf", "2026-09-01", "2026-09-01",
-        "新制定", "新規程初版", "", "A0001",
+        "新制定", "2026-09-01｜新制定\n2026-10-01｜第 2 條文字修正", "新規程初版", "", "A0001",
     ])
     sheet.freeze_panes = "A2"
     for cell in sheet[1]:

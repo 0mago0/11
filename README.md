@@ -72,7 +72,8 @@ python tools/import_policies.py --create-template policy_import.xlsx
 | `content_zh`／`pdf_zh` | 中文內文或中文 PDF 路徑，二擇一即可 | `DHT2-0001_zh.pdf` |
 | `title_ja`、`content_ja`／`pdf_ja` | 日文名稱與日文內文或 PDF；有日文版本時填寫 | `就業規則` |
 | `effective_date` | 生效日，格式 `YYYY-MM-DD` | `2026-09-01` |
-| `revision_date`、`revision_content` | Employee 可看的改訂紀錄 | `2026-09-01`、`新制定` |
+| `revision_date`、`revision_content` | 單筆改訂紀錄（相容舊格式） | `2026-09-01`、`新制定` |
+| `revision_records` | 多筆改訂紀錄；每行為 `YYYY-MM-DD｜改訂內容` | `2026-09-01｜新制定` |
 | `revision_reason` | 僅 Admin、部門長、據點長可看的改訂理由 | `新規程初版` |
 | `scheduled_publish_date` | 承認後的預定發布日；可留白 | `2026-09-01` |
 | `created_by` | 建立者員編；可留白，預設 `A0001` | `A0001` |
@@ -103,6 +104,15 @@ python tools/import_policies.py --excel .\import-files\policy_import.xlsx --pdf-
 ```
 
 PDF 必須是可選取文字的 PDF。掃描型 PDF 沒有文字層時，請先用 OCR 轉成可搜尋 PDF；工具會停止該次匯入並指出檔案，避免建立空白內文。
+
+`revision_records` 優先於 `revision_date`、`revision_content` 使用。Excel 儲存格可用 `Alt + Enter` 換行，填寫多筆改訂紀錄，例如：
+
+```text
+2026-09-01｜新制定
+2026-10-01｜第 2 條文字修正
+```
+
+這些改訂紀錄會在網頁的 Admin、承認者與 Employee 規程閱覽畫面中顯示。
 
 ### 日後串接公司登入 API
 
