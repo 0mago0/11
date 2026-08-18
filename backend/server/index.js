@@ -311,6 +311,11 @@ app.get("/api/policies", async (req, res) => {
   const { category, status, search, language = "zh-TW" } = req.query;
   const params = [language];
   const conditions = [];
+  // 被刪除（取消）的新規程沒有公開版本，也沒有進行中的案件；不再出現在清單中。
+  conditions.push(`NOT (p.status = 'disabled' AND p.current_version_no IS NULL AND NOT EXISTS (
+    SELECT 1 FROM policy_change_requests active_change
+     WHERE active_change.policy_code = p.policy_code AND active_change.status NOT IN ('published', 'cancelled')
+  ))`);
   if (!isAdmin(req.user) && !req.user.roles.some((role) => ["department_head", "site_head"].includes(role))) conditions.push("p.status = 'published'");
   if (category) { params.push(category); conditions.push(`p.category_code = $${params.length}`); }
   if (status) { params.push(status); conditions.push(`p.status = $${params.length}`); }
@@ -499,7 +504,8 @@ app.patch("/api/change-requests/:changeRequestId", requireRole("admin"), async (
   res.json(result);
 });
 
-// 僅未送審或已退回的草稿可刪除。既有規程只刪除該次草稿；新規程若尚無版本，則連同空的規程主檔移除。
+// 稽核紀錄不可刪除，因此「刪除草稿」實作為取消案件；畫面不再顯示該草稿，
+// 但資料庫保留完整歷程，符合不可竄改的修改紀錄規則。
 app.delete("/api/change-requests/:changeRequestId", requireRole("admin"), async (req, res) => {
   const result = await withTransaction(async (client) => {
     const { rows } = await client.query("SELECT * FROM policy_change_requests WHERE change_request_id = $1 FOR UPDATE", [req.params.changeRequestId]);
@@ -508,31 +514,12 @@ app.delete("/api/change-requests/:changeRequestId", requireRole("admin"), async 
     if (!['draft', 'returned_for_revision'].includes(change.status)) {
       const error = new Error("Only a draft or returned request can be deleted."); error.status = 409; throw error;
     }
-    // 舊版資料庫的外鍵不一定都有 CASCADE／SET NULL，明確先清除此草稿的附屬資料，
-    // 避免已儲存的草稿因稽核或承認資料而無法刪除。
-    await client.query("DELETE FROM change_request_approvals WHERE change_request_id = $1", [change.change_request_id]);
-    await client.query("DELETE FROM policy_change_translations WHERE change_request_id = $1", [change.change_request_id]);
-    await client.query("DELETE FROM policy_audit_logs WHERE change_request_id = $1", [change.change_request_id]);
-    await client.query("DELETE FROM policy_change_requests WHERE change_request_id = $1", [change.change_request_id]);
-    let deletedPolicy = false;
-    if (change.change_kind === 'new_policy') {
-      const { rows: remaining } = await client.query(
-        `SELECT EXISTS (SELECT 1 FROM policy_versions WHERE policy_code = $1) AS has_version,
-                EXISTS (SELECT 1 FROM policy_change_requests WHERE policy_code = $1) AS has_change`,
-        [change.policy_code],
-      );
-      if (!remaining[0].has_version && !remaining[0].has_change) {
-        // 完全未發布的新規程沒有可保留的歷史；先清除其建立／草稿稽核紀錄，
-        // 才能依外鍵規則一併移除空的規程主檔。
-        await client.query("DELETE FROM policy_audit_logs WHERE policy_code = $1", [change.policy_code]);
-        await client.query("DELETE FROM policies WHERE policy_code = $1", [change.policy_code]);
-        deletedPolicy = true;
-      }
-    }
-    if (!deletedPolicy) {
-      await audit(client, { actor: req.user.employee_no, policyCode: change.policy_code, action: "draft_saved", fromVersionNo: change.base_version_no, changedFields: ["draft_deleted"], comment: "草稿已刪除" });
-    }
-    return { policyCode: change.policy_code, deletedPolicy };
+    await client.query(
+      "UPDATE policy_change_requests SET status = 'cancelled', updated_at = now() WHERE change_request_id = $1",
+      [change.change_request_id],
+    );
+    await audit(client, { actor: req.user.employee_no, policyCode: change.policy_code, changeRequestId: change.change_request_id, action: "draft_saved", fromVersionNo: change.base_version_no, changedFields: ["draft_deleted"], comment: "草稿已刪除（案件已取消，保留稽核歷程）" });
+    return { policyCode: change.policy_code, deletedPolicy: change.change_kind === 'new_policy', cancelled: true };
   });
   if (!result) return res.sendStatus(404);
   res.json(result);
