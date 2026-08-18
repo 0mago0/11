@@ -508,6 +508,11 @@ app.delete("/api/change-requests/:changeRequestId", requireRole("admin"), async 
     if (!['draft', 'returned_for_revision'].includes(change.status)) {
       const error = new Error("Only a draft or returned request can be deleted."); error.status = 409; throw error;
     }
+    // 舊版資料庫的外鍵不一定都有 CASCADE／SET NULL，明確先清除此草稿的附屬資料，
+    // 避免已儲存的草稿因稽核或承認資料而無法刪除。
+    await client.query("DELETE FROM change_request_approvals WHERE change_request_id = $1", [change.change_request_id]);
+    await client.query("DELETE FROM policy_change_translations WHERE change_request_id = $1", [change.change_request_id]);
+    await client.query("DELETE FROM policy_audit_logs WHERE change_request_id = $1", [change.change_request_id]);
     await client.query("DELETE FROM policy_change_requests WHERE change_request_id = $1", [change.change_request_id]);
     let deletedPolicy = false;
     if (change.change_kind === 'new_policy') {
