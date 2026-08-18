@@ -37,7 +37,7 @@ app.use((req, res, next) => {
     res.setHeader("Vary", "Origin");
   }
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Employee-No");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
   if (req.method === "OPTIONS") return res.sendStatus(204);
   next();
 });
@@ -433,6 +433,40 @@ app.patch("/api/change-requests/:changeRequestId", requireRole("admin"), async (
     await insertTranslations(client, "policy_change_translations", "change_request_id", change.change_request_id, input.translations);
     await audit(client, { actor: req.user.employee_no, policyCode: change.policy_code, changeRequestId: change.change_request_id, action: "draft_saved", fromVersionNo: change.base_version_no, changedFields: ["translations", "revision_date", "revision_content", "revision_reason"], comment: input.revisionReason || null });
     return { change_request_id: change.change_request_id, status: change.status };
+  });
+  if (!result) return res.sendStatus(404);
+  res.json(result);
+});
+
+// 僅未送審或已退回的草稿可刪除。既有規程只刪除該次草稿；新規程若尚無版本，則連同空的規程主檔移除。
+app.delete("/api/change-requests/:changeRequestId", requireRole("admin"), async (req, res) => {
+  const result = await withTransaction(async (client) => {
+    const { rows } = await client.query("SELECT * FROM policy_change_requests WHERE change_request_id = $1 FOR UPDATE", [req.params.changeRequestId]);
+    const change = rows[0];
+    if (!change) return null;
+    if (!['draft', 'returned_for_revision'].includes(change.status)) {
+      const error = new Error("Only a draft or returned request can be deleted."); error.status = 409; throw error;
+    }
+    await client.query("DELETE FROM policy_change_requests WHERE change_request_id = $1", [change.change_request_id]);
+    let deletedPolicy = false;
+    if (change.change_kind === 'new_policy') {
+      const { rows: remaining } = await client.query(
+        `SELECT EXISTS (SELECT 1 FROM policy_versions WHERE policy_code = $1) AS has_version,
+                EXISTS (SELECT 1 FROM policy_change_requests WHERE policy_code = $1) AS has_change`,
+        [change.policy_code],
+      );
+      if (!remaining[0].has_version && !remaining[0].has_change) {
+        // 完全未發布的新規程沒有可保留的歷史；先清除其建立／草稿稽核紀錄，
+        // 才能依外鍵規則一併移除空的規程主檔。
+        await client.query("DELETE FROM policy_audit_logs WHERE policy_code = $1", [change.policy_code]);
+        await client.query("DELETE FROM policies WHERE policy_code = $1", [change.policy_code]);
+        deletedPolicy = true;
+      }
+    }
+    if (!deletedPolicy) {
+      await audit(client, { actor: req.user.employee_no, policyCode: change.policy_code, action: "draft_saved", fromVersionNo: change.base_version_no, changedFields: ["draft_deleted"], comment: "草稿已刪除" });
+    }
+    return { policyCode: change.policy_code, deletedPolicy };
   });
   if (!result) return res.sendStatus(404);
   res.json(result);

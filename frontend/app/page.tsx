@@ -8,7 +8,7 @@ import { Tables } from "../components/policy/Tables";
 import {
   approveChange, disablePolicy, loadPolicyAuditLogs, loadPolicyWorkspace, publishTypoChange,
   returnChange, saveNewPolicy, savePolicyChange, submitChange, updatePolicyChange,
-  signIn, importPdfDraft, type ApiAuditLog, type ApiTranslation, type ApiWorkspacePolicy,
+  signIn, importPdfDraft, deletePolicyDraft, type ApiAuditLog, type ApiTranslation, type ApiWorkspacePolicy,
 } from "../lib/policy-api";
 
 type Lang = "zh" | "ja";
@@ -1341,6 +1341,8 @@ export default function Home() {
     if (!editing) return;
     const target = event.target as HTMLElement;
     if (target.closest("form")) return;
+    // 只守住確實會切換頁面、分類、狀態標籤或規程卡片的點擊；一般閱讀或畫面操作不打斷使用者。
+    if (!target.closest("[data-protected-navigation]")) return;
     // capture 階段必須先阻止原本點擊的 handler；否則即使選擇不儲存，
     // 導頁 handler 仍會繼續執行，造成畫面意外跳到修改紀錄等頁面。
     event.preventDefault();
@@ -1357,6 +1359,26 @@ export default function Home() {
     }
     // 先讓 React 套用 editing=false，再執行原本使用者點擊的按鈕／卡片。
     window.setTimeout(resumeOriginalClick, 0);
+  }
+  function deleteDraft() {
+    if (!isAdmin) return;
+    if (!window.confirm("確定要刪除此草稿嗎？刪除後無法復原。")) return;
+    // 尚未儲存的新建草稿沒有資料庫案件，只需捨棄前端編輯內容。
+    if (!draft.changeRequestId) {
+      const fallback = policies.find((policy) => policy.id !== draft.id) || policies[0];
+      setEditing(false);
+      if (fallback) open(fallback);
+      else setSelectedId(0);
+      setNotice("未儲存草稿已刪除。");
+      return;
+    }
+    void deletePolicyDraft(currentEmployeeNo, draft.changeRequestId)
+      .then(async () => {
+        await refreshWorkspace("admin");
+        setEditing(false);
+        setNotice("草稿已刪除。");
+      })
+      .catch((error) => setNotice(`草稿刪除失敗：${error instanceof Error ? error.message : "請稍後再試。"}`));
   }
   function publishTypoFix() {
     // 錯字修正只允許已發布、非退回、非獨立內容更新卡的規程直接建立新版。
@@ -1790,7 +1812,7 @@ export default function Home() {
               <small>POLICY CENTER</small>
             </div>
           </div>
-          <nav>
+          <nav data-protected-navigation>
             <button
               onClick={() => {
                 setApprovalSelectedId(null);
@@ -2013,7 +2035,7 @@ export default function Home() {
               <small>POLICY CENTER</small>
             </div>
           </div>
-          <nav>
+          <nav data-protected-navigation>
             <button
               onClick={() => {
                 setAuditPolicyId(null);
@@ -2298,7 +2320,7 @@ export default function Home() {
             <small>POLICY CENTER</small>
           </div>
         </div>
-        <nav>
+        <nav data-protected-navigation>
           <button className="active">
             {ui("▦ 規程資料庫", "▦ 規程ライブラリ")}
           </button>
@@ -2432,7 +2454,7 @@ export default function Home() {
             {ui(`共 ${list.length} 項`, `${list.length} 件`)}
           </span>
         </div>
-        <nav className="category-pages" aria-label="規程分類專屬頁面">
+        <nav className="category-pages" data-protected-navigation aria-label="規程分類專屬頁面">
           {categoryPages.map((item) => (
             <button
               key={item}
@@ -2450,7 +2472,7 @@ export default function Home() {
           ))}
         </nav>
         {role !== "employee" && (
-          <div className="status-bookmarks" aria-label="依狀態篩選規程">
+          <div className="status-bookmarks" data-protected-navigation aria-label="依狀態篩選規程">
             {visibleStatusOptions.map((status) => (
               <button
                 key={status}
@@ -2468,6 +2490,7 @@ export default function Home() {
             {list.map((p) => (
               <button
                 key={p.id}
+                data-protected-navigation
                 className={`reg-card ${p.id === selectedId ? "selected" : ""}`}
                 onClick={() => open(p)}
               >
@@ -2843,6 +2866,11 @@ export default function Home() {
                     {!(draft.revisionRecords || []).length && <div className="empty">尚未新增改訂紀錄。</div>}
                   </section>
                   <div className="form-actions">
+                    {(!draft.changeRequestId || ["草稿", "退回修改"].includes(draft.approval?.stage || "")) && (
+                      <button type="button" className="ghost danger" onClick={deleteDraft}>
+                        刪除草稿
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="ghost"

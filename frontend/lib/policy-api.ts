@@ -90,6 +90,10 @@ export const updatePolicyChange = (employeeNo: string, changeRequestId: string, 
   changeKind: "typo" | "content"; revisionReason: string; revisionDate?: string; revisionContent?: string; revisionRecords?: Array<{ date: string; content: string }>; requestedEffectiveDate?: string; scheduledPublishDate?: string; translations: ApiTranslation[];
 }) => request(`/api/change-requests/${encodeURIComponent(changeRequestId)}`, employeeNo, { method: "PATCH", body: JSON.stringify(body) });
 
+/** 刪除尚未送審或遭退回的草稿；新規程沒有任何版本時也會一併移除。 */
+export const deletePolicyDraft = (employeeNo: string, changeRequestId: string) =>
+  request<{ policyCode: string; deletedPolicy: boolean }>(`/api/change-requests/${encodeURIComponent(changeRequestId)}`, employeeNo, { method: "DELETE" });
+
 export const submitChange = (employeeNo: string, changeRequestId: string) =>
   request(`/api/change-requests/${encodeURIComponent(changeRequestId)}/submit`, employeeNo, { method: "POST" });
 
