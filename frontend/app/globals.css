@@ -852,14 +852,30 @@ body .sidebar-foot::after {
   margin: 23px 0;
 }
 .policy-chapter {
-  margin: 0 0 22px;
+  margin: 0 0 30px;
 }
 .policy-chapter h3 {
-  font-size: 16px;
-  color: #2d5d4d;
-  border-bottom: 1px solid #dce8e0;
-  padding-bottom: 8px;
-  margin: 0 0 4px;
+  font-size: 21px;
+  line-height: 1.35;
+  color: #245543;
+  border-left: 6px solid #77ad8b;
+  border-bottom: 2px solid #dce8e0;
+  border-radius: 0 8px 8px 0;
+  padding: 10px 14px;
+  margin: 0 0 12px;
+  background: linear-gradient(90deg, #edf7ef, #fbfdfb);
+}
+.policy-section {
+  margin: 20px 0 8px;
+  padding: 0 0 0 14px;
+  border-left: 3px solid #c6dfce;
+}
+.policy-section h4 {
+  margin: 0 0 6px;
+  color: #3c705a;
+  font-size: 17px;
+  line-height: 1.45;
+  letter-spacing: 0.02em;
 }
 .policy-article {
   padding: 12px 0;
