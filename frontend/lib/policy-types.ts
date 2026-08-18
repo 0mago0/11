@@ -24,7 +24,9 @@ export type Approval = {
 };
 /** tableRef／imageRef 是條文關聯的表格或圖片序號（從 1 開始）。 */
 export type Article = { id: string; title: string; text: string; tableRef?: number; imageRef?: number };
-export type Chapter = { id: string; title: string; articles: Article[] };
+/** 章可直接包含條文或包含節；節只能包含條文。 */
+export type PolicySection = { id: string; title: string; articles: Article[] };
+export type Chapter = { id: string; title: string; articles: Article[]; sections?: PolicySection[] };
 export type TableMerge = { startRow: number; startCol: number; endRow: number; endCol: number };
 export type PolicyTable = { cells: string[][]; merges?: TableMerge[] };
 export type Copy = {

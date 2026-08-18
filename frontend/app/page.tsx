@@ -35,7 +35,8 @@ type Approval = {
   returnReason?: string;
 };
 type Article = { id: string; title: string; text: string; tableRef?: number; imageRef?: number };
-type Chapter = { id: string; title: string; articles: Article[] };
+type PolicySection = { id: string; title: string; articles: Article[] };
+type Chapter = { id: string; title: string; articles: Article[]; sections?: PolicySection[] };
 type TableMerge = { startRow: number; startCol: number; endRow: number; endCol: number };
 type PolicyTable = { cells: string[][]; merges?: TableMerge[] };
 type RevisionRecord = { date: string; content: string };
@@ -157,14 +158,16 @@ const normalizeRevisionRecords = (records: unknown, date = "", content = ""): Re
 };
 const chaptersFromContent = (content: string): Chapter[] => {
   const chapterPattern = /^第\s*([一二三四五六七八九十百千\d]+)\s*章[　\s]*(.*)$/;
+  const sectionPattern = /^第\s*([一二三四五六七八九十百千\d]+)\s*節[　\s]*(.*)$/;
   const articlePattern = /^第\s*([一二三四五六七八九十百千\d]+)\s*(條|条)[　\s]*(.*)$/;
   const chapters: Chapter[] = [];
   let currentChapter: Chapter | null = null;
+  let currentSection: PolicySection | null = null;
   let currentArticle: Article | null = null;
   let generatedId = 0;
   const ensureChapter = () => {
     if (!currentChapter) {
-      currentChapter = { id: `chapter-${++generatedId}`, title: "第一章　總則", articles: [] };
+      currentChapter = { id: `chapter-${++generatedId}`, title: "第一章　總則", articles: [], sections: [] };
       chapters.push(currentChapter);
     }
     return currentChapter;
@@ -174,15 +177,24 @@ const chaptersFromContent = (content: string): Chapter[] => {
     if (!line) continue;
     const chapter = line.match(chapterPattern);
     if (chapter) {
-      currentChapter = { id: `chapter-${++generatedId}`, title: `第${chapter[1]}章${chapter[2] ? `　${chapter[2]}` : ""}`, articles: [] };
+      currentChapter = { id: `chapter-${++generatedId}`, title: `第${chapter[1]}章${chapter[2] ? `　${chapter[2]}` : ""}`, articles: [], sections: [] };
       chapters.push(currentChapter);
+      currentSection = null;
+      currentArticle = null;
+      continue;
+    }
+    const section = line.match(sectionPattern);
+    if (section) {
+      currentSection = { id: `section-${++generatedId}`, title: `第${section[1]}節${section[2] ? `　${section[2]}` : ""}`, articles: [] };
+      ensureChapter().sections = [...(ensureChapter().sections || []), currentSection];
       currentArticle = null;
       continue;
     }
     const article = line.match(articlePattern);
     if (article) {
       currentArticle = { id: `article-${++generatedId}`, title: `第${article[1]}${article[2]}`, text: article[3] || "" };
-      ensureChapter().articles.push(currentArticle);
+      if (currentSection) currentSection.articles.push(currentArticle);
+      else ensureChapter().articles.push(currentArticle);
       continue;
     }
     if (currentArticle) currentArticle.text = `${currentArticle.text}${currentArticle.text ? "\n" : ""}${line}`;
@@ -293,6 +305,12 @@ const contentFromChapters = (chapters: Chapter[]) =>
         ...chapter.articles.map((article) =>
           `${article.title}　${article.text}${article.tableRef ? `\n註：相關資料請參照表格 ${article.tableRef}` : ""}${article.imageRef ? `\n註：相關資料請參照圖 ${ordinal(article.imageRef)}` : ""}`,
         ),
+        ...(chapter.sections || []).flatMap((section) => [
+          section.title,
+          ...section.articles.map((article) =>
+            `${article.title}　${article.text}${article.tableRef ? `\n註：相關資料請參照表格 ${article.tableRef}` : ""}${article.imageRef ? `\n註：相關資料請參照圖 ${ordinal(article.imageRef)}` : ""}`,
+          ),
+        ]),
       ]
         .filter(Boolean)
         .join("\n\n"),
@@ -2986,6 +3004,19 @@ export default function Home() {
                                 </small>
                               )}
                           </article>
+                        ))}
+                        {(chapter.sections || []).map((section) => (
+                          <section className="policy-section" key={section.id}>
+                            <h4>{section.title}</h4>
+                            {section.articles.map((article) => (
+                              <article className="policy-article" key={article.id}>
+                                <b>{article.title}</b>
+                                <p>{article.text.replace(article.title, "").trim() || article.text}</p>
+                                {article.tableRef && displayedCopy[selectedDisplayLang].tables[article.tableRef - 1] && <small className="article-table-note">註：相關資料請參照表格 {article.tableRef}</small>}
+                                {article.imageRef && displayedCopy[selectedDisplayLang].images[article.imageRef - 1] && <small className="article-table-note">註：相關資料請參照圖 {ordinal(article.imageRef)}{displayedCopy[selectedDisplayLang].images[article.imageRef - 1].alt ? `（${displayedCopy[selectedDisplayLang].images[article.imageRef - 1].alt}）` : ""}</small>}
+                              </article>
+                            ))}
+                          </section>
                         ))}
                       </section>
                     ))}
