@@ -1365,22 +1365,35 @@ export default function Home() {
   function deleteDraft() {
     if (!isAdmin) return;
     if (!window.confirm("確定要刪除此草稿嗎？刪除後無法復原。")) return;
-    // 尚未儲存的新建草稿沒有資料庫案件，只需捨棄前端編輯內容。
-    if (!draft.changeRequestId) {
+    const discardLocalDraft = () => {
       const fallback = policies.find((policy) => policy.id !== draft.id) || policies[0];
       setEditing(false);
       if (fallback) open(fallback);
       else setSelectedId(0);
       setNotice("未儲存草稿已刪除。");
-      return;
-    }
-    void deletePolicyDraft(currentEmployeeNo, draft.changeRequestId)
-      .then(async () => {
-        await refreshWorkspace("admin");
-        setEditing(false);
-        setNotice("草稿已刪除。");
-      })
-      .catch((error) => setNotice(`草稿刪除失敗：${error instanceof Error ? error.message : "請稍後再試。"}`));
+    };
+    // 剛按儲存的瞬間，畫面內可能尚未拿到 changeRequestId；若草稿已在本機清單中，
+    // 先重新讀取資料庫找出案件，再刪除，避免只把畫面關掉而資料仍留在資料庫。
+    const locallySaved = policies.some((policy) => policy.id === draft.id);
+    void (async () => {
+      let changeRequestId = draft.changeRequestId;
+      if (!changeRequestId && locallySaved) {
+        const remote = await loadPolicyWorkspace(currentEmployeeNo);
+        const fresh = policiesFromApi(remote).find((policy) =>
+          policy.code === draft.code &&
+          (policy.replacesPolicyId === draft.replacesPolicyId || !draft.replacesPolicyId),
+        );
+        changeRequestId = fresh?.changeRequestId;
+      }
+      if (!changeRequestId) {
+        discardLocalDraft();
+        return;
+      }
+      await deletePolicyDraft(currentEmployeeNo, changeRequestId);
+      await refreshWorkspace("admin");
+      setEditing(false);
+      setNotice("草稿已刪除。");
+    })().catch((error) => setNotice(`草稿刪除失敗：${error instanceof Error ? error.message : "請稍後再試。"}`));
   }
   function publishTypoFix() {
     // 錯字修正只允許已發布、非退回、非獨立內容更新卡的規程直接建立新版。

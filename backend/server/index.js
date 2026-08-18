@@ -53,47 +53,6 @@ const parse = (schema, value) => {
   return result.data;
 };
 
-// PDF 僅擷取可選取的文字；掃描式 PDF 沒有文字層時會請使用者改用可搜尋 PDF。
-const pdfBodyStart = /^\s*第\s*(?:[一二三四五六七八九十百千\d]+)\s*(?:章|條|条)/m;
-const pdfTitleFromFileName = (fileName) => fileName
-  .replace(/\.pdf$/i, "")
-  .replace(/^DHT\d{1,2}-\d{4}[＿_]/i, "")
-  .replace(/[＿_](?:中文|繁中|繁體中文|日文|日本語|zh(?:-TW)?|ja(?:-JP)?)$/i, "")
-  .trim();
-
-app.post("/api/imports/pdf-draft", requireRole("admin"), async (req, res) => {
-  const { fileName, dataUrl } = req.body || {};
-  if (typeof fileName !== "string" || !/\.pdf$/i.test(fileName) || typeof dataUrl !== "string" || !/^data:application\/(?:pdf|x-pdf|octet-stream);base64,/i.test(dataUrl)) {
-    const error = new Error("請上傳 PDF 檔案。"); error.status = 400; throw error;
-  }
-  const bytes = Buffer.from(dataUrl.slice(dataUrl.indexOf(",") + 1), "base64");
-  if (!bytes.length || bytes.length > 10 * 1024 * 1024) {
-    const error = new Error("PDF 檔案需小於 10 MB。"); error.status = 400; throw error;
-  }
-  if (bytes.subarray(0, 5).toString() !== "%PDF-") {
-    const error = new Error("上傳的檔案不是有效的 PDF。 "); error.status = 400; throw error;
-  }
-  let pdf;
-  try {
-    pdf = await getDocument({ data: new Uint8Array(bytes) }).promise;
-  } catch (cause) {
-    const error = new Error(`PDF 無法讀取：${cause instanceof Error ? cause.message : "請確認檔案未加密或損毀。"}`);
-    error.status = 422;
-    throw error;
-  }
-  const pages = [];
-  for (let pageNo = 1; pageNo <= pdf.numPages; pageNo += 1) {
-    const page = await pdf.getPage(pageNo);
-    const text = await page.getTextContent();
-    pages.push(text.items.map((item) => ("str" in item ? item.str : "")).join(" "));
-  }
-  const allText = pages.join("\n").replace(/\s*\n\s*/g, "\n").trim();
-  const start = allText.search(pdfBodyStart);
-  const content = (start >= 0 ? allText.slice(start) : allText).trim();
-  if (!content) { const error = new Error("這份 PDF 找不到可讀取的文字內容，請使用可搜尋文字的 PDF。"); error.status = 422; throw error; }
-  res.json({ title: pdfTitleFromFileName(fileName), content, foundPolicyBody: start >= 0 });
-});
-
 // 所有工作流動作均呼叫此函式寫入稽核表，留下操作者、前後版本與退回意見。
 const audit = async (client, { actor, policyCode: code, changeRequestId = null, action, fromVersionNo = null, toVersionNo = null, changedFields = [], beforeContent = null, afterContent = null, comment = null }) => {
   await client.query(
@@ -248,6 +207,48 @@ app.post("/auth/login", async (req, res) => {
 });
 
 app.use("/api", authenticate);
+
+// PDF 僅擷取可選取的文字；掃描式 PDF 沒有文字層時會請使用者改用可搜尋 PDF。
+// 必須放在 authenticate 後，否則 requireRole 讀取 req.user 時會沒有使用者資料。
+const pdfBodyStart = /^\s*第\s*(?:[一二三四五六七八九十百千\d]+)\s*(?:章|條|条)/m;
+const pdfTitleFromFileName = (fileName) => fileName
+  .replace(/\.pdf$/i, "")
+  .replace(/^DHT\d{1,2}-\d{4}[＿_]/i, "")
+  .replace(/[＿_](?:中文|繁中|繁體中文|日文|日本語|zh(?:-TW)?|ja(?:-JP)?)$/i, "")
+  .trim();
+
+app.post("/api/imports/pdf-draft", requireRole("admin"), async (req, res) => {
+  const { fileName, dataUrl } = req.body || {};
+  if (typeof fileName !== "string" || !/\.pdf$/i.test(fileName) || typeof dataUrl !== "string" || !/^data:application\/(?:pdf|x-pdf|octet-stream);base64,/i.test(dataUrl)) {
+    const error = new Error("請上傳 PDF 檔案。"); error.status = 400; throw error;
+  }
+  const bytes = Buffer.from(dataUrl.slice(dataUrl.indexOf(",") + 1), "base64");
+  if (!bytes.length || bytes.length > 10 * 1024 * 1024) {
+    const error = new Error("PDF 檔案需小於 10 MB。"); error.status = 400; throw error;
+  }
+  if (bytes.subarray(0, 5).toString() !== "%PDF-") {
+    const error = new Error("上傳的檔案不是有效的 PDF。"); error.status = 400; throw error;
+  }
+  let pdf;
+  try {
+    pdf = await getDocument({ data: new Uint8Array(bytes) }).promise;
+  } catch (cause) {
+    const error = new Error(`PDF 無法讀取：${cause instanceof Error ? cause.message : "請確認檔案未加密或損毀。"}`);
+    error.status = 422;
+    throw error;
+  }
+  const pages = [];
+  for (let pageNo = 1; pageNo <= pdf.numPages; pageNo += 1) {
+    const page = await pdf.getPage(pageNo);
+    const text = await page.getTextContent();
+    pages.push(text.items.map((item) => ("str" in item ? item.str : "")).join(" "));
+  }
+  const allText = pages.join("\n").replace(/\s*\n\s*/g, "\n").trim();
+  const start = allText.search(pdfBodyStart);
+  const content = (start >= 0 ? allText.slice(start) : allText).trim();
+  if (!content) { const error = new Error("這份 PDF 找不到可讀取的文字內容，請使用可搜尋文字的 PDF。"); error.status = 422; throw error; }
+  res.json({ title: pdfTitleFromFileName(fileName), content, foundPolicyBody: start >= 0 });
+});
 
 app.get("/api/me", (req, res) => res.json(req.user));
 
