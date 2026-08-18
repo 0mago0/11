@@ -156,22 +156,42 @@ const normalizeRevisionRecords = (records: unknown, date = "", content = ""): Re
   return normalized.length ? normalized : date || content ? [{ date: String(date).slice(0, 10), content }] : [];
 };
 const chaptersFromContent = (content: string): Chapter[] => {
-  const articles = content
-    .split("\n")
-    .filter(Boolean)
-    .map((text, index) => {
-      const match = text.match(
-        /^(第[一二三四五六七八九十\d]+條|第\d+条)[　\s]*(.*)$/,
-      );
-      return {
-        id: `article-${index + 1}`,
-        title: match?.[1] || `第 ${index + 1} 條`,
-        text: match?.[2] || text,
-      };
-    });
-  return articles.length
-    ? [{ id: "chapter-1", title: "第一章　總則", articles }]
-    : [];
+  const chapterPattern = /^第\s*([一二三四五六七八九十百千\d]+)\s*章[　\s]*(.*)$/;
+  const articlePattern = /^第\s*([一二三四五六七八九十百千\d]+)\s*(條|条)[　\s]*(.*)$/;
+  const chapters: Chapter[] = [];
+  let currentChapter: Chapter | null = null;
+  let currentArticle: Article | null = null;
+  let generatedId = 0;
+  const ensureChapter = () => {
+    if (!currentChapter) {
+      currentChapter = { id: `chapter-${++generatedId}`, title: "第一章　總則", articles: [] };
+      chapters.push(currentChapter);
+    }
+    return currentChapter;
+  };
+  for (const rawLine of content.replace(/\r/g, "").split("\n")) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    const chapter = line.match(chapterPattern);
+    if (chapter) {
+      currentChapter = { id: `chapter-${++generatedId}`, title: `第${chapter[1]}章${chapter[2] ? `　${chapter[2]}` : ""}`, articles: [] };
+      chapters.push(currentChapter);
+      currentArticle = null;
+      continue;
+    }
+    const article = line.match(articlePattern);
+    if (article) {
+      currentArticle = { id: `article-${++generatedId}`, title: `第${article[1]}${article[2]}`, text: article[3] || "" };
+      ensureChapter().articles.push(currentArticle);
+      continue;
+    }
+    if (currentArticle) currentArticle.text = `${currentArticle.text}${currentArticle.text ? "\n" : ""}${line}`;
+    else {
+      currentArticle = { id: `article-${++generatedId}`, title: "前言", text: line };
+      ensureChapter().articles.push(currentArticle);
+    }
+  }
+  return chapters;
 };
 const copy = (
   title: string,

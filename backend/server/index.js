@@ -241,7 +241,25 @@ app.post("/api/imports/pdf-draft", requireRole("admin"), async (req, res) => {
   for (let pageNo = 1; pageNo <= pdf.numPages; pageNo += 1) {
     const page = await pdf.getPage(pageNo);
     const text = await page.getTextContent();
-    pages.push(text.items.map((item) => ("str" in item ? item.str : "")).join(" "));
+    // pdf.js 依繪製項目回傳文字。利用同一條基線的 y 座標組成行，保留第一章、
+    // 第一條等段落邊界，前端才可自動建立章節與條文。
+    const lines = [];
+    let currentLine = "";
+    let previousY = null;
+    for (const item of text.items) {
+      if (!("str" in item) || !item.str) continue;
+      const y = Array.isArray(item.transform) ? Math.round(item.transform[5] * 2) / 2 : previousY;
+      if (previousY !== null && y !== null && Math.abs(y - previousY) > 2 && currentLine.trim()) {
+        lines.push(currentLine.trim());
+        currentLine = "";
+      }
+      // 中文／日文文字通常被拆成單字元；只有兩邊都是英數時才補空白，避免「第 一 條」。
+      const needsSpace = /[A-Za-z0-9]$/.test(currentLine) && /^[A-Za-z0-9]/.test(item.str);
+      currentLine += `${needsSpace ? " " : ""}${item.str}`;
+      previousY = y;
+    }
+    if (currentLine.trim()) lines.push(currentLine.trim());
+    pages.push(lines.join("\n"));
   }
   const allText = pages.join("\n").replace(/\s*\n\s*/g, "\n").trim();
   const start = allText.search(pdfBodyStart);

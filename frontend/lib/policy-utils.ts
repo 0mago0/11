@@ -25,11 +25,27 @@ export const normalizeTables = (value: unknown): PolicyTable[] => {
   }).filter((table): table is PolicyTable => table !== null);
 };
 export const chaptersFromContent = (content: string): Chapter[] => {
-  const articles = content.split("\n").filter(Boolean).map((text, index) => {
-    const match = text.match(/^(第[一二三四五六七八九十\d]+條|第\d+条)[　\s]*(.*)$/);
-    return { id: `article-${index + 1}`, title: match?.[1] || `第 ${index + 1} 條`, text: match?.[2] || text };
-  });
-  return articles.length ? [{ id: "chapter-1", title: "第一章　總則", articles }] : [];
+  const chapterPattern = /^第\s*([一二三四五六七八九十百千\d]+)\s*章[　\s]*(.*)$/;
+  const articlePattern = /^第\s*([一二三四五六七八九十百千\d]+)\s*(條|条)[　\s]*(.*)$/;
+  const chapters: Chapter[] = [];
+  let chapter: Chapter | null = null;
+  let article: Chapter["articles"][number] | null = null;
+  let id = 0;
+  const ensureChapter = () => {
+    if (!chapter) { chapter = { id: `chapter-${++id}`, title: "第一章　總則", articles: [] }; chapters.push(chapter); }
+    return chapter;
+  };
+  for (const rawLine of content.replace(/\r/g, "").split("\n")) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    const chapterMatch = line.match(chapterPattern);
+    if (chapterMatch) { chapter = { id: `chapter-${++id}`, title: `第${chapterMatch[1]}章${chapterMatch[2] ? `　${chapterMatch[2]}` : ""}`, articles: [] }; chapters.push(chapter); article = null; continue; }
+    const articleMatch = line.match(articlePattern);
+    if (articleMatch) { article = { id: `article-${++id}`, title: `第${articleMatch[1]}${articleMatch[2]}`, text: articleMatch[3] || "" }; ensureChapter().articles.push(article); continue; }
+    if (article) article.text = `${article.text}${article.text ? "\n" : ""}${line}`;
+    else { article = { id: `article-${++id}`, title: "前言", text: line }; ensureChapter().articles.push(article); }
+  }
+  return chapters;
 };
 export const contentFromChapters = (chapters: Chapter[]) => chapters.map((chapter) => [chapter.title, ...chapter.articles.map((article) => `${article.title}　${article.text}`)].filter(Boolean).join("\n\n")).join("\n\n");
 export const copy = (title: string, summary: string, content: string, tables: PolicyTable[] = []): Copy => ({ title, summary, content, tables, chapters: chaptersFromContent(content) });
