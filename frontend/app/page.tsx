@@ -152,7 +152,6 @@ const normalizeRevisionRecords = (records: unknown, date = "", content = ""): Re
     ? records
         .filter((record): record is { date?: unknown; content?: unknown; language?: unknown } => !!record && typeof record === "object")
         .map((record) => ({ date: String(record.date || "").slice(0, 10), content: String(record.content || ""), language: record.language === "ja" ? "ja" as const : "zh" as const }))
-        .filter((record) => record.date || record.content)
     : [];
   return normalized.length ? normalized : date || content ? [{ date: String(date).slice(0, 10), content, language: "zh" }] : [];
 };
