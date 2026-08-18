@@ -759,6 +759,8 @@ export default function Home() {
     [auditPolicyId, setAuditPolicyId] = useState<number | null>(null),
     [compare, setCompare] = useState<[number, number]>([0, 0]);
   const restoringHistory = useRef(false);
+  // 保護視窗確認後，只重播使用者原本點擊的那個項目一次，避免被 capture handler 再次攔截。
+  const replayingProtectedNavigation = useRef(false);
   useEffect(() => {
     // 舊版 localStorage 可能缺少後來加入的欄位，讀取後先正規化再放入畫面。
     try {
@@ -1332,15 +1334,29 @@ export default function Home() {
     }
   }
   function guardEditingNavigation(event: MouseEvent<HTMLElement>) {
+    if (replayingProtectedNavigation.current) {
+      replayingProtectedNavigation.current = false;
+      return;
+    }
     if (!editing) return;
     const target = event.target as HTMLElement;
     if (target.closest("form")) return;
+    // capture 階段必須先阻止原本點擊的 handler；否則即使選擇不儲存，
+    // 導頁 handler 仍會繼續執行，造成畫面意外跳到修改紀錄等頁面。
+    event.preventDefault();
+    event.stopPropagation();
+    const resumeOriginalClick = () => {
+      replayingProtectedNavigation.current = true;
+      target.click();
+    };
     if (window.confirm("目前有尚未儲存的編輯內容，是否先儲存草稿？")) {
       saveDraft();
     } else {
       setEditing(false);
       setDraft(clone(selected));
     }
+    // 先讓 React 套用 editing=false，再執行原本使用者點擊的按鈕／卡片。
+    window.setTimeout(resumeOriginalClick, 0);
   }
   function publishTypoFix() {
     // 錯字修正只允許已發布、非退回、非獨立內容更新卡的規程直接建立新版。
