@@ -22,8 +22,8 @@ export type Approval = {
   returnedBy?: string;
   returnReason?: string;
 };
-/** tableRef 是條文關聯的表格序號（從 1 開始）；未設定時不顯示表格註解。 */
-export type Article = { id: string; title: string; text: string; tableRef?: number };
+/** tableRef／imageRef 是條文關聯的表格或圖片序號（從 1 開始）。 */
+export type Article = { id: string; title: string; text: string; tableRef?: number; imageRef?: number };
 export type Chapter = { id: string; title: string; articles: Article[] };
 export type TableMerge = { startRow: number; startCol: number; endRow: number; endCol: number };
 export type PolicyTable = { cells: string[][]; merges?: TableMerge[] };
@@ -33,6 +33,7 @@ export type Copy = {
   content: string;
   tables: PolicyTable[];
   chapters: Chapter[];
+  images?: Array<{ name: string; dataUrl: string; alt?: string }>;
 };
 export type Version = {
   id: string;

@@ -8,7 +8,7 @@ import { Tables } from "../components/policy/Tables";
 import {
   approveChange, disablePolicy, loadPolicyAuditLogs, loadPolicyWorkspace, publishTypoChange,
   returnChange, saveNewPolicy, savePolicyChange, submitChange, updatePolicyChange,
-  signIn, type ApiAuditLog, type ApiTranslation, type ApiWorkspacePolicy,
+  signIn, importPdfDraft, type ApiAuditLog, type ApiTranslation, type ApiWorkspacePolicy,
 } from "../lib/policy-api";
 
 type Lang = "zh" | "ja";
@@ -34,7 +34,7 @@ type Approval = {
   returnedBy?: string;
   returnReason?: string;
 };
-type Article = { id: string; title: string; text: string; tableRef?: number };
+type Article = { id: string; title: string; text: string; tableRef?: number; imageRef?: number };
 type Chapter = { id: string; title: string; articles: Article[] };
 type TableMerge = { startRow: number; startCol: number; endRow: number; endCol: number };
 type PolicyTable = { cells: string[][]; merges?: TableMerge[] };
@@ -271,7 +271,7 @@ const contentFromChapters = (chapters: Chapter[]) =>
       [
         chapter.title,
         ...chapter.articles.map((article) =>
-          `${article.title}　${article.text}${article.tableRef ? `\n註：相關資料請參照表格 ${article.tableRef}` : ""}`,
+          `${article.title}　${article.text}${article.tableRef ? `\n註：相關資料請參照表格 ${article.tableRef}` : ""}${article.imageRef ? `\n註：相關資料請參照圖 ${ordinal(article.imageRef)}` : ""}`,
         ),
       ]
         .filter(Boolean)
@@ -1178,6 +1178,38 @@ export default function Home() {
       reader.onerror = () => reject(reader.error);
       reader.readAsDataURL(file);
     }))).then((images) => update("images", [...draft.draft[lang].images, ...images]));
+  };
+  const importPolicyPdf = (files: FileList | null) => {
+    const file = files?.[0];
+    if (!file) return;
+    if (file.type !== "application/pdf" || file.size > 10 * 1024 * 1024) {
+      setNotice("請選擇小於 10 MB 的 PDF 檔案。");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        setNotice("正在讀取 PDF 並生成草稿…");
+        const imported = await importPdfDraft(currentEmployeeNo, file.name, String(reader.result));
+        setDraft((policy) => ({
+          ...policy,
+          draft: {
+            ...policy.draft,
+            [lang]: {
+              ...policy.draft[lang],
+              title: imported.title || policy.draft[lang].title,
+              content: imported.content,
+              chapters: chaptersFromContent(imported.content),
+            },
+          },
+        }));
+        setNotice(imported.foundPolicyBody ? "PDF 已生成草稿；請自行填寫生效日後再儲存。" : "PDF 已生成草稿；未找到第一章／第一條，請確認內容後自行填寫生效日。");
+      } catch (error) {
+        setNotice(`PDF 草稿建立失敗：${error instanceof Error ? error.message : "請稍後再試。"}`);
+      }
+    };
+    reader.onerror = () => setNotice("PDF 讀取失敗，請重新選擇檔案。");
+    reader.readAsDataURL(file);
   };
   function saveDraft(e?: FormEvent) {
     // 已送審的規程鎖定內容，直到承認完成或被退回，避免審核版本在途中改變。
@@ -2580,6 +2612,10 @@ export default function Home() {
                 <form onSubmit={saveDraft} onKeyDown={(event) => {
                   if (event.key === "Enter" && event.target instanceof HTMLInputElement) event.preventDefault();
                 }}>
+                  <section className="policy-image-editor pdf-draft-import">
+                    <div><b>由 PDF 生成草稿</b><small>上傳可搜尋文字的 PDF，自動帶入目前語言的規程名稱與內文。生效日期不會自動設定，請在下方自行填寫。</small></div>
+                    <label className="image-upload-button">＋ 上傳 PDF<input type="file" accept="application/pdf,.pdf" onChange={(event) => { importPolicyPdf(event.target.files); event.currentTarget.value = ""; }} /></label>
+                  </section>
                   {draft.status !== "停用" &&
                     (draft.versions.length > 0 ||
                       draft.approval?.stage === "已承認待發布") && (
@@ -2772,12 +2808,13 @@ export default function Home() {
                   <StructureEditor
                     chapters={draft.draft[lang].chapters}
                     tables={draft.draft[lang].tables}
+                    images={draft.draft[lang].images}
                     onChange={updateChapters}
                   />
                   <section className="policy-image-editor">
-                    <div><b>規程圖片</b><small>可加入示意圖、流程圖或照片；每種語言最多 5 張、每張最多 500 KB。</small></div>
+                    <div><b>規程圖片</b><small>可加入示意圖、流程圖或照片；每種語言最多 5 張、每張最多 500 KB。圖片會依序標記為圖一、圖二，可在條文的「關聯資料」選擇。</small></div>
                     <label className="image-upload-button">＋ 加入圖片<input type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple onChange={(event) => { addPolicyImages(event.target.files); event.currentTarget.value = ""; }} /></label>
-                    {!!draft.draft[lang].images.length && <div className="policy-image-grid editing-images">{draft.draft[lang].images.map((image, index) => <figure key={`${image.name}-${index}`}><img src={image.dataUrl} alt={image.alt || image.name} /><figcaption><input value={image.alt || ""} placeholder="圖片說明" onChange={(event) => update("images", draft.draft[lang].images.map((item, position) => position === index ? { ...item, alt: event.target.value } : item))} /><button type="button" onClick={() => update("images", draft.draft[lang].images.filter((_, position) => position !== index))}>刪除</button></figcaption></figure>)}</div>}
+                    {!!draft.draft[lang].images.length && <div className="policy-image-grid editing-images">{draft.draft[lang].images.map((image, index) => <figure key={`${image.name}-${index}`}><b>圖{ordinal(index + 1)}</b><img src={image.dataUrl} alt={image.alt || image.name} /><figcaption><input value={image.alt || ""} placeholder="圖片說明" onChange={(event) => update("images", draft.draft[lang].images.map((item, position) => position === index ? { ...item, alt: event.target.value } : item))} /><button type="button" onClick={() => update("images", draft.draft[lang].images.filter((_, position) => position !== index))}>刪除</button></figcaption></figure>)}</div>}
                   </section>
                   <Tables
                     editing
@@ -2854,13 +2891,28 @@ export default function Home() {
                                     : ""}
                                 </small>
                               )}
+                            {article.imageRef &&
+                              displayedCopy[selectedDisplayLang].images[
+                                article.imageRef - 1
+                              ] && (
+                                <small className="article-table-note">
+                                  註：相關資料請參照圖 {ordinal(article.imageRef)}
+                                  {displayedCopy[selectedDisplayLang].images[
+                                    article.imageRef - 1
+                                  ].alt
+                                    ? `（${displayedCopy[selectedDisplayLang].images[
+                                        article.imageRef - 1
+                                      ].alt}）`
+                                    : ""}
+                                </small>
+                              )}
                           </article>
                         ))}
                       </section>
                     ))}
                   </div>
                   <Tables tables={displayedCopy[selectedDisplayLang].tables} />
-                  {!!displayedCopy[selectedDisplayLang].images.length && <section className="policy-images"><b>相關圖片</b><div className="policy-image-grid">{displayedCopy[selectedDisplayLang].images.map((image, index) => <figure key={`${image.name}-${index}`}><img src={image.dataUrl} alt={image.alt || image.name} />{image.alt && <figcaption>{image.alt}</figcaption>}</figure>)}</div></section>}
+                  {!!displayedCopy[selectedDisplayLang].images.length && <section className="policy-images"><b>相關圖片</b><div className="policy-image-grid">{displayedCopy[selectedDisplayLang].images.map((image, index) => <figure key={`${image.name}-${index}`}><b>圖{ordinal(index + 1)}</b><img src={image.dataUrl} alt={image.alt || image.name} /><figcaption>{image.alt || image.name}</figcaption></figure>)}</div></section>}
                   <section className="revision-record">
                     <b>改訂紀錄</b>
                     <dl>
