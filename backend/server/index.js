@@ -6,6 +6,9 @@ import { authenticate, isAdmin, requireRole, signIn } from "./auth.js";
 import { changeDraft, policyCode, policyCreate } from "./validation.js";
 
 const app = express();
+// 部分含有內嵌／標準字型的 PDF 需要這個資料夾；未提供時 pdf.js 會拋出
+// "Ensure that the standardFontDataUrl API parameter is provided"。
+const standardFontDataUrl = new URL("../../node_modules/pdfjs-dist/standard_fonts/", import.meta.url).href;
 const port = Number(process.env.PORT || 3001);
 // CORS_ORIGIN 可填多個網域，以逗號分隔。Vite 開發模式預設使用 5173 埠，
 // 因此非正式環境也允許 3000 / 5173 / 4173，避免瀏覽器擋掉登入請求。
@@ -256,7 +259,7 @@ app.post("/api/imports/pdf-draft", requireRole("admin"), async (req, res) => {
   }
   let pdf;
   try {
-    pdf = await getDocument({ data: new Uint8Array(bytes) }).promise;
+    pdf = await getDocument({ data: new Uint8Array(bytes), standardFontDataUrl }).promise;
   } catch (cause) {
     const error = new Error(`PDF 無法讀取：${cause instanceof Error ? cause.message : "請確認檔案未加密或損毀。"}`);
     error.status = 422;
