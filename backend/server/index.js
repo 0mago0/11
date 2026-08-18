@@ -289,7 +289,13 @@ app.post("/api/imports/pdf-draft", requireRole("admin"), async (req, res) => {
   const allText = pages.join("\n").replace(/\s*\n\s*/g, "\n").trim();
   const revisionRecords = revisionRecordsFromPdf(allText);
   const start = allText.search(pdfBodyStart);
-  const content = (start >= 0 ? allText.slice(start) : allText).trim();
+  const bodyWithPossibleRevision = (start >= 0 ? allText.slice(start) : allText).trim();
+  // 改訂紀錄可能位於規程正文最後。偵測到後，後續資料僅屬於改訂紀錄，
+  // 不可再送到前端章／節／條的自動結構辨識。
+  const revisionStartInBody = bodyWithPossibleRevision.search(revisionHeading);
+  const content = (revisionStartInBody >= 0
+    ? bodyWithPossibleRevision.slice(0, revisionStartInBody)
+    : bodyWithPossibleRevision).trim();
   if (!content) { const error = new Error("這份 PDF 找不到可讀取的文字內容，請使用可搜尋文字的 PDF。"); error.status = 422; throw error; }
   res.json({ title: pdfTitleFromFileName(fileName), content, foundPolicyBody: start >= 0, revisionRecords });
 });
