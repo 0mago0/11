@@ -39,7 +39,7 @@ type PolicySection = { id: string; title: string; articles: Article[] };
 type Chapter = { id: string; title: string; articles: Article[]; sections?: PolicySection[] };
 type TableMerge = { startRow: number; startCol: number; endRow: number; endCol: number };
 type PolicyTable = { cells: string[][]; merges?: TableMerge[] };
-type RevisionRecord = { date: string; content: string };
+type RevisionRecord = { date: string; content: string; language?: Lang };
 type PolicyImage = { name: string; dataUrl: string; alt?: string };
 type Copy = {
   title: string;
@@ -150,12 +150,14 @@ const emptyCopy = (): Copy => ({
 const normalizeRevisionRecords = (records: unknown, date = "", content = ""): RevisionRecord[] => {
   const normalized = Array.isArray(records)
     ? records
-        .filter((record): record is { date?: unknown; content?: unknown } => !!record && typeof record === "object")
-        .map((record) => ({ date: String(record.date || "").slice(0, 10), content: String(record.content || "") }))
+        .filter((record): record is { date?: unknown; content?: unknown; language?: unknown } => !!record && typeof record === "object")
+        .map((record) => ({ date: String(record.date || "").slice(0, 10), content: String(record.content || ""), language: record.language === "ja" ? "ja" as const : "zh" as const }))
         .filter((record) => record.date || record.content)
     : [];
-  return normalized.length ? normalized : date || content ? [{ date: String(date).slice(0, 10), content }] : [];
+  return normalized.length ? normalized : date || content ? [{ date: String(date).slice(0, 10), content, language: "zh" }] : [];
 };
+const revisionRecordsForLanguage = (records: unknown, language: Lang, date = "", content = "") =>
+  normalizeRevisionRecords(records, date, content).filter((record) => (record.language || "zh") === language);
 const chaptersFromContent = (content: string): Chapter[] => {
   const chapterPattern = /^第\s*([一二三四五六七八九十百千\d]+)\s*章[　\s]*(.*)$/;
   const sectionPattern = /^第\s*([一二三四五六七八九十百千\d]+)\s*節[　\s]*(.*)$/;
@@ -1203,7 +1205,7 @@ export default function Home() {
   const setRevisionRecords = (records: RevisionRecord[]) =>
     setDraft((policy) => ({
       ...policy,
-      revisionRecords: records,
+      revisionRecords: [...(policy.revisionRecords || []).filter((record) => (record.language || "zh") !== lang), ...records.map((record) => ({ ...record, language: lang }))],
       // 保留單筆欄位作為舊版資料與既有流程的相容值。
       revisionDate: records[0]?.date || "",
       revisionContent: records[0]?.content || "",
@@ -1236,7 +1238,7 @@ export default function Home() {
         setDraft((policy) => ({
           ...policy,
           ...(imported.revisionRecords.length ? {
-            revisionRecords: imported.revisionRecords,
+            revisionRecords: imported.revisionRecords.map((record) => ({ ...record, language: lang })),
             revisionDate: imported.revisionRecords[0].date,
             revisionContent: imported.revisionRecords[0].content,
           } : {}),
@@ -1964,7 +1966,7 @@ export default function Home() {
                       <section className="revision-record approval-revision-record">
                         <b>改訂紀錄</b>
                         <dl>
-                          {normalizeRevisionRecords(policy.revisionRecords, policy.revisionDate, policy.revisionContent).map((record, index) => <div key={`${record.date}-${index}`}><dt>{record.date || "未記錄"}</dt><dd>{record.content || "改訂内容は未入力です。"}</dd></div>)}
+                          {revisionRecordsForLanguage(policy.revisionRecords, reviewLang, policy.revisionDate, policy.revisionContent).map((record, index) => <div key={`${record.date}-${index}`}><dt>{record.date || "未記錄"}</dt><dd>{record.content || "改訂内容は未入力です。"}</dd></div>)}
                         </dl>
                       </section>
                       <details className="approval-original">
@@ -2919,9 +2921,9 @@ export default function Home() {
                     onChange={(x) => update("tables", x)}
                   />
                   <section className="revision-record editor-revision-record">
-                    <div className="revision-record-head"><b>改訂紀錄</b><button type="button" className="ghost" onClick={() => setRevisionRecords([...(draft.revisionRecords || []), { date: "", content: "" }])}>＋ 新增一條</button></div>
-                    {(draft.revisionRecords || []).map((record, index) => <div className="revision-record-fields" key={index}><label>改訂日<input type="date" value={record.date} onChange={(e) => setRevisionRecords((draft.revisionRecords || []).map((item, position) => position === index ? { ...item, date: e.target.value } : item))} /></label><label>改訂內容<textarea rows={2} value={record.content} placeholder="例如：第 2 條新增主管核准流程" onChange={(e) => setRevisionRecords((draft.revisionRecords || []).map((item, position) => position === index ? { ...item, content: e.target.value } : item))} /></label><button type="button" className="remove-revision-record" onClick={() => setRevisionRecords((draft.revisionRecords || []).filter((_, position) => position !== index))}>刪除</button></div>)}
-                    {!(draft.revisionRecords || []).length && <div className="empty">尚未新增改訂紀錄。</div>}
+                    <div className="revision-record-head"><b>{lang === "zh" ? "中文改訂紀錄" : "日文改訂紀錄"}</b><button type="button" className="ghost" onClick={() => setRevisionRecords([...revisionRecordsForLanguage(draft.revisionRecords, lang, draft.revisionDate, draft.revisionContent), { date: "", content: "", language: lang }])}>＋ 新增一條</button></div>
+                    {revisionRecordsForLanguage(draft.revisionRecords, lang, draft.revisionDate, draft.revisionContent).map((record, index, currentRecords) => <div className="revision-record-fields" key={index}><label>改訂日<input type="date" value={record.date} onChange={(e) => setRevisionRecords(currentRecords.map((item, position) => position === index ? { ...item, date: e.target.value } : item))} /></label><label>改訂內容<textarea rows={2} value={record.content} placeholder={lang === "zh" ? "例如：第 2 條新增主管核准流程" : "例：第2条に承認フローを追加"} onChange={(e) => setRevisionRecords(currentRecords.map((item, position) => position === index ? { ...item, content: e.target.value } : item))} /></label><button type="button" className="remove-revision-record" onClick={() => setRevisionRecords(currentRecords.filter((_, position) => position !== index))}>刪除</button></div>)}
+                    {!revisionRecordsForLanguage(draft.revisionRecords, lang, draft.revisionDate, draft.revisionContent).length && <div className="empty">尚未新增此語言的改訂紀錄。</div>}
                   </section>
                   <div className="form-actions">
                     {(!draft.changeRequestId || ["草稿", "退回修改"].includes(draft.approval?.stage || "")) && (
@@ -3031,8 +3033,8 @@ export default function Home() {
                   <section className="revision-record">
                     <b>改訂紀錄</b>
                     <dl>
-                      {normalizeRevisionRecords(versions.at(-1)?.revisionRecords || selected.revisionRecords, versions.at(-1)?.revisionDate || selected.revisionDate || "", versions.at(-1)?.revisionContent || selected.revisionContent || "").map((record, index) => <div key={`${record.date}-${index}`}><dt>{record.date || "尚未記錄"}</dt><dd>{record.content || "尚未填寫改訂內容。"}</dd></div>)}
-                      {!normalizeRevisionRecords(versions.at(-1)?.revisionRecords || selected.revisionRecords, versions.at(-1)?.revisionDate || selected.revisionDate || "", versions.at(-1)?.revisionContent || selected.revisionContent || "").length && <div><dt>改訂紀錄</dt><dd>尚未填寫改訂內容。</dd></div>}
+                      {revisionRecordsForLanguage(versions.at(-1)?.revisionRecords || selected.revisionRecords, selectedDisplayLang, versions.at(-1)?.revisionDate || selected.revisionDate || "", versions.at(-1)?.revisionContent || selected.revisionContent || "").map((record, index) => <div key={`${record.date}-${index}`}><dt>{record.date || "尚未記錄"}</dt><dd>{record.content || "尚未填寫改訂內容。"}</dd></div>)}
+                      {!revisionRecordsForLanguage(versions.at(-1)?.revisionRecords || selected.revisionRecords, selectedDisplayLang, versions.at(-1)?.revisionDate || selected.revisionDate || "", versions.at(-1)?.revisionContent || selected.revisionContent || "").length && <div><dt>改訂紀錄</dt><dd>尚未填寫此語言的改訂內容。</dd></div>}
                     </dl>
                   </section>
                   <section className="policy-links">
