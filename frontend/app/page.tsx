@@ -1235,6 +1235,11 @@ export default function Home() {
         const imported = await importPdfDraft(currentEmployeeNo, file.name, String(reader.result));
         setDraft((policy) => ({
           ...policy,
+          ...(imported.revisionRecords.length ? {
+            revisionRecords: imported.revisionRecords,
+            revisionDate: imported.revisionRecords[0].date,
+            revisionContent: imported.revisionRecords[0].content,
+          } : {}),
           draft: {
             ...policy.draft,
             [lang]: {
@@ -1245,7 +1250,7 @@ export default function Home() {
             },
           },
         }));
-        setNotice(imported.foundPolicyBody ? "PDF 已生成草稿；請自行填寫生效日後再儲存。" : "PDF 已生成草稿；未找到第一章／第一條，請確認內容後自行填寫生效日。");
+        setNotice(imported.foundPolicyBody ? `PDF 已生成草稿${imported.revisionRecords.length ? `，並帶入 ${imported.revisionRecords.length} 筆改訂紀錄` : ""}；請自行填寫生效日後再儲存。` : "PDF 已生成草稿；未找到第一章／第一條，請確認內容後自行填寫生效日。");
       } catch (error) {
         setNotice(`PDF 草稿建立失敗：${error instanceof Error ? error.message : "請稍後再試。"}`);
       }

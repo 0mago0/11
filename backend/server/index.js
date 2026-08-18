@@ -216,6 +216,31 @@ const pdfTitleFromFileName = (fileName) => fileName
   .replace(/^DHT\d{1,2}-\d{4}[＿_]/i, "")
   .replace(/[＿_](?:中文|繁中|繁體中文|日文|日本語|zh(?:-TW)?|ja(?:-JP)?)$/i, "")
   .trim();
+const revisionHeading = /(?:改訂|改定|修訂)(?:紀錄|記錄|履歴|履歷)/;
+const revisionDatePattern = /((?:19|20)\d{2})\s*[./年-]\s*(\d{1,2})\s*(?:[./月-]\s*(\d{1,2}))?\s*(?:日)?/;
+const normalizeRevisionDate = (match) => `${match[1]}-${String(match[2]).padStart(2, "0")}-${String(match[3] || "1").padStart(2, "0")}`;
+// PDF 首頁的版次表格常有「改訂紀錄」欄。正文仍由第一章開始，但此欄會獨立帶入草稿改訂紀錄。
+const revisionRecordsFromPdf = (allText) => {
+  const records = [];
+  let reading = false;
+  for (const rawLine of allText.split("\n")) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    const hasHeading = revisionHeading.test(line);
+    if (hasHeading) reading = true;
+    if (!reading) continue;
+    if (pdfBodyStart.test(line) && !hasHeading) break;
+    const date = line.match(revisionDatePattern);
+    if (date) {
+      const content = line.slice((date.index || 0) + date[0].length).replace(revisionHeading, "").replace(/^(?:改訂日|改定日|修訂日|內容|内容)[:：\s]*/i, "").trim();
+      records.push({ date: normalizeRevisionDate(date), content });
+    } else if (records.length && !/^(?:改訂日|改定日|修訂日|內容|内容)[:：\s]*$/i.test(line)) {
+      const latest = records.at(-1);
+      latest.content = `${latest.content}${latest.content ? "\n" : ""}${line}`;
+    }
+  }
+  return records.filter((record, index, array) => record.date && array.findIndex((item) => item.date === record.date && item.content === record.content) === index);
+};
 
 app.post("/api/imports/pdf-draft", requireRole("admin"), async (req, res) => {
   const { fileName, dataUrl } = req.body || {};
@@ -262,10 +287,11 @@ app.post("/api/imports/pdf-draft", requireRole("admin"), async (req, res) => {
     pages.push(lines.join("\n"));
   }
   const allText = pages.join("\n").replace(/\s*\n\s*/g, "\n").trim();
+  const revisionRecords = revisionRecordsFromPdf(allText);
   const start = allText.search(pdfBodyStart);
   const content = (start >= 0 ? allText.slice(start) : allText).trim();
   if (!content) { const error = new Error("這份 PDF 找不到可讀取的文字內容，請使用可搜尋文字的 PDF。"); error.status = 422; throw error; }
-  res.json({ title: pdfTitleFromFileName(fileName), content, foundPolicyBody: start >= 0 });
+  res.json({ title: pdfTitleFromFileName(fileName), content, foundPolicyBody: start >= 0, revisionRecords });
 });
 
 app.get("/api/me", (req, res) => res.json(req.user));

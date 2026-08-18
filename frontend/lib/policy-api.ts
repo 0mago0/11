@@ -142,6 +142,6 @@ export const publishScheduledChanges = (employeeNo: string) =>
 
 /** 將可搜尋文字的 PDF 轉成草稿文字；生效日仍由編輯者自行填寫。 */
 export const importPdfDraft = (employeeNo: string, fileName: string, dataUrl: string) =>
-  request<{ title: string; content: string; foundPolicyBody: boolean }>("/api/imports/pdf-draft", employeeNo, { method: "POST", body: JSON.stringify({ fileName, dataUrl }) });
+  request<{ title: string; content: string; foundPolicyBody: boolean; revisionRecords: Array<{ date: string; content: string }> }>("/api/imports/pdf-draft", employeeNo, { method: "POST", body: JSON.stringify({ fileName, dataUrl }) });
 
 export const apiConfig = { apiUrl };
