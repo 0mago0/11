@@ -1203,13 +1203,28 @@ export default function Home() {
       },
     }));
   const setRevisionRecords = (records: RevisionRecord[]) =>
-    setDraft((policy) => ({
-      ...policy,
-      revisionRecords: [...(policy.revisionRecords || []).filter((record) => (record.language || "zh") !== lang), ...records.map((record) => ({ ...record, language: lang }))],
-      // 保留單筆欄位作為舊版資料與既有流程的相容值。
-      revisionDate: records[0]?.date || "",
-      revisionContent: records[0]?.content || "",
-    }));
+    setDraft((policy) => {
+      // 一律從最新 state 正規化後再合併，避免切換語言或 PDF 匯入後使用舊陣列而更新失效。
+      const allRecords = normalizeRevisionRecords(policy.revisionRecords, policy.revisionDate, policy.revisionContent);
+      return {
+        ...policy,
+        revisionRecords: [...allRecords.filter((record) => (record.language || "zh") !== lang), ...records.map((record) => ({ ...record, language: lang }))],
+        // 保留單筆欄位作為舊版資料與既有流程的相容值。
+        revisionDate: records[0]?.date || "",
+        revisionContent: records[0]?.content || "",
+      };
+    });
+  const addRevisionRecord = () => {
+    setDraft((policy) => {
+      const allRecords = normalizeRevisionRecords(policy.revisionRecords, policy.revisionDate, policy.revisionContent);
+      const current = allRecords.filter((record) => (record.language || "zh") === lang);
+      return {
+        ...policy,
+        revisionRecords: [...allRecords.filter((record) => (record.language || "zh") !== lang), ...current, { date: "", content: "", language: lang }],
+      };
+    });
+    setNotice(lang === "zh" ? "已新增一筆中文改訂紀錄。" : "日文改訂紀錄を追加しました。");
+  };
   const addPolicyImages = (files: FileList | null) => {
     if (!files?.length) return;
     const imageFiles = Array.from(files).filter((file) => file.type.startsWith("image/") && file.size <= 500 * 1024).slice(0, Math.max(0, 5 - draft.draft[lang].images.length));
@@ -2921,7 +2936,7 @@ export default function Home() {
                     onChange={(x) => update("tables", x)}
                   />
                   <section className="revision-record editor-revision-record">
-                    <div className="revision-record-head"><b>{lang === "zh" ? "中文改訂紀錄" : "日文改訂紀錄"}</b><button type="button" className="ghost" onClick={() => setRevisionRecords([...revisionRecordsForLanguage(draft.revisionRecords, lang, draft.revisionDate, draft.revisionContent), { date: "", content: "", language: lang }])}>＋ 新增一條</button></div>
+                    <div className="revision-record-head"><b>{lang === "zh" ? "中文改訂紀錄" : "日文改訂紀錄"}</b><button type="button" className="ghost" onClick={addRevisionRecord}>＋ 新增一條</button></div>
                     {revisionRecordsForLanguage(draft.revisionRecords, lang, draft.revisionDate, draft.revisionContent).map((record, index, currentRecords) => <div className="revision-record-fields" key={index}><label>改訂日<input type="date" value={record.date} onChange={(e) => setRevisionRecords(currentRecords.map((item, position) => position === index ? { ...item, date: e.target.value } : item))} /></label><label>改訂內容<textarea rows={2} value={record.content} placeholder={lang === "zh" ? "例如：第 2 條新增主管核准流程" : "例：第2条に承認フローを追加"} onChange={(e) => setRevisionRecords(currentRecords.map((item, position) => position === index ? { ...item, content: e.target.value } : item))} /></label><button type="button" className="remove-revision-record" onClick={() => setRevisionRecords(currentRecords.filter((_, position) => position !== index))}>刪除</button></div>)}
                     {!revisionRecordsForLanguage(draft.revisionRecords, lang, draft.revisionDate, draft.revisionContent).length && <div className="empty">尚未新增此語言的改訂紀錄。</div>}
                   </section>
