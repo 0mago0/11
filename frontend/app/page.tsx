@@ -1184,7 +1184,9 @@ export default function Home() {
   const importPolicyPdf = (files: FileList | null) => {
     const file = files?.[0];
     if (!file) return;
-    if (file.type !== "application/pdf" || file.size > 10 * 1024 * 1024) {
+    // Windows／部分瀏覽器可能不會為 PDF 填入 application/pdf，故以副檔名判斷，
+    // 後端仍會驗證檔案實際內容，避免把非 PDF 送入解析器。
+    if (!/\.pdf$/i.test(file.name) || file.size > 10 * 1024 * 1024) {
       setNotice("請選擇小於 10 MB 的 PDF 檔案。");
       return;
     }

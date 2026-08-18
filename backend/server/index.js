@@ -63,14 +63,24 @@ const pdfTitleFromFileName = (fileName) => fileName
 
 app.post("/api/imports/pdf-draft", requireRole("admin"), async (req, res) => {
   const { fileName, dataUrl } = req.body || {};
-  if (typeof fileName !== "string" || !/\.pdf$/i.test(fileName) || typeof dataUrl !== "string" || !dataUrl.startsWith("data:application/pdf;base64,")) {
+  if (typeof fileName !== "string" || !/\.pdf$/i.test(fileName) || typeof dataUrl !== "string" || !/^data:application\/(?:pdf|x-pdf|octet-stream);base64,/i.test(dataUrl)) {
     const error = new Error("請上傳 PDF 檔案。"); error.status = 400; throw error;
   }
   const bytes = Buffer.from(dataUrl.slice(dataUrl.indexOf(",") + 1), "base64");
   if (!bytes.length || bytes.length > 10 * 1024 * 1024) {
     const error = new Error("PDF 檔案需小於 10 MB。"); error.status = 400; throw error;
   }
-  const pdf = await getDocument({ data: new Uint8Array(bytes) }).promise;
+  if (bytes.subarray(0, 5).toString() !== "%PDF-") {
+    const error = new Error("上傳的檔案不是有效的 PDF。 "); error.status = 400; throw error;
+  }
+  let pdf;
+  try {
+    pdf = await getDocument({ data: new Uint8Array(bytes) }).promise;
+  } catch (cause) {
+    const error = new Error(`PDF 無法讀取：${cause instanceof Error ? cause.message : "請確認檔案未加密或損毀。"}`);
+    error.status = 422;
+    throw error;
+  }
   const pages = [];
   for (let pageNo = 1; pageNo <= pdf.numPages; pageNo += 1) {
     const page = await pdf.getPage(pageNo);
