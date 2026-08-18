@@ -146,6 +146,141 @@ PDF 文字載入後，請自行確認規程編號、分類、章節與條文，�
 
 後端必須持續運行，預定發布排程才會執行。排程以 `Asia/Taipei` 日期判定，發布者會在修改紀錄中標示為 `System`。
 
+## 用 Windows Server、IIS 與 PM2 部署
+
+若公司伺服器是 Windows Server，建議由 IIS 提供前端靜態網站與 HTTPS，Node.js／PM2 只執行 Express API。架構如下：
+
+```text
+使用者瀏覽器 → IIS（443） → frontend/dist 靜態網站
+                         └→ /api/* → Express API（127.0.0.1:3001） → PostgreSQL
+```
+
+請使用「以系統管理員身分執行」的 PowerShell。以下範例安裝路徑為 `C:\role_web`；請依公司規範調整。
+
+### 1. 安裝伺服器軟體
+
+請由 IT 或系統管理員先安裝：
+
+- Node.js 22.3.0 以上（一般安裝版，不使用 nvm for Windows）
+- Git
+- IIS 的 Web Server 角色
+- IIS URL Rewrite 與 Application Request Routing（ARR）
+- PostgreSQL，或確認可連到公司 PostgreSQL
+
+IIS 的 URL Rewrite + ARR 用來把 `/api` 轉送到本機 Express API；ARR 預設未啟用 Proxy，需在 IIS Manager 的伺服器層級開啟 `Application Request Routing Cache` → `Server Proxy Settings` → `Enable Proxy`。
+
+### 2. 下載專案與安裝套件
+
+```powershell
+git clone https://github.com/0mago0/11.git C:\role_web
+cd C:\role_web
+node -v
+npm ci
+```
+
+若以 ZIP 或公司檔案伺服器傳送專案，直接放到 `C:\role_web` 後，再執行 `npm ci` 即可。不要複製 `node_modules`、`backend\.env` 或任何資料庫密碼到 Git。
+
+### 3. 設定正式環境變數
+
+建立 `C:\role_web\backend\.env`：
+
+```env
+DATABASE_URL=postgresql://policy_app:請設定強密碼@資料庫主機:5432/policy_center
+PGOPTIONS=-c search_path=role_web,public
+PORT=3001
+CORS_ORIGIN=https://policy.company.com
+
+# 公司 SSO／人資 API 尚未實作前，必須先使用 demo。
+AUTH_PROVIDER=demo
+DEMO_ADMIN_PASSWORD=請設定管理員密碼
+DEMO_EMPLOYEE_PASSWORD=請設定員工密碼
+DEMO_DEPARTMENT_HEAD_PASSWORD=請設定部門長密碼
+DEMO_SITE_HEAD_PASSWORD=請設定據點長密碼
+```
+
+建立 `C:\role_web\frontend\.env.production`：
+
+```env
+# IIS 與 API 同網域時使用相對路徑，避免 CORS 與主機名稱問題。
+VITE_POLICY_API_URL=/api
+```
+
+> 目前 `AUTH_PROVIDER=company_api` 尚未有公司 API 的實作，設定後會無法登入。待公司提供 SSO 規格後，再修改 `backend/server/auth.js` 的 `authenticateWithCompanyApi()`。
+
+### 4. 初始化 PostgreSQL
+
+以 pgAdmin 連到「正式資料庫」，開啟 Query Tool 後執行完整的 [backend/db/postgresql_schema.sql](backend/db/postgresql_schema.sql)。資料表必須建立在 `role_web` schema；請不要將正式規程資料放到 `public` schema。
+
+若 `policy_app` 是 API 專用帳號，請再依本 README 後方的「PostgreSQL schema：role_web」授權段落設定權限。若要搬移目前本機資料，請先完整備份並在測試資料庫驗證，不能直接覆蓋正式資料庫。
+
+### 5. 建置前端
+
+```powershell
+cd C:\role_web
+npm run build
+```
+
+這會把前端編譯到 `C:\role_web\frontend\dist`。IIS 的網站「實體路徑」要設定為這個資料夾；每次前端程式更新後都要再執行一次 `npm run build`。
+
+### 6. 用 PM2 執行 API 與設定開機自啟
+
+先確認 API 可正常啟動：
+
+```powershell
+npm install -g pm2
+cd C:\role_web
+pm2 start ecosystem.config.cjs --only policy-api
+pm2 status
+curl http://127.0.0.1:3001/health
+```
+
+Windows 版 PM2 沒有內建開機服務。建議由 IT 以系統管理員權限安裝 `pm2-installer`，它會建立 Windows Service、設定共用的 `PM2_HOME`，使 API 在重開機後自動恢復：
+
+```powershell
+git clone https://github.com/jessety/pm2-installer.git C:\tools\pm2-installer
+cd C:\tools\pm2-installer
+npm run configure
+npm run configure-policy
+npm run setup
+
+cd C:\role_web
+pm2 start ecosystem.config.cjs --only policy-api
+pm2 save
+```
+
+之後請使用系統管理員 PowerShell 管理 PM2：
+
+```powershell
+pm2 status
+pm2 logs policy-api
+pm2 restart policy-api --update-env
+```
+
+IIS 已經提供前端靜態檔，因此 Windows 部署時**不需要**啟動 `policy-web`。
+
+### 7. 設定 IIS 網站與 API 反向代理
+
+1. IIS Manager → `Sites` → `Add Website`。
+2. 實體路徑設為 `C:\role_web\frontend\dist`。
+3. 設定公司內網網址或正式網域，例如 `https://policy.company.com`；HTTPS 憑證請由 IT／公司 CA 設定。
+4. 確認 URL Rewrite 與 ARR 已安裝，並依第 1 步開啟 ARR Proxy。
+5. `frontend/public/web.config` 已附上 IIS 規則；執行 `npm run build` 後會自動複製到 `frontend/dist/web.config`。它會將 `/api/*` 轉送到 `127.0.0.1:3001`，並處理 React 的重新整理與網址返回。
+
+Windows 防火牆只需開放 IIS 使用的 80／443（或公司指定連接埠）；**不要**對外開放 Node.js 的 3001 或 PostgreSQL 的 5432 埠。
+
+### 8. Windows 日後更新流程
+
+```powershell
+cd C:\role_web
+git pull
+npm ci
+npm run build
+pm2 restart policy-api --update-env
+pm2 save
+```
+
+完成後以瀏覽器開啟公司網址，並測試登入、規程清單、PDF 匯入、儲存草稿與承認流程。
+
 ## 用 PM2 部署到 Linux 伺服器
 
 以下範例假設網站放在 `/var/www/role_web`、前端使用 `3000` 埠、Express API 使用 `3001` 埠，並由 Nginx 對外提供 HTTPS。PM2 會讓兩個服務在 SSH 中斷、程式異常或伺服器重新開機後仍能持續運作。
