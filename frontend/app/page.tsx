@@ -2922,6 +2922,7 @@ export default function Home() {
                     chapters={draft.draft[lang].chapters}
                     tables={draft.draft[lang].tables}
                     images={draft.draft[lang].images}
+                    lang={lang}
                     onChange={updateChapters}
                   />
                   <section className="policy-image-editor">

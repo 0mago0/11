@@ -213,7 +213,13 @@ app.use("/api", authenticate);
 
 // PDF 僅擷取可選取的文字；掃描式 PDF 沒有文字層時會請使用者改用可搜尋 PDF。
 // 必須放在 authenticate 後，否則 requireRole 讀取 req.user 時會沒有使用者資料。
-const pdfBodyStart = /^\s*第\s*(?:[一二三四五六七八九十百千\d]+)\s*(?:章|條|条)/m;
+const policyHeadingCharacters = "一二三四五六七八九十百千〇零\\d";
+const pdfBodyStart = new RegExp(`^\\s*第\\s*(?:[${policyHeadingCharacters}]+)\\s*(?:章|節|條|条)`, "m");
+// PDF 的文字層常把「第 １ 条」拆成全形數字或插入空白。先統一條號，
+// 讓前端可穩定辨識成正確的第幾章／節／條，不會把條號混進條文內容。
+const normalizePdfPolicyHeadings = (text) => text
+  .replace(/[０-９]/g, (character) => String.fromCharCode(character.charCodeAt(0) - 0xfee0))
+  .replace(new RegExp(`^(\\s*第)\\s*([${policyHeadingCharacters}]+)\\s*(章|節|條|条)`, "gm"), "$1$2$3");
 const pdfTitleFromFileName = (fileName) => fileName
   .replace(/\.pdf$/i, "")
   .replace(/^DHT\d{1,2}-\d{4}[＿_]/i, "")
@@ -289,7 +295,7 @@ app.post("/api/imports/pdf-draft", requireRole("admin"), async (req, res) => {
     if (currentLine.trim()) lines.push(currentLine.trim());
     pages.push(lines.join("\n"));
   }
-  const allText = pages.join("\n").replace(/\s*\n\s*/g, "\n").trim();
+  const allText = normalizePdfPolicyHeadings(pages.join("\n").replace(/\s*\n\s*/g, "\n").trim());
   const revisionRecords = revisionRecordsFromPdf(allText);
   const start = allText.search(pdfBodyStart);
   const bodyWithPossibleRevision = (start >= 0 ? allText.slice(start) : allText).trim();

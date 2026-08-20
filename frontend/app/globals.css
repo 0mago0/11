@@ -62,6 +62,25 @@ textarea,
   transition: background .15s, color .15s;
 }
 .sign-out:hover { background: #fff; color: #276c56; }
+.back-to-top {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 30;
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid #6e9d88;
+  border-radius: 50%;
+  background: #276c56;
+  box-shadow: 0 7px 18px #1d4c3b38;
+  color: #fff;
+  font-size: 23px;
+  font-weight: 800;
+  line-height: 1;
+}
+.back-to-top:hover { background: #1e5947; transform: translateY(-2px); }
 body .sidebar-foot {
   cursor: default;
 }
