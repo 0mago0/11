@@ -2445,7 +2445,10 @@ export default function Home() {
             <p className="eyebrow">
               {ui("企業規程管理系統", "企業規程管理システム")}
             </p>
-            <h1>{ui("企業規程資料庫", "企業規程ライブラリ")}</h1>
+            <div className="workspace-title-row">
+              <h1>{ui("企業規程資料庫", "企業規程ライブラリ")}</h1>
+              <img className="brand-rolling-seal" src="/policy-rolling-seal.png" alt="翻滾中的海豹" />
+            </div>
             <p className="sub">
               {isAdmin
                 ? "可編輯草稿、發布新版本與管理狀態。"

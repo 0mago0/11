@@ -1580,14 +1580,14 @@ main {
 .sidebar-foot small {
   display: block;
 }
-.brand-title-row {
+.workspace-title-row {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 10px;
 }
 .brand-rolling-seal {
-  width: 34px;
-  height: 34px;
+  width: 58px;
+  height: 58px;
   object-fit: contain;
   transform-origin: center;
   animation: rolling-seal 3.2s ease-in-out infinite;
