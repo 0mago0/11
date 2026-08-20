@@ -1580,6 +1580,27 @@ main {
 .sidebar-foot small {
   display: block;
 }
+.brand-title-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.brand-rolling-seal {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  transform-origin: center;
+  animation: rolling-seal 3.2s ease-in-out infinite;
+}
+@keyframes rolling-seal {
+  0%, 18% { transform: translateX(0) rotate(0deg); }
+  42% { transform: translateX(10px) rotate(180deg); }
+  62% { transform: translateX(0) rotate(360deg); }
+  100% { transform: translateX(0) rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .brand-rolling-seal { animation: none; }
+}
 .brand small,
 .sidebar-foot small {
   font-size: 11px;

@@ -5,6 +5,7 @@ import { AuditPage } from "../components/pages/AuditPage";
 import { PolicyLibraryPage } from "../components/pages/PolicyLibraryPage";
 import { StructureEditor } from "../components/policy/StructureEditor";
 import { Tables } from "../components/policy/Tables";
+import { Brand } from "../components/common/Brand";
 import {
   approveChange, disablePolicy, loadPolicyAuditLogs, loadPolicyWorkspace, publishTypoChange,
   returnChange, saveNewPolicy, savePolicyChange, submitChange, updatePolicyChange,
@@ -1879,13 +1880,7 @@ export default function Home() {
     return (
       <ApprovalPage onNavigate={guardEditingNavigation}>
         <aside className="sidebar">
-          <div className="brand">
-            <img className="brand-mark" src="/policy-mascot.png" alt="企業規程庫吉祥物" />
-            <div>
-              <strong>企業規程庫</strong>
-              <small>POLICY CENTER</small>
-            </div>
-          </div>
+          <Brand />
           <nav data-protected-navigation>
             <button
               onClick={() => {
@@ -2102,13 +2097,7 @@ export default function Home() {
     return (
       <AuditPage onNavigate={guardEditingNavigation}>
         <aside className="sidebar">
-          <div className="brand">
-            <img className="brand-mark" src="/policy-mascot.png" alt="企業規程庫吉祥物" />
-            <div>
-              <strong>企業規程庫</strong>
-              <small>POLICY CENTER</small>
-            </div>
-          </div>
+          <Brand />
           <nav data-protected-navigation>
             <button
               onClick={() => {
@@ -2387,13 +2376,7 @@ export default function Home() {
   return (
     <PolicyLibraryPage onNavigate={guardEditingNavigation}>
       <aside className="sidebar">
-        <div className="brand">
-          <img className="brand-mark" src="/policy-mascot.png" alt="企業規程庫吉祥物" />
-          <div>
-            <strong>企業規程庫</strong>
-            <small>POLICY CENTER</small>
-          </div>
-        </div>
+        <Brand />
         <nav data-protected-navigation>
           <button className="active">
             {ui("▦ 規程資料庫", "▦ 規程ライブラリ")}
