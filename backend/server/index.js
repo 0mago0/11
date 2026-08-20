@@ -365,7 +365,8 @@ app.get("/api/policies/:policyCode", async (req, res) => {
        FROM policy_version_translations WHERE policy_code = $1`, [code],
   );
   const { rows: changes } = await db.query(
-    `SELECT change_request_id, status, change_kind, revision_reason, revision_date, revision_content, revision_records, scheduled_publish_date, submitted_at, approved_at
+    `SELECT change_request_id, status, change_kind, revision_reason, revision_date, revision_content, revision_records,
+            requested_effective_date, scheduled_publish_date, submitted_at, approved_at
        FROM policy_change_requests WHERE policy_code = $1
         AND status NOT IN ('published', 'cancelled')
       ORDER BY updated_at DESC LIMIT 1`, [code],
@@ -397,6 +398,7 @@ app.get("/api/policies/:policyCode", async (req, res) => {
       revisionDate: activeChange.revision_date,
       revisionContent: activeChange.revision_content,
       revisionRecords: revisionRecordsFor(activeChange),
+      requestedEffectiveDate: activeChange.requested_effective_date,
       scheduledPublishDate: activeChange.scheduled_publish_date,
       submittedAt: activeChange.submitted_at,
       approvedAt: activeChange.approved_at,

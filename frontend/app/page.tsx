@@ -694,7 +694,12 @@ const policyFromApi = (
   }));
   return {
     id: index + 1, code: source.policy_code, category: source.category_zh || source.category_ja || "人事",
-    effectiveDate: source.effective_date ? String(source.effective_date).slice(0, 10) : "",
+    // 草稿自己的生效日尚未發布到 policies 表，必須優先顯示變更申請內已儲存的日期。
+    effectiveDate: active?.requestedEffectiveDate
+      ? String(active.requestedEffectiveDate).slice(0, 10)
+      : source.effective_date
+        ? String(source.effective_date).slice(0, 10)
+        : "",
     publishDate: active?.scheduledPublishDate ? String(active.scheduledPublishDate).slice(0, 10) : "",
     // 新規程在首次公開前沒有 version，資料庫會以 disabled 保存「未公開」。
     // UI 必須區分真正停用的規程與這種尚未發布的草稿。

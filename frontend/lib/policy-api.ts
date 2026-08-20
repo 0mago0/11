@@ -39,6 +39,7 @@ export type ApiWorkspacePolicy = {
     revisionDate?: string | null;
     revisionContent?: string;
     revisionRecords?: Array<{ date: string; content: string }>;
+    requestedEffectiveDate?: string | null;
     scheduledPublishDate?: string | null;
     submittedAt?: string | null;
     approvedAt?: string | null;
