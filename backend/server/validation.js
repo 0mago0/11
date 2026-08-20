@@ -2,6 +2,9 @@ import { z } from "zod";
 
 // DHT 前綴與四位流水號為資料庫及 API 共用的規程識別格式。
 export const policyCode = z.string().regex(/^DHT\d{1,2}-\d{4}$/);
+// PostgreSQL 的 DATE 不含時區。不可用 z.coerce.date() 轉為 JavaScript Date，
+// 否則台灣時區會在序列化時往前偏移一天。全程保留 YYYY-MM-DD 字串。
+const calendarDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 export const translation = z.object({
   language: z.enum(["zh-TW", "ja-JP"]),
   title: z.string().min(1),
@@ -20,9 +23,9 @@ const revisionRecord = z.object({
 export const policyCreate = z.object({
   policyCode,
   categoryCode: z.string().min(1),
-  effectiveDate: z.coerce.date().optional(),
+  effectiveDate: calendarDate.optional(),
   revisionReason: z.string().default(""),
-  revisionDate: z.coerce.date().optional(),
+  revisionDate: calendarDate.optional(),
   revisionContent: z.string().default(""),
   revisionRecords: z.array(revisionRecord).default([]),
   translations: z.array(translation).min(1),
@@ -30,10 +33,10 @@ export const policyCreate = z.object({
 export const changeDraft = z.object({
   changeKind: z.enum(["new_policy", "typo", "content"]),
   revisionReason: z.string().default(""),
-  revisionDate: z.coerce.date().optional(),
+  revisionDate: calendarDate.optional(),
   revisionContent: z.string().default(""),
   revisionRecords: z.array(revisionRecord).default([]),
-  requestedEffectiveDate: z.coerce.date().optional(),
-  scheduledPublishDate: z.coerce.date().optional(),
+  requestedEffectiveDate: calendarDate.optional(),
+  scheduledPublishDate: calendarDate.optional(),
   translations: z.array(translation).min(1),
 });
