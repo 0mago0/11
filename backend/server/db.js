@@ -1,7 +1,11 @@
 import "dotenv/config";
 import pg from "pg";
 
-const { Pool } = pg;
+const { Pool, types } = pg;
+
+// PostgreSQL DATE（OID 1082）本來沒有時區；node-postgres 若自動轉成 Date，
+// JSON 回傳時會依伺服器時區偏移。保留原始 YYYY-MM-DD 字串才能正確顯示生效日。
+types.setTypeParser(1082, (value) => value);
 
 if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL is required. Copy .env.example to .env first.");
