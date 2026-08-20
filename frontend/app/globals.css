@@ -1587,16 +1587,24 @@ main {
 }
 .brand-rolling-seal {
   display: block;
-  width: 45px;
-  height: 60px;
+  width: 84px;
+  height: 84px;
   background-image: url("/policy-rolling-seal.png");
-  background-position: left center;
+  background-position: 0 0;
   background-repeat: no-repeat;
-  background-size: 400% 100%;
-  animation: rolling-seal 1.15s steps(4, end) infinite;
+  background-size: 400% 200%;
+  animation: rolling-seal 1.8s steps(1, end) infinite;
 }
 @keyframes rolling-seal {
-  to { background-position: right center; }
+  0% { background-position: 0 0; }
+  12.5% { background-position: 33.333% 0; }
+  25% { background-position: 66.667% 0; }
+  37.5% { background-position: 100% 0; }
+  50% { background-position: 0 100%; }
+  62.5% { background-position: 33.333% 100%; }
+  75% { background-position: 66.667% 100%; }
+  87.5% { background-position: 100% 100%; }
+  100% { background-position: 0 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   .brand-rolling-seal { animation: none; }
