@@ -951,8 +951,15 @@ body .sidebar-foot::after {
   margin-top: 12px;
 }
 .policy-image-grid figure { margin: 0; overflow: hidden; border: 1px solid #dce8e0; border-radius: 7px; background: #fff; }
+.policy-image-grid figure > b { display: block; padding: 7px 8px 0; color: #3d6855; font-size: 12px; }
 .policy-image-grid img { display: block; width: 100%; max-height: 240px; object-fit: contain; background: #f5f8f6; }
 .policy-image-grid figcaption { padding: 7px 8px; color: #5b7064; font-size: 11px; }
+.image-preview-button { display: block; width: 100%; border: 0; padding: 0; background: transparent; cursor: zoom-in; }
+.image-preview-button:hover img { filter: brightness(.96); }
+.image-lightbox { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 28px; background: #102820d9; cursor: zoom-out; }
+.image-lightbox img { max-width: min(92vw, 1100px); max-height: 82vh; border-radius: 9px; background: #fff; object-fit: contain; cursor: default; }
+.image-lightbox p { position: absolute; bottom: 16px; max-width: calc(100% - 72px); margin: 0; color: #fff; font-size: 13px; text-align: center; }
+.image-lightbox-close { position: fixed; top: 18px; right: 22px; width: 38px; height: 38px; border: 1px solid #fff8; border-radius: 50%; background: #163c30; color: #fff; font-size: 25px; cursor: pointer; }
 .editing-images figcaption { display: flex; gap: 5px; }
 .editing-images figcaption input { min-width: 0; flex: 1; padding: 5px 6px; font-size: 11px; }
 .editing-images figcaption button { border: 0; border-radius: 5px; padding: 4px 6px; background: #fcedea; color: #a14a41; font-size: 11px; }
@@ -962,6 +969,10 @@ body .sidebar-foot::after {
   border-radius: 5px;
   background: #f0f7f2;
 }
+.article-reference-picker { display: flex; flex-wrap: wrap; gap: 5px 9px; min-width: 0; margin: 0; padding: 3px 0 0; border: 0; }
+.article-reference-picker legend { width: 100%; padding: 0; color: #688076; font-size: 11px; }
+.article-reference-picker label { display: inline-flex; align-items: center; gap: 3px; color: #426653; font-size: 11px; white-space: nowrap; }
+.article-reference-picker input { width: auto; min-width: 0; margin: 0; }
 .selected-table-cell {
   outline: 2px solid #6fa98a;
   outline-offset: -2px;

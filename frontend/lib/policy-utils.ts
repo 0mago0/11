@@ -1,5 +1,16 @@
 import type { Chapter, Copy, Policy, PolicyTable, TableMerge } from "./policy-types";
 
+const referenceList = (values?: number[], legacyValue?: number) =>
+  Array.from(new Set([...(values || []), ...(legacyValue ? [legacyValue] : [])]))
+    .filter((value) => Number.isInteger(value) && value > 0)
+    .sort((left, right) => left - right);
+
+/** 同時支援新版多重關聯與舊版單一關聯資料。 */
+export const articleTableRefs = (article: { tableRefs?: number[]; tableRef?: number }) =>
+  referenceList(article.tableRefs, article.tableRef);
+export const articleImageRefs = (article: { imageRefs?: number[]; imageRef?: number }) =>
+  referenceList(article.imageRefs, article.imageRef);
+
 export const policyCategories = [
   "全社基本", "人事", "IT管理", "總務", "營業管理", "會計管理", "EHS", "進出口管理", "COW", "ISO9001",
 ];

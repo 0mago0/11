@@ -5,6 +5,8 @@ import { AuditPage } from "../components/pages/AuditPage";
 import { PolicyLibraryPage } from "../components/pages/PolicyLibraryPage";
 import { StructureEditor } from "../components/policy/StructureEditor";
 import { Tables } from "../components/policy/Tables";
+import { ArticleReferences } from "../components/policy/ArticleReferences";
+import { ImageGallery } from "../components/policy/ImageGallery";
 import { Brand } from "../components/common/Brand";
 import {
   approveChange, disablePolicy, loadPolicyAuditLogs, loadPolicyWorkspace, publishTypoChange,
@@ -35,7 +37,7 @@ type Approval = {
   returnedBy?: string;
   returnReason?: string;
 };
-type Article = { id: string; title: string; text: string; tableRef?: number; imageRef?: number };
+type Article = { id: string; title: string; text: string; tableRefs?: number[]; imageRefs?: number[]; tableRef?: number; imageRef?: number };
 type PolicySection = { id: string; title: string; articles: Article[] };
 type Chapter = { id: string; title: string; articles: Article[]; sections?: PolicySection[] };
 type TableMerge = { startRow: number; startCol: number; endRow: number; endCol: number };
@@ -299,18 +301,24 @@ const splitLegacyUpdatePolicies = (values: Policy[]) => {
 const ordinal = (number: number) =>
   ["一", "二", "三", "四", "五", "六", "七", "八", "九", "十"][number - 1] ||
   String(number);
+const articleReferenceText = (article: Article) => {
+  const tableRefs = Array.from(new Set([...(article.tableRefs || []), ...(article.tableRef ? [article.tableRef] : [])]));
+  const imageRefs = Array.from(new Set([...(article.imageRefs || []), ...(article.imageRef ? [article.imageRef] : [])]));
+  const references = [...tableRefs.map((reference) => `表格 ${reference}`), ...imageRefs.map((reference) => `圖${ordinal(reference)}`)];
+  return references.length ? `\n註：相關資料請參照${references.join("、")}` : "";
+};
 const contentFromChapters = (chapters: Chapter[]) =>
   chapters
     .map((chapter) =>
       [
         chapter.title,
         ...chapter.articles.map((article) =>
-          `${article.title}　${article.text}${article.tableRef ? `\n註：相關資料請參照表格 ${article.tableRef}` : ""}${article.imageRef ? `\n註：相關資料請參照圖 ${ordinal(article.imageRef)}` : ""}`,
+          `${article.title}　${article.text}${articleReferenceText(article)}`,
         ),
         ...(chapter.sections || []).flatMap((section) => [
           section.title,
           ...section.articles.map((article) =>
-            `${article.title}　${article.text}${article.tableRef ? `\n註：相關資料請參照表格 ${article.tableRef}` : ""}${article.imageRef ? `\n註：相關資料請參照圖 ${ordinal(article.imageRef)}` : ""}`,
+            `${article.title}　${article.text}${articleReferenceText(article)}`,
           ),
         ]),
       ]
@@ -2986,36 +2994,12 @@ export default function Home() {
                               {article.text.replace(article.title, "").trim() ||
                                 article.text}
                             </p>
-                            {article.tableRef &&
-                              displayedCopy[selectedDisplayLang].tables[
-                                article.tableRef - 1
-                              ] && (
-                                <small className="article-table-note">
-                                  註：相關資料請參照表格 {article.tableRef}
-                                  {displayedCopy[selectedDisplayLang].tables[
-                                    article.tableRef - 1
-                              ].cells[0]?.filter(Boolean).length
-                                    ? `（${displayedCopy[selectedDisplayLang].tables[
-                                        article.tableRef - 1
-                                      ].cells[0].filter(Boolean).join("、")}）`
-                                    : ""}
-                                </small>
-                              )}
-                            {article.imageRef &&
-                              displayedCopy[selectedDisplayLang].images[
-                                article.imageRef - 1
-                              ] && (
-                                <small className="article-table-note">
-                                  註：相關資料請參照圖 {ordinal(article.imageRef)}
-                                  {displayedCopy[selectedDisplayLang].images[
-                                    article.imageRef - 1
-                                  ].alt
-                                    ? `（${displayedCopy[selectedDisplayLang].images[
-                                        article.imageRef - 1
-                                      ].alt}）`
-                                    : ""}
-                                </small>
-                              )}
+                            <ArticleReferences
+                              article={article}
+                              tables={displayedCopy[selectedDisplayLang].tables}
+                              images={displayedCopy[selectedDisplayLang].images}
+                              japanese={selectedDisplayLang === "ja"}
+                            />
                           </article>
                         ))}
                         {(chapter.sections || []).map((section) => (
@@ -3025,8 +3009,12 @@ export default function Home() {
                               <article className="policy-article" key={article.id}>
                                 <b>{article.title}</b>
                                 <p>{article.text.replace(article.title, "").trim() || article.text}</p>
-                                {article.tableRef && displayedCopy[selectedDisplayLang].tables[article.tableRef - 1] && <small className="article-table-note">註：相關資料請參照表格 {article.tableRef}</small>}
-                                {article.imageRef && displayedCopy[selectedDisplayLang].images[article.imageRef - 1] && <small className="article-table-note">註：相關資料請參照圖 {ordinal(article.imageRef)}{displayedCopy[selectedDisplayLang].images[article.imageRef - 1].alt ? `（${displayedCopy[selectedDisplayLang].images[article.imageRef - 1].alt}）` : ""}</small>}
+                                <ArticleReferences
+                                  article={article}
+                                  tables={displayedCopy[selectedDisplayLang].tables}
+                                  images={displayedCopy[selectedDisplayLang].images}
+                                  japanese={selectedDisplayLang === "ja"}
+                                />
                               </article>
                             ))}
                           </section>
@@ -3035,7 +3023,7 @@ export default function Home() {
                     ))}
                   </div>
                   <Tables tables={displayedCopy[selectedDisplayLang].tables} />
-                  {!!displayedCopy[selectedDisplayLang].images.length && <section className="policy-images"><b>相關圖片</b><div className="policy-image-grid">{displayedCopy[selectedDisplayLang].images.map((image, index) => <figure key={`${image.name}-${index}`}><b>圖{ordinal(index + 1)}</b><img src={image.dataUrl} alt={image.alt || image.name} /><figcaption>{image.alt || image.name}</figcaption></figure>)}</div></section>}
+                  {!!displayedCopy[selectedDisplayLang].images.length && <ImageGallery images={displayedCopy[selectedDisplayLang].images} />}
                   <section className="revision-record">
                     <b>改訂紀錄</b>
                     <dl>

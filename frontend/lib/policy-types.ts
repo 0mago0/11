@@ -22,8 +22,16 @@ export type Approval = {
   returnedBy?: string;
   returnReason?: string;
 };
-/** tableRef／imageRef 是條文關聯的表格或圖片序號（從 1 開始）。 */
-export type Article = { id: string; title: string; text: string; tableRef?: number; imageRef?: number };
+/** 關聯序號從 1 開始；tableRef／imageRef 保留為舊資料相容欄位。 */
+export type Article = {
+  id: string;
+  title: string;
+  text: string;
+  tableRefs?: number[];
+  imageRefs?: number[];
+  tableRef?: number;
+  imageRef?: number;
+};
 /** 章可直接包含條文或包含節；節只能包含條文。 */
 export type PolicySection = { id: string; title: string; articles: Article[] };
 export type Chapter = { id: string; title: string; articles: Article[]; sections?: PolicySection[] };
