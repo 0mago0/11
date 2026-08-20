@@ -1,5 +1,6 @@
 import type { Article, Chapter, Lang } from "../../lib/policy-types";
 import { normalizeTables, ordinal } from "../../lib/policy-utils";
+import { ArticleEditor } from "./ArticleEditor";
 
 type Props = {
   chapters: Chapter[];
@@ -25,6 +26,32 @@ export function StructureEditor({
   onChange,
 }: Props) {
   const safeTables = normalizeTables(tables);
+  const japanese = lang === "ja";
+  const label = japanese
+    ? {
+        heading: "章・節・条文",
+        help: "章には節または条文を、節には条文を追加できます。",
+        addChapter: "＋ 章を追加",
+        chapterTitle: "章タイトル",
+        sectionTitle: "節タイトル",
+        addSection: "＋ 節を追加",
+        addArticle: "＋ 条文を追加",
+        removeSection: "節を削除",
+        enterTitle: "タイトルを入力",
+        empty: "章・節・条文がありません。まず章を追加してください。",
+      }
+    : {
+        heading: "章節與條文",
+        help: "章下面可新增節或條；節下面只能新增條。",
+        addChapter: "＋ 新增章",
+        chapterTitle: "章標題",
+        sectionTitle: "節標題",
+        addSection: "＋ 新增節",
+        addArticle: "＋ 新增條",
+        removeSection: "刪除節",
+        enterTitle: "輸入標題",
+        empty: "尚未建立章節。請先新增章，再新增節或條。",
+      };
 
   const replaceChapter = (
     chapterIndex: number,
@@ -124,93 +151,50 @@ export function StructureEditor({
       };
     });
 
-  const updateReference = (
-    chapterIndex: number,
-    sectionIndex: number | null,
-    articleIndex: number,
-    value: string,
-  ) => {
-    const [kind, raw] = value.split(":");
-    updateArticle(chapterIndex, sectionIndex, articleIndex, (article) => ({
-      ...article,
-      tableRef: kind === "table" ? Number(raw) : undefined,
-      imageRef: kind === "image" ? Number(raw) : undefined,
-    }));
-  };
-
   const renderArticle = (
     article: Article,
     chapterIndex: number,
     sectionIndex: number | null,
     articleIndex: number,
   ) => (
-    <div className="article-editor" key={article.id}>
-      <b>{article.title}</b>
-      <div className="article-editor-fields">
-        <textarea
-          rows={3}
-          value={article.text}
-          placeholder="輸入條文內容"
-          onChange={(event) => updateArticle(
-            chapterIndex,
-            sectionIndex,
-            articleIndex,
-            (current) => ({ ...current, text: event.target.value }),
-          )}
-        />
-        {article.tableRef && safeTables[article.tableRef - 1] && (
-          <small className="article-table-preview">自動註解：相關資料請參照表格 {article.tableRef}</small>
-        )}
-        {article.imageRef && images[article.imageRef - 1] && (
-          <small className="article-table-preview">自動註解：相關資料請參照圖 {ordinal(article.imageRef)}</small>
-        )}
-      </div>
-      <div className="article-editor-actions">
-        <button type="button" className="remove-article" onClick={() => removeArticle(chapterIndex, sectionIndex, articleIndex)}>
-          刪除
-        </button>
-        <label className="article-table-select">
-          關聯資料
-          <select
-            value={article.tableRef ? `table:${article.tableRef}` : article.imageRef ? `image:${article.imageRef}` : ""}
-            onChange={(event) => updateReference(chapterIndex, sectionIndex, articleIndex, event.target.value)}
-          >
-            <option value="">不設定</option>
-            {safeTables.map((_, index) => <option key={`table-${index}`} value={`table:${index + 1}`}>表格 {index + 1}</option>)}
-            {images.map((image, index) => <option key={`image-${index}`} value={`image:${index + 1}`}>圖 {ordinal(index + 1)}（{image.alt || image.name}）</option>)}
-          </select>
-        </label>
-      </div>
-    </div>
+    <ArticleEditor
+      key={article.id}
+      article={article}
+      tables={safeTables}
+      images={images}
+      japanese={japanese}
+      onUpdate={(update) => updateArticle(chapterIndex, sectionIndex, articleIndex, update)}
+      onRemove={() => removeArticle(chapterIndex, sectionIndex, articleIndex)}
+    />
   );
 
   return (
     <section className="structure-editor">
       <div className="structure-editor-head">
-        <div><b>章節與條文</b><small>章下面可新增節或條；節下面只能新增條。</small></div>
-        <button type="button" className="ghost" onClick={addChapter}>＋ 新增章</button>
+        <div><b>{label.heading}</b><small>{label.help}</small></div>
+        <button type="button" className="ghost" onClick={addChapter}>{label.addChapter}</button>
       </div>
       {chapters.map((chapter, chapterIndex) => (
         <div className="chapter-editor" key={chapter.id}>
           <div className="chapter-title">
-            <label>章標題<input value={chapter.title} placeholder={`${heading("章", chapterIndex + 1, lang)}　輸入標題`} onChange={(event) => replaceChapter(chapterIndex, (current) => ({ ...current, title: event.target.value }))} /></label>
-            <button type="button" onClick={() => addSection(chapterIndex)}>＋ 新增節</button>
-            <button type="button" onClick={() => addChapterArticle(chapterIndex)}>＋ 新增條</button>
+            <label>{label.chapterTitle}<input value={chapter.title} placeholder={`${heading("章", chapterIndex + 1, lang)}　${label.enterTitle}`} onChange={(event) => replaceChapter(chapterIndex, (current) => ({ ...current, title: event.target.value }))} /></label>
+            <button type="button" onClick={() => addSection(chapterIndex)}>{label.addSection}</button>
+            <button type="button" onClick={() => addChapterArticle(chapterIndex)}>{label.addArticle}</button>
           </div>
           {chapter.articles.map((article, articleIndex) => renderArticle(article, chapterIndex, null, articleIndex))}
           {(chapter.sections || []).map((section, sectionIndex) => (
             <div className="section-editor" key={section.id}>
               <div className="chapter-title">
-                <label>節標題<input value={section.title} placeholder={`${heading("節", sectionIndex + 1, lang)}　輸入標題`} onChange={(event) => replaceChapter(chapterIndex, (current) => ({ ...current, sections: (current.sections || []).map((item, index) => index === sectionIndex ? { ...item, title: event.target.value } : item) }))} /></label>
-                <button type="button" onClick={() => addSectionArticle(chapterIndex, sectionIndex)}>＋ 新增條</button>
-                <button type="button" className="remove-article" onClick={() => replaceChapter(chapterIndex, (current) => ({ ...current, sections: (current.sections || []).filter((_, index) => index !== sectionIndex) }))}>刪除節</button>
+                <label>{label.sectionTitle}<input value={section.title} placeholder={`${heading("節", sectionIndex + 1, lang)}　${label.enterTitle}`} onChange={(event) => replaceChapter(chapterIndex, (current) => ({ ...current, sections: (current.sections || []).map((item, index) => index === sectionIndex ? { ...item, title: event.target.value } : item) }))} /></label>
+                <button type="button" onClick={() => addSectionArticle(chapterIndex, sectionIndex)}>{label.addArticle}</button>
+                <button type="button" className="remove-article" onClick={() => replaceChapter(chapterIndex, (current) => ({ ...current, sections: (current.sections || []).filter((_, index) => index !== sectionIndex) }))}>{label.removeSection}</button>
               </div>
               {section.articles.map((article, articleIndex) => renderArticle(article, chapterIndex, sectionIndex, articleIndex))}
             </div>
           ))}
         </div>
       ))}
-      {!chapters.length && <div className="empty">尚未建立章節。請先新增章，再新增節或條。</div>}
+      {!chapters.length && <div className="empty">{label.empty}</div>}
     </section>
   );
 }
