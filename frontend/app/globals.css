@@ -1151,6 +1151,15 @@ main {
 }
 .policy-table {
   margin: 24px 0;
+  min-width: 0;
+}
+.table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid #d6e1da;
+  border-radius: 7px;
 }
 .table-caption {
   display: block;
@@ -1165,6 +1174,10 @@ main {
   width: 100%;
   font-size: 13px;
 }
+.table-scroll table {
+  width: max-content;
+  min-width: 100%;
+}
 .policy-table th {
   background: #eaf2ed;
   color: #315847;
@@ -1172,10 +1185,20 @@ main {
 }
 .policy-table th,
 .policy-table td {
-  border: 1px solid #d6e1da;
+  border: 0;
+  border-right: 1px solid #d6e1da;
+  border-bottom: 1px solid #d6e1da;
   padding: 10px;
   text-align: left;
   vertical-align: top;
+}
+.policy-table tr:last-child th,
+.policy-table tr:last-child td {
+  border-bottom: 0;
+}
+.policy-table th:last-child,
+.policy-table td:last-child {
+  border-right: 0;
 }
 .table-editor {
   margin-top: 22px;
