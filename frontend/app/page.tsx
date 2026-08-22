@@ -8,6 +8,7 @@ import { Tables } from "../components/policy/Tables";
 import { ArticleReferences } from "../components/policy/ArticleReferences";
 import { ImageGallery } from "../components/policy/ImageGallery";
 import { Brand } from "../components/common/Brand";
+import { LoadingOverlay } from "../components/common/LoadingOverlay";
 import {
   approveChange, disablePolicy, loadPolicyAuditLogs, loadPolicyWorkspace, publishTypoChange,
   returnChange, saveNewPolicy, savePolicyChange, submitChange, updatePolicyChange,
@@ -805,6 +806,7 @@ export default function Home() {
     [statusFilter, setStatusFilter] = useState<PolicyFilter>("全部"),
     [sortMode, setSortMode] = useState<"status" | "updated" | "code">("status"),
     [notice, setNotice] = useState(""),
+    [loadingMessage, setLoadingMessage] = useState(""),
     [audit, setAudit] = useState<Audit[]>([]),
     [returnComments, setReturnComments] = useState<Record<number, string>>({}),
     [approvalSelectedId, setApprovalSelectedId] = useState<number | null>(null),
@@ -812,8 +814,19 @@ export default function Home() {
     [auditPolicyId, setAuditPolicyId] = useState<number | null>(null),
     [compare, setCompare] = useState<[number, number]>([0, 0]);
   const restoringHistory = useRef(false);
+  const loadingRequests = useRef(0);
   // 保護視窗確認後，只重播使用者原本點擊的那個項目一次，避免被 capture handler 再次攔截。
   const replayingProtectedNavigation = useRef(false);
+  const withLoading = async <T,>(message: string, work: () => Promise<T>): Promise<T> => {
+    loadingRequests.current += 1;
+    setLoadingMessage(message);
+    try {
+      return await work();
+    } finally {
+      loadingRequests.current -= 1;
+      if (loadingRequests.current === 0) setLoadingMessage("");
+    }
+  };
   useEffect(() => {
     // 舊版 localStorage 可能缺少後來加入的欄位，讀取後先正規化再放入畫面。
     try {
@@ -1060,7 +1073,7 @@ export default function Home() {
     event.preventDefault();
     setLoginBusy(true);
     setLoginError("");
-    void signIn(loginAccount, loginPassword)
+    void withLoading("正在登入…", () => signIn(loginAccount, loginPassword))
       .then((user) => {
         const session = { employeeNo: user.employeeNo, name: user.name, role: user.role as Role };
         localStorage.setItem("policy-center-session", JSON.stringify(session));
@@ -1258,11 +1271,15 @@ export default function Home() {
       setNotice("請選擇小於 10 MB 的 PDF 檔案。");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = async () => {
+    const fileAsDataUrl = () => new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error || new Error("PDF 讀取失敗"));
+      reader.readAsDataURL(file);
+    });
+    void withLoading("正在匯入 PDF 並建立草稿…", async () => {
       try {
-        setNotice("正在讀取 PDF 並生成草稿…");
-        const imported = await importPdfDraft(currentEmployeeNo, file.name, String(reader.result));
+        const imported = await importPdfDraft(currentEmployeeNo, file.name, await fileAsDataUrl());
         setDraft((policy) => ({
           ...policy,
           ...(imported.revisionRecords.length ? {
@@ -1284,9 +1301,7 @@ export default function Home() {
       } catch (error) {
         setNotice(`PDF 草稿建立失敗：${error instanceof Error ? error.message : "請稍後再試。"}`);
       }
-    };
-    reader.onerror = () => setNotice("PDF 讀取失敗，請重新選擇檔案。");
-    reader.readAsDataURL(file);
+    });
   };
   function saveDraft(e?: FormEvent) {
     // 已送審的規程鎖定內容，直到承認完成或被退回，避免審核版本在途中改變。
@@ -1345,7 +1360,7 @@ export default function Home() {
       scheduledPublishDate: savedDraft.publishDate || undefined,
       translations: apiTranslationsFromCopy(savedDraft.draft),
     };
-    void (async () => {
+    void withLoading("正在儲存草稿…", async () => {
       try {
         if (!exists) {
           await saveNewPolicy(currentEmployeeNo, {
@@ -1371,7 +1386,7 @@ export default function Home() {
       } catch (error) {
         setNotice(`草稿尚未儲存：${error instanceof Error ? error.message : "請稍後再試。"}`);
       }
-    })();
+    });
     setNotice(
       keepsScheduledApproval
           ? `錯字已更新，將於 ${draft.publishDate || "發布日"} 公開。`
@@ -1448,7 +1463,7 @@ export default function Home() {
     // 剛按儲存的瞬間，畫面內可能尚未拿到 changeRequestId；若草稿已在本機清單中，
     // 先重新讀取資料庫找出案件，再刪除，避免只把畫面關掉而資料仍留在資料庫。
     const locallySaved = policies.some((policy) => policy.id === draft.id);
-    void (async () => {
+    void withLoading("正在刪除草稿…", async () => {
       let changeRequestId = draft.changeRequestId;
       if (!changeRequestId && locallySaved) {
         const remote = await loadPolicyWorkspace(currentEmployeeNo);
@@ -1466,7 +1481,7 @@ export default function Home() {
       await refreshWorkspace("admin");
       setEditing(false);
       setNotice("草稿已刪除。");
-    })().catch((error) => setNotice(`草稿刪除失敗：${error instanceof Error ? error.message : "請稍後再試。"}`));
+    }).catch((error) => setNotice(`草稿刪除失敗：${error instanceof Error ? error.message : "請稍後再試。"}`));
   }
   function publishTypoFix() {
     // 錯字修正只允許已發布、非退回、非獨立內容更新卡的規程直接建立新版。
@@ -1496,7 +1511,7 @@ export default function Home() {
       scheduledPublishDate: draft.publishDate || undefined,
       translations: apiTranslationsFromCopy(draft.draft),
     };
-    void (async () => {
+    void withLoading("正在發布錯字修正…", async () => {
       try {
         const change = draft.changeRequestId
           ? { change_request_id: draft.changeRequestId }
@@ -1507,7 +1522,7 @@ export default function Home() {
       } catch (error) {
         setNotice(`錯字修正尚未發布：${error instanceof Error ? error.message : "請稍後再試。"}`);
       }
-    })();
+    });
     const last = draft.versions.at(-1)?.number || "0.0";
     const version: Version = {
       id: String(Date.now()),
@@ -1552,13 +1567,12 @@ export default function Home() {
     }
     // 僅在後端成功切換為 pending_department_head 後才重載畫面；
     // 不能先把前端改成待承認，否則部門長會收到資料庫仍是草稿的假案件。
-    setNotice("正在送交部門長承認…");
-    void resolveChangeRequestId(draft, "admin")
-      .then((changeRequestId) => submitChange(currentEmployeeNo, changeRequestId))
-      .then(async () => {
-        await refreshWorkspace("admin", draft.code);
-        setNotice("已送交部門長承認。");
-      })
+    void withLoading("正在送交部門長承認…", async () => {
+      const changeRequestId = await resolveChangeRequestId(draft, "admin");
+      await submitChange(currentEmployeeNo, changeRequestId);
+      await refreshWorkspace("admin", draft.code);
+      setNotice("已送交部門長承認。");
+    })
       .catch(() => setNotice("送審未完成，請稍後再試。"));
   }
   /** API 成功後以資料庫的最新狀態覆蓋前端暫存，避免兩套狀態逐漸不同步。 */
@@ -1601,15 +1615,14 @@ export default function Home() {
     );
     if (approvalBusy) return;
     setApprovalBusy(true);
-    setNotice("正在完成承認…");
-    void resolveChangeRequestId(policy, "department_head")
-      .then((changeRequestId) => approveChange(currentEmployeeNo, changeRequestId))
-      .then(() => {
-        setApprovalSelectedId(null);
-        setNotice("已承認，已送交據點長承認。");
-        // 承認交易已完成；刷新畫面失敗不可將成功結果誤顯示為承認失敗。
-        return refreshWorkspace("department_head", policy.code).catch(() => {});
-      })
+    void withLoading("正在完成部門長承認…", async () => {
+      const changeRequestId = await resolveChangeRequestId(policy, "department_head");
+      await approveChange(currentEmployeeNo, changeRequestId);
+      setApprovalSelectedId(null);
+      setNotice("已承認，已送交據點長承認。");
+      // 承認交易已完成；刷新畫面失敗不可將成功結果誤顯示為承認失敗。
+      await refreshWorkspace("department_head", policy.code).catch(() => {});
+    })
       .catch(() => setNotice("承認未完成，請稍後再試。"))
       .finally(() => setApprovalBusy(false));
   }
@@ -1619,15 +1632,14 @@ export default function Home() {
     if (policy.changeRequestId || policy.approval?.stage === "待據點長承認") {
       if (approvalBusy) return;
       setApprovalBusy(true);
-      setNotice("正在完成承認…");
-      void resolveChangeRequestId(policy, "site_head")
-        .then((changeRequestId) => approveChange(currentEmployeeNo, changeRequestId))
-        .then(() => {
-          setApprovalSelectedId(null);
-          setNotice("已完成承認，系統會依發布日期公開。");
-          // 已發布的新版本已在資料庫交易內建立，刷新失敗不應覆蓋成功提示。
-          return refreshWorkspace("site_head", policy.code).catch(() => {});
-        })
+      void withLoading("正在完成據點長承認…", async () => {
+        const changeRequestId = await resolveChangeRequestId(policy, "site_head");
+        await approveChange(currentEmployeeNo, changeRequestId);
+        setApprovalSelectedId(null);
+        setNotice("已完成承認，系統會依發布日期公開。");
+        // 已發布的新版本已在資料庫交易內建立，刷新失敗不應覆蓋成功提示。
+        await refreshWorkspace("site_head", policy.code).catch(() => {});
+      })
         .catch(() => setNotice("承認未完成，請稍後再試。"))
         .finally(() => setApprovalBusy(false));
       return;
@@ -1722,14 +1734,13 @@ export default function Home() {
     };
     saveStore(all, nextAudit);
     setReturnComments((comments) => ({ ...comments, [policy.id]: "" }));
-    setNotice("正在退回修改…");
-    void resolveChangeRequestId(policy, role)
-      .then((changeRequestId) => returnChange(currentEmployeeNo, changeRequestId, returnReason))
-      .then(async () => {
-        await refreshWorkspace(role, policy.code);
-        setApprovalSelectedId(null);
-        setNotice("已退回，管理員可依意見修改後重新送審。");
-      })
+    void withLoading("正在退回修改…", async () => {
+      const changeRequestId = await resolveChangeRequestId(policy, role);
+      await returnChange(currentEmployeeNo, changeRequestId, returnReason);
+      await refreshWorkspace(role, policy.code);
+      setApprovalSelectedId(null);
+      setNotice("已退回，管理員可依意見修改後重新送審。");
+    })
       .catch(() => setNotice("退回未完成，請稍後再試。"))
       .finally(() => setApprovalBusy(false));
   }
@@ -1745,12 +1756,11 @@ export default function Home() {
       );
     saveStore(all, nextAudit);
     open(next);
-    setNotice("正在停用規程…");
-    void disablePolicy(currentEmployeeNo, draft.code)
-      .then(async () => {
-        await refreshWorkspace("admin", draft.code);
-        setNotice("規程已停用。 ");
-      })
+    void withLoading("正在停用規程…", async () => {
+      await disablePolicy(currentEmployeeNo, draft.code);
+      await refreshWorkspace("admin", draft.code);
+      setNotice("規程已停用。 ");
+    })
       .catch(() => {
         // 後端失敗時立即以資料庫狀態覆蓋樂觀更新，避免畫面誤顯示已停用。
         void refreshWorkspace("admin", draft.code).catch(() => {});
@@ -1887,11 +1897,12 @@ export default function Home() {
             <small>A0001 / admin123（Admin）<br />A0002 / employee123（Employee）<br />A0003 / department123（部門長）<br />A0004 / site123（據點長）</small>
           </details>
         </section>
+        <LoadingOverlay message={loadingMessage} />
       </main>
     );
   if (view === "approval")
     return (
-      <ApprovalPage onNavigate={guardEditingNavigation}>
+      <ApprovalPage onNavigate={guardEditingNavigation} loadingMessage={loadingMessage}>
         <aside className="sidebar">
           <Brand />
           <nav data-protected-navigation>
@@ -2108,7 +2119,7 @@ export default function Home() {
     );
   if (view === "audit")
     return (
-      <AuditPage onNavigate={guardEditingNavigation}>
+      <AuditPage onNavigate={guardEditingNavigation} loadingMessage={loadingMessage}>
         <aside className="sidebar">
           <Brand />
           <nav data-protected-navigation>
@@ -2387,7 +2398,7 @@ export default function Home() {
       </AuditPage>
     );
   return (
-    <PolicyLibraryPage onNavigate={guardEditingNavigation}>
+    <PolicyLibraryPage onNavigate={guardEditingNavigation} loadingMessage={loadingMessage}>
       <aside className="sidebar">
         <Brand />
         <nav data-protected-navigation>
